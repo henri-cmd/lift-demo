@@ -162,6 +162,7 @@
 #lift .copy h1{font-size:clamp(40px,7vw,96px); font-weight:600; letter-spacing:-.03em; line-height:1; margin:0 0 4vh}
 #lift .copy h2{font-size:clamp(20px,2.2vw,30px); font-weight:500; margin:10vh 0 2vh}
 #lift .copy p{font-size:clamp(15px,1.25vw,19px); line-height:1.6; max-width:52ch; margin:0 0 2vh; opacity:.8}
+#lift .floor .hero{display:block; width:100%; height:var(--sh,100vh); object-fit:cover; object-position:center}
 #lift .copy .ph{aspect-ratio:16/9; background:rgba(255,255,255,.06); border-radius:4px; margin:4vh 0}
 
 /* doors — scrubbed by scroll; pointer-events off so scrolling works through them */
@@ -542,7 +543,7 @@
         <div class="ph"></div>
         <h2>In a sentence</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
         <div class="ph"></div>` },
-      { n:'Tone', bg:'#1f2a2b', img:'', ambience:'', html:`
+      { n:'Tone', bg:'#1f2a2b', img:'', hero:'https://henri-cmd.github.io/lift-demo/assets/tone-greenhouse.webp', ambience:'', html:`
         <h1>Tone</h1><p>Placeholder copy.</p>
         <div class="ph"></div>
         <h2>Feel</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
@@ -774,7 +775,8 @@
     const d = document.createElement('section'); d.className = 'floor';
     d.style.backgroundColor = f.bg || '#111';
     if (f.img) d.style.backgroundImage = `url(${f.img})`;
-    d.innerHTML = `<div class="copy">${f.html || ''}</div>`;
+    // hero: optional full-screen image, the first thing on the floor (above the copy)
+    d.innerHTML = (f.hero ? `<img class="hero" src="${f.hero}" alt="" decoding="async">` : '') + `<div class="copy">${f.html || ''}</div>`;
     hold.appendChild(d); stop.appendChild(hold); sc.appendChild(stop);
     stops.push(stop); holds.push(hold); floorEls.push(d);
   });
@@ -783,6 +785,7 @@
   let swaps = [], starts = [], Z = 0;   // swaps[i] = scroll position where floor i hands over to i+1 (doors shut)
   function layout() {
     const H = sc.clientHeight, n = F.length;
+    root.style.setProperty('--sh', H + 'px');   // one screen — sizes full-page hero images
     Z = Math.round(H * CFG.doorZone);
     let o = 0; swaps = []; starts = [CFG.startClosed ? Z : 0];
     for (let i = 0; i < n; i++) {
