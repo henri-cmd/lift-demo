@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lift — 3D test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavior:none}
+#lift3d{position:fixed; inset:0; overflow:hidden; background:#000; font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif; color:#eee;
+  touch-action:none; user-select:none; -webkit-user-select:none}
+#lift3d .css3d,#lift3d canvas.gl{position:absolute; inset:0}
+#lift3d canvas.gl{z-index:1; pointer-events:none}
+#lift3d .css3d{z-index:0}
+
+/* the floors: one continuous page seen through the doorway (a real DOM page placed in the 3D scene) */
+#lift3d .page{overflow:hidden; background:#111; container-type:size; color:#f2efe9; -webkit-font-smoothing:antialiased}
+#lift3d .stop{position:relative}
+#lift3d .hold{position:sticky}
+#lift3d .floor{position:sticky; top:0; background-size:cover; background-position:center}
+#lift3d .stop.gone{visibility:hidden}
+#lift3d .copy{max-width:960px; margin:0 auto; padding:14cqh 6cqw 22cqh}
+#lift3d .copy h1{font-size:clamp(34px,7cqw,96px); font-weight:600; letter-spacing:-.03em; line-height:1; margin:0 0 4cqh}
+#lift3d .copy h2{font-size:clamp(19px,2.3cqw,30px); font-weight:500; margin:10cqh 0 2cqh}
+#lift3d .copy p{font-size:clamp(15px,1.3cqw,19px); line-height:1.6; max-width:52ch; margin:0 0 2cqh; opacity:.8}
+#lift3d .copy .ph{aspect-ratio:16/9; background:rgba(255,255,255,.06); border-radius:4px; margin:4cqh 0}
+#lift3d .floor .hero{display:block; width:100%; height:100cqh; object-fit:cover}
+
+/* overlays */
+#lift3d .vig{position:absolute; inset:0; z-index:2; pointer-events:none;
+  background:radial-gradient(ellipse 120% 100% at 50% 45%,transparent 55%,rgba(0,0,0,.45) 100%)}
+#lift3d .ui{position:absolute; z-index:5; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.85);
+  font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase; padding:9px 13px; border-radius:20px; cursor:pointer;
+  -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px)}
+#lift3d .snd{left:16px; bottom:16px}
+#lift3d .ftab{right:0; top:50%; transform:translateY(-50%); border-radius:20px 0 0 20px; border-right:0}
+#lift3d .hint{left:50%; bottom:18px; transform:translateX(-50%); cursor:default; transition:opacity .6s}
+#lift3d .hint.off{opacity:0}
+#lift3d .tag{left:16px; top:14px; cursor:default; opacity:.55}
+#lift3d.busy .ftab{opacity:.3; pointer-events:none}
+#lift3d .loading{position:absolute; inset:0; z-index:9; display:flex; align-items:center; justify-content:center; background:#000;
+  font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.2em; text-transform:uppercase; color:#888; transition:opacity .8s}
+#lift3d .loading.done{opacity:0; pointer-events:none}
+</style>
+</head><body>
+<div id="lift3d">
+  <div class="vig"></div>
+  <button class="ui snd" type="button">Sound off</button>
+  <button class="ui ftab" type="button">Floors →</button>
+  <div class="ui hint">Scroll ↓</div>
+  <div class="ui tag">3D test</div>
+  <div class="loading">Loading</div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ===== CONFIG ===== */
+const CFG = {
+  floors: [
+      { n:'Intro', bg:'#2b2620', img:'', ambience:'', html:`
+        <h1>Intro</h1><p>Scroll down to ride — the doors close between floors and open again as you keep going.</p>
+        <div class="ph"></div>
+        <h2>The idea</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Why now</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>The world</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>In a sentence</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Tone', bg:'#1f2a2b', img:'', hero:'../assets/tone-greenhouse.webp', ambience:'', html:`
+        <h1>Tone</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Feel</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>References</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Colour</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Sound</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Approach', bg:'#2b1f24', img:'', hero:'../assets/approach-bakery.webp', ambience:'', html:`
+        <h1>Approach</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Camera</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Lighting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Edit</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Production design</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Characters', bg:'#22232e', img:'', ambience:'', html:`
+        <h1>Characters</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Character one</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Character two</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Character three</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Casting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Script', bg:'#262a22', img:'', ambience:'', html:`
+        <h1>Script</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene one</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene two</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene three</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene four</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Storyboard', bg:'#2a2620', img:'', ambience:'', html:`
+        <h1>Storyboard</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Opening</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Turning point</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Climax</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Closing frame</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Locations', bg:'#1f2622', img:'', ambience:'', html:`
+        <h1>Locations</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Interiors</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Exteriors</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scouting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Permits</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Wardrobe', bg:'#2a2129', img:'', ambience:'', html:`
+        <h1>Wardrobe</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Palette</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Lead looks</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Supporting cast</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Hair and make-up</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Music', bg:'#1e2330', img:'', ambience:'', html:`
+        <h1>Music</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Score</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Licensed tracks</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Sound design</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Mix</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Schedule', bg:'#28261d', img:'', ambience:'', html:`
+        <h1>Schedule</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Pre-production</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Shoot days</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Post-production</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Delivery</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Budget', bg:'#232527', img:'', ambience:'', html:`
+        <h1>Budget</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Overview</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Above the line</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Below the line</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Contingency</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Conclusion', bg:'#1d1d1d', img:'', ambience:'', html:`
+        <h1>Conclusion</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>What we deliver</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Timeline</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>The team</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Thank you</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` }
+  ],
+  doorTex: '../assets/lift-door-l-v4.webp',
+  wallTex: '../assets/lift-wall-v3.webp',
+  ceilTex: '../assets/lift-ceiling.webp',
+
+  // scroll-scrubbed doors (same feel as the 2D version)
+  doorZone: 0.7, closedHold: 0.28, doorEase: 0.22, startClosed: true,
+  // button ride
+  doorMs: 1100, perFloorMs: 750, arriveDwellMs: 300,
+  // camera
+  fov: 50,                 // vertical field of view (degrees)
+  lookYaw: 9, lookPitch: 6, // how far the head turns towards the cursor (degrees)
+  lookEase: 0.12,          // seconds — how quickly the head follows the cursor
+  panelTurnMs: 1100,
+  vibration: 0.4,
+  // build (metres)
+  openingH: 2.1,           // doorway height; its width follows the screen shape
+  revealDepth: 0.32,       // depth of the landing doorway beyond the cab doors
+};
+
+/* ===== SETUP ===== */
+const root = document.getElementById('lift3d');
+const F = CFG.floors;
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = ms => new Promise(r => setTimeout(r, RM ? 0 : ms));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const smooth = x => x * x * (3 - 2 * x);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.setClearColor(0x000000, 0);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.domElement.className = 'gl';
+root.prepend(renderer.domElement);
+
+const cssRenderer = new CSS3DRenderer();
+cssRenderer.domElement.className = 'css3d';
+root.prepend(cssRenderer.domElement);
+
+const scene = new THREE.Scene();
+const cssScene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(CFG.fov, innerWidth / innerHeight, 0.02, 50);
+camera.rotation.order = 'YXZ';
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55;
+
+const loader = new THREE.TextureLoader();
+const tex = (url, rx = 1, ry = 1) => {
+  const t = loader.load(url, () => needsFirstFrame = true);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry);
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
+};
+let needsFirstFrame = false;
+
+/* ===== MATERIALS ===== */
+// brushed steel: the door photo for colour, plus a generated streak map so highlights smear vertically like real brushing
+function brushCanvas() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 64; const g = c.getContext('2d');
+  g.fillStyle = '#808080'; g.fillRect(0, 0, 512, 64);
+  for (let i = 0; i < 1400; i++) { const x = Math.random() * 512, v = 100 + Math.random() * 90; g.fillStyle = `rgba(${v},${v},${v},${.12 + Math.random() * .25})`; g.fillRect(x, 0, Math.random() * 1.4 + .3, 64); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+const brush = brushCanvas();
+const doorMap = tex(CFG.doorTex);
+const M = {
+  door: new THREE.MeshStandardMaterial({ map: doorMap, color: 0xd9d6d2, metalness: .78, roughness: .34, roughnessMap: brush }),
+  steel: new THREE.MeshStandardMaterial({ color: 0xc9cacc, metalness: .9, roughness: .3, roughnessMap: brush }),
+  steelDark: new THREE.MeshStandardMaterial({ color: 0x6f7276, metalness: .85, roughness: .42 }),
+  edge: new THREE.MeshStandardMaterial({ color: 0x1c1d1f, metalness: .2, roughness: .7 }),
+  wood: new THREE.MeshStandardMaterial({ map: tex(CFG.wallTex), roughness: .62, metalness: 0 }),
+  woodSide: new THREE.MeshStandardMaterial({ map: tex(CFG.wallTex), roughness: .62, metalness: 0 }),
+  ceil: new THREE.MeshStandardMaterial({ map: tex(CFG.ceilTex), roughness: .8 }),
+  floor: new THREE.MeshStandardMaterial({ color: 0x2a2826, roughness: .55, metalness: .1 }),
+  reveal: new THREE.MeshStandardMaterial({ color: 0x3a3936, roughness: .7, metalness: .2 }),
+  light: new THREE.MeshBasicMaterial({ color: 0xfff1dc }),
+  black: new THREE.MeshBasicMaterial({ color: 0x050505 }),
+};
+M.door.roughnessMap.repeat.set(3, 1);
+
+/* ===== INDICATOR (dot-matrix screen above the doors) ===== */
+const indCanvas = document.createElement('canvas'); indCanvas.width = 1024; indCanvas.height = 256;
+const indTex = new THREE.CanvasTexture(indCanvas); indTex.colorSpace = THREE.SRGBColorSpace;
+let indText = '', indDir = 0;
+function drawIndicator() {
+  const g = indCanvas.getContext('2d'), W = 1024, H = 256;
+  g.fillStyle = '#050303'; g.fillRect(0, 0, W, H);
+  const grd = g.createLinearGradient(0, 0, 0, H); grd.addColorStop(0, 'rgba(255,255,255,.05)'); grd.addColorStop(.5, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  g.font = '900 120px Doto, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = 'rgba(255,40,30,.08)'; g.fillText('8'.repeat(Math.min(12, indText.length || 8)), W / 2, H / 2 + 6);
+  g.shadowColor = 'rgba(255,50,30,.9)'; g.shadowBlur = 22; g.fillStyle = '#ff3a26'; g.fillText(indText, W / 2, H / 2 + 6);
+  // direction arrows
+  const tri = (x, up, on) => { g.shadowBlur = on ? 18 : 0; g.fillStyle = on ? '#fff4d6' : 'rgba(255,255,255,.08)'; g.shadowColor = 'rgba(255,240,200,.9)';
+    g.beginPath(); if (up) { g.moveTo(x, 88); g.lineTo(x + 34, 168); g.lineTo(x - 34, 168); } else { g.moveTo(x - 34, 88); g.lineTo(x + 34, 88); g.lineTo(x, 168); } g.fill(); };
+  tri(70, false, indDir < 0); tri(W - 70, true, indDir > 0);
+  indTex.needsUpdate = true;
+}
+const setIndicator = i => { indText = `${i + 1} ${F[i].n.toUpperCase()}`; drawIndicator(); };
+
+/* ===== PANEL (floor buttons on the front wall, right of the doors) ===== */
+const btnMeshes = [], btnRings = [];
+function buttonTop(n) {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const r = g.createRadialGradient(54, 48, 6, 64, 64, 64); r.addColorStop(0, '#f4f4f2'); r.addColorStop(.7, '#b9bbbd'); r.addColorStop(1, '#8b8d90');
+  g.fillStyle = r; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#2b2c2e'; g.font = '600 58px -apple-system,Helvetica,Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(n, 64, 68);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function plateTexture(cols, rows, pw, ph, bx, by) {
+  const s = 512 / pw, c = document.createElement('canvas'); c.width = 512; c.height = Math.round(ph * s); const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 512, c.height); grd.addColorStop(0, '#9c9fa3'); grd.addColorStop(.5, '#c6c8cb'); grd.addColorStop(1, '#8a8d91');
+  g.fillStyle = grd; g.fillRect(0, 0, 512, c.height);
+  for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .05})`; g.fillRect(Math.random() * 512, 0, 1, c.height); }
+  g.fillStyle = '#3a3b3e'; g.font = '600 20px -apple-system,Helvetica,Arial,sans-serif'; g.textAlign = 'center';
+  F.forEach((f, k) => { const x = (bx(k % cols) + pw / 2) * s, y = (ph / 2 - by(Math.floor(k / cols))) * s + 0.062 * s; g.fillText(f.n.toUpperCase(), x, y); });
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+/* ===== BUILD THE CAB ===== */
+const cab = new THREE.Group(); scene.add(cab);
+const doors = { l: null, r: null };
+let G = {};            // live geometry numbers
+let pageObj = null;
+const pageEl = document.createElement('div'); pageEl.className = 'page';
+
+function box(w, h, d, mat, x, y, z, parent = cab) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m;
+}
+function plane(w, h, mat, x, y, z, ry = 0, rx = 0, parent = cab) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); parent.add(m); return m;
+}
+
+function build() {
+  // clear old
+  cab.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  cab.clear(); btnMeshes.length = 0; btnRings.length = 0;
+  const aspect = innerWidth / innerHeight;
+  // doorway shape follows the screen: wide on desktop, tall like a real lift on a phone
+  const oh = CFG.openingH, ow = oh * clamp(aspect * 1.05, 0.55, 1.9);
+  const vfov = CFG.fov * Math.PI / 180, hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
+  // camera distance so the doorway (plus a little wall and the indicator) fills the view
+  // (the top of the frame and the indicator must fit; the very bottom of the doors may run off screen)
+  const eye = oh * (aspect < 1 ? .5 : .55);
+  const D = Math.max((ow * 1.08 / 2) / Math.tan(hfov / 2), (oh - eye + .48) / Math.tan(vfov / 2), (eye + .02) / Math.tan(vfov / 2) * (aspect < 1 ? 1 : 0));
+  const cabH = oh + 0.62, pocket = ow / 2 + 0.25;              // wall either side hides the open doors
+  const panelSide = 1.25;                                        // extra wall on the right for the button panel
+  const xl = -ow / 2 - pocket, xr = ow / 2 + pocket + panelSide;
+  const depth = D + 0.8;
+  G = { ow, oh, D, eye, cabH, xl, xr, depth };
+
+  // front wall (z = 0), three pieces around the doorway, wood veneer
+  const wl = -ow / 2 - xl, wr = xr - ow / 2;
+  M.wood.map.repeat.set(wl / 1.2, 1);
+  box(wl, cabH, .05, M.wood, xl + wl / 2, cabH / 2, .025);
+  const right = box(wr, cabH, .05, M.wood.clone(), ow / 2 + wr / 2, cabH / 2, .025); right.material.map = right.material.map.clone(); right.material.map.repeat.set(wr / 1.2, 1);
+  const top = box(ow, cabH - oh, .05, M.wood.clone(), 0, oh + (cabH - oh) / 2, .025); top.material.map = top.material.map.clone(); top.material.map.repeat.set(ow / 1.2, 1);
+  // steel trim around the doorway
+  const t = .045;
+  box(t, oh + t, .07, M.steel, -ow / 2 - t / 2, (oh + t) / 2, .035);
+  box(t, oh + t, .07, M.steel, ow / 2 + t / 2, (oh + t) / 2, .035);
+  box(ow + 2 * t, t, .07, M.steel, 0, oh + t / 2, .035);
+  // jambs lining the opening (cab side)
+  box(.01, oh, .12, M.steelDark, -ow / 2 + .005, oh / 2, -.06);
+  box(.01, oh, .12, M.steelDark, ow / 2 - .005, oh / 2, -.06);
+  box(ow, .01, .12, M.steelDark, 0, oh - .005, -.06);
+  // cab door sill (grooved aluminium) at floor level
+  box(ow + .1, .012, .14, M.steelDark, 0, .006, -.05);
+
+  // doors: two steel leaves with real thickness and a rubber safety edge
+  const dw = ow / 2 + .012, dt = .035;
+  for (const side of ['l', 'r']) {
+    const g = new THREE.Group(); cab.add(g);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(dw, oh, dt), M.door);
+    const s = side === 'l' ? -1 : 1;
+    leaf.position.set(s * dw / 2, oh / 2, 0);
+    if (side === 'r') { leaf.geometry = leaf.geometry.clone(); const uv = leaf.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i)); }
+    g.add(leaf);
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(.012, oh, dt + .004), M.edge); edge.position.set(s * .004, oh / 2, 0); g.add(edge);
+    g.position.z = -.075;
+    doors[side] = g;
+  }
+
+  // landing doorway beyond: a short dark reveal, so the page sits at the back of a real opening
+  const rd = CFG.revealDepth, z0 = -.12, z1 = z0 - rd;
+  plane(rd, oh, M.reveal, -ow / 2, oh / 2, (z0 + z1) / 2, Math.PI / 2);
+  plane(rd, oh, M.reveal, ow / 2, oh / 2, (z0 + z1) / 2, -Math.PI / 2);
+  plane(ow, rd, M.reveal, 0, oh, (z0 + z1) / 2, 0, Math.PI / 2);
+  plane(ow, rd, M.reveal, 0, 0.002, (z0 + z1) / 2, 0, -Math.PI / 2);   // landing floor strip
+
+  // side walls, back wall, ceiling, floor
+  M.woodSide.map.repeat.set(depth / 1.2, 1);
+  plane(depth, cabH, M.woodSide, xl, cabH / 2, depth / 2, Math.PI / 2);
+  plane(depth, cabH, M.woodSide, xr, cabH / 2, depth / 2, -Math.PI / 2);
+  plane(xr - xl, cabH, M.woodSide, (xl + xr) / 2, cabH / 2, depth, Math.PI);
+  M.ceil.map.repeat.set((xr - xl) / 1.6, depth / 1.6);
+  plane(xr - xl, depth, M.ceil, (xl + xr) / 2, cabH, depth / 2, 0, Math.PI / 2);
+  plane(xr - xl, depth, M.floor, (xl + xr) / 2, 0, depth / 2, 0, -Math.PI / 2);
+  // ceiling light panel + handrails
+  plane(Math.min(1.6, ow * .6), .5, M.light, 0, cabH - .004, D * .5, 0, Math.PI / 2);
+  for (const x of [xl + .06, xr - .06]) {
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, depth - .4, 16), M.steel); rail.rotation.x = Math.PI / 2; rail.position.set(x, .95, depth / 2 + .1); cab.add(rail);
+  }
+
+  // indicator plate above the doors
+  const iw = Math.min(.9, ow * .42), ih = iw * .22;
+  box(iw + .06, ih + .06, .03, M.steel, 0, oh + .2, .055);
+  const scr = plane(iw, ih, new THREE.MeshBasicMaterial({ map: indTex, toneMapped: false }), 0, oh + .2, .0705);
+
+  // button panel on the wall right of the doors
+  const cols = 3, rows = Math.ceil(F.length / cols), pw = .44, ph = .16 + rows * .17;
+  const px = ow / 2 + .55, py = eye - .05;
+  const bx = c => -pw / 2 + .09 + c * ((pw - .18) / (cols - 1)) - (-pw / 2), by = r => ph / 2 - .12 - r * .17;
+  const plate = box(pw, ph, .012, new THREE.MeshStandardMaterial({ map: plateTexture(cols, rows, pw, ph, c => bx(c) - pw / 2, by), metalness: .6, roughness: .38 }), px, py, .056);
+  F.forEach((f, k) => {
+    const c = k % cols, r = Math.floor(k / cols);
+    const x = px + bx(c) - pw / 2, y = py + by(r);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.03, .005, 12, 40), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, emissive: 0x000000, metalness: .5, roughness: .4 }));
+    ring.position.set(x, y, .064); cab.add(ring); btnRings.push(ring);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(.026, .028, .014, 32), [M.steel, new THREE.MeshStandardMaterial({ map: buttonTop(k + 1), metalness: .5, roughness: .35 }), M.steel]);
+    b.rotation.x = Math.PI / 2; b.position.set(x, y, .068); b.userData.floor = k; cab.add(b); btnMeshes.push(b);
+  });
+  G.panel = new THREE.Vector3(px, py, .06);
+
+  // lights: a soft warm ceiling light, and a cooler fill from the landing through the doorway
+  const lamp = new THREE.PointLight(0xffe2bf, 7, 0, 2); lamp.position.set(0, cabH - .15, D * .5); cab.add(lamp);
+  const lamp2 = new THREE.PointLight(0xffe9cc, 3, 0, 2); lamp2.position.set(ow / 2 + .6, cabH - .2, .8); cab.add(lamp2);
+  cab.add(new THREE.HemisphereLight(0xfff3e0, 0x2a2420, .55));
+  G.landing = new THREE.PointLight(0xdfe8ff, 0, 0, 2); G.landing.position.set(0, oh * .7, -1.2); cab.add(G.landing);
+
+  // the page: real DOM, placed exactly in the landing doorway opening
+  // sized to its on-screen width so the text renders about 1:1 (sharp, normal reading size)
+  const pxW = Math.round(clamp(ow / (2 * (D - z1) * Math.tan(hfov / 2)) * innerWidth, 320, 1600));
+  const pxH = Math.round(pxW * oh / ow);
+  pageEl.style.width = pxW + 'px'; pageEl.style.height = pxH + 'px';
+  if (!pageObj) { pageObj = new CSS3DObject(pageEl); cssScene.add(pageObj); }
+  pageObj.position.set(0, oh / 2, z1);
+  pageObj.scale.setScalar(ow / pxW);
+
+  camera.aspect = aspect; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); cssRenderer.setSize(innerWidth, innerHeight);
+  layout();
+}
+
+/* ===== FLOORS (DOM page) ===== */
+const stops = [], holds = [], floorEls = [];
+F.forEach((f, i) => {
+  const stop = document.createElement('div'); stop.className = 'stop'; stop.style.zIndex = F.length - i;
+  const hold = document.createElement('div'); hold.className = 'hold';
+  const d = document.createElement('section'); d.className = 'floor'; d.style.backgroundColor = f.bg || '#111';
+  if (f.img) d.style.backgroundImage = `url(${f.img})`;
+  d.innerHTML = (f.hero ? `<img class="hero" src="${f.hero}" alt="" decoding="async">` : '') + `<div class="copy">${f.html || ''}</div>`;
+  hold.appendChild(d); stop.appendChild(hold); pageEl.appendChild(stop);
+  stops.push(stop); holds.push(hold); floorEls.push(d);
+});
+let swaps = [], starts = [], Z = 0;
+function layout() {
+  const H = pageEl.clientHeight, n = F.length;
+  if (!H) return;
+  Z = Math.round(H * CFG.doorZone);
+  let o = 0; swaps = []; starts = [CFG.startClosed ? Z : 0];
+  for (let i = 0; i < n; i++) {
+    const zs = i > 0 || CFG.startClosed ? Z : 0, ze = i < n - 1 ? Z : 0;
+    floorEls[i].style.minHeight = H + 'px';
+    const h = floorEls[i].offsetHeight, hHold = h + zs, hStop = hHold + ze;
+    holds[i].style.height = hHold + 'px'; holds[i].style.top = (H - hHold) + 'px';
+    stops[i].style.height = hStop + 'px'; stops[i].style.marginTop = i > 0 ? -H + 'px' : '0';
+    if (i < n - 1) { o += hStop - H; swaps.push(o); starts.push(o + Z); }
+  }
+  if (busy) return;
+  // keep the visitor on the same floor after a resize
+  if (scrollY < 0) scrollY = 0;
+}
+function scrollTarget() {
+  const v = pageEl.scrollTop; let c = 0;
+  for (const s of (CFG.startClosed ? [0, ...swaps] : swaps)) {
+    const d = Math.abs(v - s);
+    if (d < Z) c = Math.max(c, Math.min(1, (1 - d / Z) / (1 - CFG.closedHold)));
+  }
+  return smooth(c);
+}
+function floorNow() { const v = pageEl.scrollTop; let f = 0; swaps.forEach((s, i) => { if (v > s) f = i + 1; }); return f; }
+function updateVisibility() { const v = pageEl.scrollTop; stops.forEach((st, i) => st.classList.toggle('gone', i < swaps.length && v > swaps[i])); }
+
+/* ===== INPUT: scroll (wheel, touch drag with momentum, keys) ===== */
+let scrollY = 0, vel = 0, dragging = false, lastTouchY = 0, lastTouchT = 0, scrolled = false;
+const maxScroll = () => pageEl.scrollHeight - pageEl.clientHeight;
+function nudge(dy) {
+  if (busy) return;
+  if (turned) lookAtPanel(false);
+  scrollY = clamp(scrollY + dy, 0, maxScroll());
+  if (!scrolled && dy) { scrolled = true; root.querySelector('.hint').classList.add('off'); }
+}
+root.addEventListener('wheel', e => { e.preventDefault(); nudge(e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY); }, { passive: false });
+root.addEventListener('touchstart', e => { if (e.target.closest('.ui')) return; dragging = true; vel = 0; lastTouchY = e.touches[0].clientY; lastTouchT = performance.now(); }, { passive: true });
+root.addEventListener('touchmove', e => {
+  if (!dragging) return; e.preventDefault();
+  const y = e.touches[0].clientY, t = performance.now(), dy = lastTouchY - y;
+  nudge(dy * 1.4); vel = dy * 1.4 / Math.max(8, t - lastTouchT) * 16; lastTouchY = y; lastTouchT = t;
+}, { passive: false });
+root.addEventListener('touchend', () => { dragging = false; });
+addEventListener('keydown', e => {
+  const H = pageEl.clientHeight, k = { ArrowDown: 60, ArrowUp: -60, PageDown: H * .9, PageUp: -H * .9, ' ': H * .9, End: 1e9, Home: -1e9 }[e.key];
+  if (k !== undefined) { e.preventDefault(); nudge(k); }
+});
+
+/* ===== CURSOR LOOK + PANEL TURN ===== */
+let tLookX = 0, tLookY = 0, lookX = 0, lookY = 0, turned = false, turnT = 0;   // turnT: 0 = facing doors, 1 = facing panel
+root.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
+  tLookX = (e.clientX / innerWidth - .5) * 2; tLookY = (e.clientY / innerHeight - .5) * 2;
+  root.style.cursor = hitButton(e) !== null ? 'pointer' : '';
+});
+root.addEventListener('pointerleave', () => { tLookX = tLookY = 0; });
+const ftab = root.querySelector('.ftab');
+function lookAtPanel(on) { turned = on; ftab.textContent = on ? '← Doors' : 'Floors →'; }
+ftab.addEventListener('click', e => { e.stopPropagation(); lookAtPanel(!turned); });
+
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function hitButton(e) {
+  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const h = ray.intersectObjects(btnMeshes, false)[0];
+  return h ? h.object.userData.floor : null;
+}
+root.addEventListener('click', e => {
+  if (e.target.closest('.ui')) return;
+  const f = hitButton(e);
+  if (f !== null) { initAudio(); go(f); }
+});
+
+/* ===== SOUND (ding, doors, hum) ===== */
+let ac = null, soundOn = false, hum = null;
+function initAudio() { if (!ac && soundOn) ac = new (window.AudioContext || window.webkitAudioContext)(); }
+const sndBtn = root.querySelector('.snd');
+sndBtn.addEventListener('click', e => { e.stopPropagation(); soundOn = !soundOn; initAudio(); sndBtn.textContent = soundOn ? 'Sound on' : 'Sound off'; if (!soundOn) humOff(); });
+function ding(dir, vol = .3) {
+  if (!soundOn || !ac) return;
+  const strike = t0 => [[1, 1], [2.76, .35], [5.4, .12]].forEach(([m, g]) => {
+    const o = ac.createOscillator(), e = ac.createGain(); o.frequency.value = 1046.5 * m;
+    e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g * vol, t0 + .004); e.gain.exponentialRampToValueAtTime(.0001, t0 + 1.6);
+    o.connect(e).connect(ac.destination); o.start(t0); o.stop(t0 + 1.7);
+  });
+  const t = ac.currentTime; strike(t); if (dir < 0) strike(t + .45);
+}
+function doorSound() {
+  if (!soundOn || !ac) return;
+  const t = ac.currentTime, n = ac.createBufferSource(), b = ac.createBuffer(1, ac.sampleRate * 1.2, ac.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  n.buffer = b; const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500; const g = ac.createGain();
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.05, t + .2); g.gain.linearRampToValueAtTime(0, t + 1.1);
+  n.connect(f).connect(g).connect(ac.destination); n.start(t);
+}
+function humOn() {
+  if (!soundOn || !ac) return;
+  const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = 48;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 160;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.1, t + .6); o.connect(f).connect(g).connect(ac.destination); o.start(t); hum = { o, g };
+}
+function humOff() { if (!hum || !ac) return; const { o, g } = hum, t = ac.currentTime; hum = null; g.gain.setTargetAtTime(0, t, .15); o.stop(t + .8); }
+
+/* ===== DOORS + RIDE ===== */
+let cVal = 1, cTarget = 1, busy = false, cur = 0, moving = false, rideDir = 0, bump = 0;
+let doorAnim = null;   // {from, to, t0, ms} while a button ride drives the doors
+const animateDoors = (to, ms) => new Promise(res => { doorAnim = { from: cVal, to, t0: performance.now(), ms: RM ? 1 : ms, res }; });
+async function go(t) {
+  if (busy || t === cur) { if (t === cur) flashButton(t); return; }
+  busy = true; root.classList.add('busy');
+  const dir = t > cur ? 1 : -1;
+  btnRings[t].material.emissive.setHex(0xff6a2a); btnRings[t].material.color.setHex(0xff8a4a);
+  await sleep(500);
+  lookAtPanel(false);
+  doorSound(); await animateDoors(1, CFG.doorMs);
+  moving = true; rideDir = dir; indDir = -dir; drawIndicator(); humOn();
+  let i = cur;
+  while (i !== t) { await sleep(CFG.perFloorMs); i += dir; setIndicator(i); bump = 1; }
+  moving = false; humOff();
+  scrollY = starts[t]; pageEl.scrollTop = scrollY; updateVisibility(); cur = t;
+  await sleep(CFG.arriveDwellMs);
+  indDir = 0; drawIndicator(); ding(dir);
+  btnRings[t].material.emissive.setHex(0); btnRings[t].material.color.setHex(0x2a2a2a);
+  await sleep(350);
+  doorSound(); await animateDoors(0, CFG.doorMs);
+  busy = false; root.classList.remove('busy');
+}
+function flashButton(k) { const m = btnRings[k].material; m.emissive.setHex(0xff6a2a); setTimeout(() => m.emissive.setHex(0), 300); }
+
+/* ===== FRAME LOOP ===== */
+const clock = new THREE.Clock();
+let shakeX = 0, shakeY = 0, lastScroll = 0, scrollVel = 0, travel = 0;
+function frame() {
+  const dt = Math.min(.05, clock.getDelta()), now = performance.now();
+  // scroll: apply drag momentum, then move the page
+  if (!dragging && Math.abs(vel) > .1) { nudge(vel); vel *= Math.pow(.92, dt * 60); }
+  if (!busy) { pageEl.scrollTop = scrollY; scrollY = pageEl.scrollTop; }
+  updateVisibility();
+  // doors: follow the scroll, or a ride's animation
+  if (doorAnim) {
+    const k = clamp((now - doorAnim.t0) / doorAnim.ms, 0, 1), e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    cVal = doorAnim.from + (doorAnim.to - doorAnim.from) * e;
+    if (k >= 1) { const r = doorAnim.res; doorAnim = null; r(); }
+  } else if (!busy) {
+    const target = scrollTarget();
+    cVal = RM ? target : cVal + (target - cVal) * (1 - Math.pow(1 - CFG.doorEase, dt * 60));
+    const f = floorNow();
+    if (f !== cur) { const dir = f > cur ? 1 : -1; cur = f; setIndicator(f); ding(dir, .14); }
+  }
+  const open = (1 - cVal) * (G.ow / 2 + .02);
+  if (doors.l) { doors.l.position.x = -open; doors.r.position.x = open; }
+  if (G.landing) G.landing.intensity = (1 - cVal) * 2.2;
+
+  // travel feel: a ride, or scrolling fast through the shut zone
+  const v = Math.abs(pageEl.scrollTop - lastScroll); lastScroll = pageEl.scrollTop;
+  scrollVel += (Math.min(1, v / 18) - scrollVel) * .15;
+  const tgt = moving ? 1 : clamp((cVal - .45) / .45, 0, 1) * scrollVel;
+  travel += (tgt - travel) * .12; bump *= .85;
+  let vx = 0, vy = 0;
+  if (!RM && CFG.vibration && travel > .01) {
+    const a = travel * CFG.vibration, t = now / 1000;
+    shakeX += ((Math.random() - .5) * 2 - shakeX) * .15; shakeY += ((Math.random() - .5) * 2 - shakeY) * .15;
+    vx = (shakeX * .0015 + Math.sin(t * 23) * .0008) * a; vy = (shakeY * .0022 + Math.sin(t * 31) * .0012) * a;
+  }
+  vy -= bump * .004 * CFG.vibration;
+
+  // camera: head follows the cursor; turns to the panel when asked
+  const le = 1 - Math.exp(-dt / CFG.lookEase);
+  const lk = RM ? 0 : 1;
+  lookX += (tLookX * lk * (turned ? .35 : 1) - lookX) * le; lookY += (tLookY * lk * (turned ? .35 : 1) - lookY) * le;
+  turnT += ((turned ? 1 : 0) - turnT) * (1 - Math.exp(-dt / (CFG.panelTurnMs / 4000)));
+  const sw = now / 1000;
+  const idleYaw = Math.sin(sw * .23) * .25 + Math.sin(sw * .41 + 1.3) * .15, idlePitch = Math.sin(sw * .19 + .7) * .18;
+  // facing the doors vs facing the panel (step closer and to the right, then turn towards it)
+  const p = smooth(clamp(turnT, 0, 1));
+  const panelYaw = Math.atan2(G.panel.x - G.ow * .25, G.D * .55) * 180 / Math.PI;
+  camera.position.set(G.ow * .25 * p + vx, G.eye + vy, G.D - G.D * .45 * p);
+  const pitchToPanel = Math.atan2(G.panel.y - G.eye, G.D * .55) * 180 / Math.PI;
+  const yaw = -(panelYaw * p) - lookX * CFG.lookYaw - idleYaw, pitch = pitchToPanel * p - lookY * CFG.lookPitch + idlePitch;
+  camera.rotation.set(pitch * Math.PI / 180, yaw * Math.PI / 180, Math.sin(sw * .17) * .0015);
+
+  renderer.render(scene, camera);
+  cssRenderer.render(cssScene, camera);
+  requestAnimationFrame(frame);
+}
+
+/* ===== START ===== */
+build();
+setIndicator(0);
+addEventListener('resize', () => { build(); });
+if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout()); floorEls.forEach(f => ro.observe(f.querySelector('.copy'))); }
+document.fonts && document.fonts.load('900 60px Doto').then(() => drawIndicator());
+requestAnimationFrame(frame);
+setTimeout(() => root.querySelector('.loading').classList.add('done'), 600);
+</script>
+</body></html>
