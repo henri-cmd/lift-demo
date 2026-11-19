@@ -1109,7 +1109,7 @@
     o.stop(t + .55); n.stop(t + .55);
   }
   /* ===== LIFT MUSIC + FLOOR AMBIENCE ===== */
-  // Music fades up whenever you're between floors (doors closing/shut) and during rides.
+  // Music plays only during button-panel rides; scrolling between floors is silent apart from the ding.
   // Each floor's ambience is muffled while the doors are shut and opens up as they part.
   let mus = null, amb = null, musEl = null, ambEls = [];
   function initAtmos() {
@@ -1193,8 +1193,8 @@
   function updateAtmos() {
     if (!ac || !mus) return;
     const t = ac.currentTime, open = 1 - cVal;
-    // music: up between floors / during rides, down when a floor is open
-    const between = busy && !lobbyActive ? 1 : Math.min(1, Math.max(0, (cVal - .15) / .55));
+    // music: only during button-panel rides — scrolling between floors stays quiet (just the ding)
+    const between = busy && !lobbyActive ? 1 : 0;
     const mv = soundOn ? between * CFG.muzakVolume : 0;
     mus.gain.gain.setTargetAtTime(mv * .9, t, .25);
     if (musEl) musEl.volume = Math.min(1, mv);
