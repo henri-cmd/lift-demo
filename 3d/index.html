@@ -219,7 +219,8 @@ const CFG = {
   vibration: 0.4,
   // build (metres)
   openingH: 2.1,           // doorway height; its width follows the screen shape
-  revealDepth: 0.26,       // thickness of the landing wall the doors sit in
+  revealDepth: 0.04,       // thickness of the landing wall the doors sit in (kept thin so the page gets the space)
+  pageZoom: 0.8,           // page content scale through the doorway (1 = normal web size; lower shows more content)
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.27,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 1.0,
@@ -524,45 +525,44 @@ function build() {
   box(wr, cabH, .05, woodAt(ow / 2, xr, 0, cabH), ow / 2 + wr / 2, cabH / 2, .025);
   box(ow, cabH - oh, .05, woodAt(-ow / 2, ow / 2, oh, cabH), 0, oh + (cabH - oh) / 2, .025);
   // polished steel architrave around the doorway, with a bevel catch-light
-  const t = .05;
+  const t = .028;
   const ins = .003;   // inset so no trim face sits exactly on a wall face (that caused flicker)
-  box(t, oh - ins, .075, M.steelPolished, -ow / 2 - t / 2 + ins, (oh - ins) / 2, .037);
-  box(t, oh - ins, .075, M.steelPolished, ow / 2 + t / 2 - ins, (oh - ins) / 2, .037);
-  box(ow + 2 * t - 2 * ins, t, .075, M.steelPolished, 0, oh + t / 2 - ins, .037);
+  box(t, oh - ins, .06, M.steelPolished, -ow / 2 - t / 2 + ins, (oh - ins) / 2, .03);
+  box(t, oh - ins, .06, M.steelPolished, ow / 2 + t / 2 - ins, (oh - ins) / 2, .03);
+  box(ow + 2 * t - 2 * ins, t, .06, M.steelPolished, 0, oh + t / 2 - ins, .03);
   // jambs lining the opening; cab sill with grooves
-  box(.012, oh, .12, M.slot, -ow / 2 + .006, oh / 2, -.06);
-  box(.012, oh, .12, M.slot, ow / 2 - .006, oh / 2, -.06);
-  box(ow, .014, .12, M.slot, 0, oh - .007, -.06);   // the head slot the door hangers run in
+  box(.006, oh, .06, M.slot, -ow / 2 + .003, oh / 2, -.03);
+  box(.006, oh, .06, M.slot, ow / 2 - .003, oh / 2, -.03);
+  box(ow, .008, .06, M.slot, 0, oh - .004, -.03);   // the head slot the door hangers run in
   box(ow + .1, .014, .15, M.steelDark, 0, .007, -.06);
   for (let k = 0; k < 4; k++) box(ow + .1, .003, .006, M.black, 0, .0145, -.11 + k * .025);
 
   /* --- cab doors: brushed steel leaves with thickness and a rubber safety edge --- */
-  const dw = ow / 2 + .012, dt = .035;
+  const dw = ow / 2 + .012, dt = .022;
   const leafMat = side => { const m = side === 'l' ? M.doorL : M.doorR; return m; };
   for (const side of ['l', 'r']) {
     const g = new THREE.Group(); cab.add(g);
     const s = side === 'l' ? -1 : 1;
-    const lh = oh - .012;   // leaves stop just short of the head, leaving a dark running gap
-    const leaf = new THREE.Mesh(new RoundedBoxGeometry(dw - .02, lh, dt, 4, .006), leafMat(side)); leaf.position.set(s * (dw / 2 + .01), lh / 2, 0);
+    const lh = oh - .008;   // leaves stop just short of the head, leaving a dark running gap
+    const leaf = new THREE.Mesh(new RoundedBoxGeometry(dw - .012, lh, dt, 4, .005), leafMat(side)); leaf.position.set(s * (dw / 2 + .006), lh / 2, 0);
     if (side === 'r') { const uv = leaf.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i)); }
     g.add(leaf);
     // light-curtain safety edge: dark anodised channel with a column of sensor lenses, and a rubber nosing where the doors meet
-    const cur = new THREE.Mesh(new RoundedBoxGeometry(.02, lh - .02, dt + .012, 3, .004), [M.edge, M.edge, M.edge, M.edge, M.curtain, M.edge]);
-    cur.position.set(s * .01, lh / 2, .002); g.add(cur);
+    const cur = new THREE.Mesh(new RoundedBoxGeometry(.012, lh - .02, dt + .006, 3, .003), [M.edge, M.edge, M.edge, M.edge, M.curtain, M.edge]);
+    cur.position.set(s * .006, lh / 2, .001); g.add(cur);
     const nose = new THREE.Mesh(new THREE.BoxGeometry(.004, lh - .03, dt * .6), M.edge); nose.position.set(s * .0005, lh / 2, 0); g.add(nose);
-    g.position.z = -.075; doors[side] = g;
+    g.position.z = -.035; doors[side] = g;
   }
 
   /* --- landing wall (the doorway's depth) with its own pair of landing doors --- */
-  const rd = CFG.revealDepth, z0 = -.12, z1 = z0 - rd;
+  const rd = CFG.revealDepth, z0 = -.06, z1 = z0 - rd;
   plane(rd, oh, M.reveal, -ow / 2, oh / 2, (z0 + z1) / 2, Math.PI / 2);
   plane(rd, oh, M.reveal, ow / 2, oh / 2, (z0 + z1) / 2, -Math.PI / 2);
   plane(ow, rd, M.reveal, 0, oh, (z0 + z1) / 2, 0, Math.PI / 2);
-  box(ow, .014, rd, M.steelDark, 0, .007, (z0 + z1) / 2);   // landing sill
   for (const side of ['l', 'r']) {
     const g = new THREE.Group(); cab.add(g); const s = side === 'l' ? -1 : 1;
     const leaf = new THREE.Mesh(new THREE.BoxGeometry(dw, oh, .03), M.steel); leaf.position.set(s * dw / 2, oh / 2, 0); g.add(leaf);
-    g.position.z = z0 - .07; ldoors[side] = g;
+    g.position.z = z0 - .02; g.visible = false; ldoors[side] = g;
   }
 
   /* --- cab interior: walls, luminous ceiling, terrazzo floor, handrails --- */
@@ -633,7 +633,7 @@ function build() {
   // size: whatever the doorway can reveal at that distance (from the bottom of the view up to the door head), plus margin for looking around
   const yLo = eye + (floorMargin - .2 - eye) * k, yHi = eye + (oh - eye) * k, mg = 1.14;
   const RW = ow * k * mg, RH = (yHi - yLo) * mg, yc = (yLo + yHi) / 2;
-  const pxW = Math.round(clamp(RW / (2 * dist * Math.tan(hfov / 2)) * innerWidth, 320, 2400));
+  const pxW = Math.round(clamp(RW / (2 * dist * Math.tan(hfov / 2)) * innerWidth / CFG.pageZoom, 320, 3000));
   const pxH = Math.round(pxW * RH / RW);
   wallEl.style.width = pxW + 'px'; wallEl.style.height = pxH + 'px';
   wallEl.style.setProperty('--mx', Math.round(pxW * (mg - 1) / mg / 2) + 'px');
