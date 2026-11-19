@@ -706,12 +706,12 @@
     panelWallExt: 1,       // how far the front wall carries on past the screen edge before the cab corner
     revealDistance: 90,    // px — mouse this close to the right edge turns the camera to the panel
     turnBackAfterMs: 4000, // turn back to the doors after this long idle on the panel
-    // panel discovery hints (once per visit; both stop once the visitor has opened the panel)
+    // panel discovery hints (reset on every page load; both stop once the visitor has opened the panel)
     panelGlance: true,     // the camera glances part-way towards the panel, then eases back
     glanceAfterMs: 2500,   // …after the doors are open and the visitor has stopped scrolling this long
     glanceAmount: 0.4,     // how far it glances (fraction of the full turn)
     glanceHoldMs: 700,     // how long it holds before easing back
-    panelTab: true,        // small "Floors →" tab on the right edge that opens the panel (always shown, except while the panel is open)
+    panelTab: true,        // small "Floors →" tab on the right edge that opens the panel; shown until the panel is first opened
     panelTabLabel: 'Floors',
     wallImg: '',           // side-wall texture (optional)
     ceilImg: 'https://henri-cmd.github.io/lift-demo/assets/lift-ceiling.webp',
@@ -1368,22 +1368,19 @@
     addEventListener('keydown', e => { if (e.key === 'Escape') look(false); });
   }
 
-  /* ===== PANEL DISCOVERY: one-time glance + always-on edge tab ===== */
+  /* ===== PANEL DISCOVERY: glance + edge tab, until the visitor opens the panel (fresh on every load) ===== */
   {
     const tab = $('.ftab');
     // the panel sits off-screen to the right, so focus/scrollIntoView could slide the whole scene sideways — pin it
     root.addEventListener('scroll', () => { if (root.scrollLeft || root.scrollTop) root.scrollLeft = root.scrollTop = 0; });
-    const KEY = 'lift-panel-seen';
-    let seen = false;
-    try { seen = sessionStorage.getItem(KEY) === '1'; } catch (e) {}
+    let seen = false;   // not remembered: every page load starts fresh
     let glanced = false, glancing = false, glanceTimer = 0, settleTimer = 0;
     $('.ftab-l').textContent = CFG.panelTabLabel || 'Floors';
     const markSeen = () => {
       if (seen) return;
-      seen = true; clearTimeout(glanceTimer);
-      try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+      seen = true; clearTimeout(glanceTimer); tab.classList.remove('on');
     };
-    // the visitor found the panel by any route (edge hover, wall tap, tab) → no more glance
+    // the visitor opened the panel by any route (edge hover, wall tap, tab) → retire the tab and glance until next load
     new MutationObserver(() => { if (turned) markSeen(); }).observe(root, { attributes: true, attributeFilter: ['class'] });
     tab.addEventListener('click', e => { e.stopPropagation(); if (!busy) look(true); });
 
@@ -1398,8 +1395,8 @@
       await sleep(CFG.turnMs * 0.6); root.classList.remove('glancing');
     };
     const cancelGlance = () => { if (glancing && !turned) { root.style.setProperty('--pan', '0px'); glancing = false; root.classList.remove('glancing'); } };
-    // the tab is always there (hidden only while the panel is showing, during a ride or the glance)
-    const showTab = () => { if (CFG.panelTab && CFG.showPanel) tab.classList.add('on'); };
+    // the tab shows from the start (hidden during a ride or the glance) until the panel is first opened
+    const showTab = () => { if (CFG.panelTab && CFG.showPanel && !seen) tab.classList.add('on'); };
     if (CFG.lobby) { const wait = setInterval(() => { if (!busy) { clearInterval(wait); showTab(); } }, 500); }
     else setTimeout(showTab, 1600);
     // once scrolling settles with the doors open (they ease open just after), arm the one-time glance
