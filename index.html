@@ -1512,17 +1512,14 @@
     }
     // ease towards the pointer; parked while sliding over to the panel
     const lk = RM || turned ? 0 : CFG.cursorLook;
-    // smoothed the same at any frame rate: a short, soft follow (~0.18s to settle most of the way)
-    const dt = Math.min(.1, (now - (sway.last || now)) / 1000); sway.last = now;
-    const ease = 1 - Math.exp(-dt / .09);
-    lookX += (tLookX * lk - lookX) * ease; lookY += (tLookY * lk - lookY) * ease;
-    const lpx = lookX * 1.6, lpy = lookY * 1.2;                    // % the vanishing point shifts (depth parallax)
-    // first-person head turn: the camera rotates about the viewer's eye (not the screen's centre), so the room
-    // slides the opposite way and the far side foreshortens, like turning your head. Zoom covers the edges.
-    const tk = RM ? 0 : CFG.cursorTilt, yaw = lookX * 3 * tk, pitch = lookY * 1.8 * tk;   // degrees
-    const P = innerWidth * CFG.persp, rad = Math.PI / 180;
-    const tz = 1 + 1.08 * Math.max(2 * P * Math.tan(Math.abs(yaw) * rad) / innerWidth, 2 * P * Math.tan(Math.abs(pitch) * rad) / innerHeight);
-    const pov = tk ? `perspective(${Math.round(P)}px) translateZ(${Math.round(P)}px) rotateY(${yaw.toFixed(3)}deg) rotateX(${(-pitch).toFixed(3)}deg) translateZ(${-Math.round(P)}px) ` : '';
+    lookX += (tLookX * lk - lookX) * .07; lookY += (tLookY * lk - lookY) * .07;
+    const lx = -lookX * 5, ly = -lookY * 3.5;                     // px the view shifts
+    const lpx = lookX * 4, lpy = lookY * 3;                        // % the vanishing point shifts (depth parallax)
+    // first-person head turn: yaw/pitch the whole view in 3D, zoomed just enough to hide the edges
+    const tk = RM ? 0 : CFG.cursorTilt, yaw = lookX * 5.5 * tk, pitch = -lookY * 3.5 * tk;
+    const tz = 1 + (Math.abs(lookX) * .045 + Math.abs(lookY) * .03) * tk;
+    const pov = `perspective(${Math.round(innerWidth * 1.1)}px) translate(${(-lookX * 1.2 * tk).toFixed(3)}vw,${(-lookY * 1.4 * tk).toFixed(3)}vh) rotateY(${yaw.toFixed(3)}deg) rotateX(${(-pitch).toFixed(3)}deg) `;
+    vx += lx; vy += ly;
     indEl.style.setProperty('--rx', (lookX * 14 + Math.sin(now / 4300) * 3).toFixed(2));
     if (CFG.sway && !RM) {
       const t = now / 1000, k = CFG.sway;
