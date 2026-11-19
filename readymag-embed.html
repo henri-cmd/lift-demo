@@ -711,7 +711,7 @@
     glanceAfterMs: 2500,   // …after the doors are open and the visitor has stopped scrolling this long
     glanceAmount: 0.4,     // how far it glances (fraction of the full turn)
     glanceHoldMs: 700,     // how long it holds before easing back
-    panelTab: true,        // small "Floors →" tab on the right edge that opens the panel
+    panelTab: true,        // small "Floors →" tab on the right edge that opens the panel (always shown, except while the panel is open)
     panelTabLabel: 'Floors',
     wallImg: '',           // side-wall texture (optional)
     ceilImg: 'https://henri-cmd.github.io/lift-demo/assets/lift-ceiling.webp',
@@ -1368,7 +1368,7 @@
     addEventListener('keydown', e => { if (e.key === 'Escape') look(false); });
   }
 
-  /* ===== PANEL DISCOVERY: one glance + edge tab ===== */
+  /* ===== PANEL DISCOVERY: one-time glance + always-on edge tab ===== */
   {
     const tab = $('.ftab');
     // the panel sits off-screen to the right, so focus/scrollIntoView could slide the whole scene sideways — pin it
@@ -1380,10 +1380,10 @@
     $('.ftab-l').textContent = CFG.panelTabLabel || 'Floors';
     const markSeen = () => {
       if (seen) return;
-      seen = true; clearTimeout(glanceTimer); tab.classList.remove('on');
+      seen = true; clearTimeout(glanceTimer);
       try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
     };
-    // the visitor found the panel by any route (edge hover, wall tap, tab) → retire the hints
+    // the visitor found the panel by any route (edge hover, wall tap, tab) → no more glance
     new MutationObserver(() => { if (turned) markSeen(); }).observe(root, { attributes: true, attributeFilter: ['class'] });
     tab.addEventListener('click', e => { e.stopPropagation(); if (!busy) look(true); });
 
@@ -1398,11 +1398,13 @@
       await sleep(CFG.turnMs * 0.6); root.classList.remove('glancing');
     };
     const cancelGlance = () => { if (glancing && !turned) { root.style.setProperty('--pan', '0px'); glancing = false; root.classList.remove('glancing'); } };
-    // once scrolling settles (the doors ease open just after): show the tab if the doors are open, and arm the glance
+    // the tab is always there (hidden only while the panel is showing, during a ride or the glance)
+    const showTab = () => { if (CFG.panelTab && CFG.showPanel) tab.classList.add('on'); };
+    if (CFG.lobby) { const wait = setInterval(() => { if (!busy) { clearInterval(wait); showTab(); } }, 500); }
+    else setTimeout(showTab, 1600);
+    // once scrolling settles with the doors open (they ease open just after), arm the one-time glance
     const settled = () => {
-      if (seen || !CFG.showPanel || busy) return;
-      if (!doorsOpen()) return;
-      if (CFG.panelTab) tab.classList.add('on');
+      if (seen || !CFG.showPanel || busy || !doorsOpen()) return;
       if (!glanced && CFG.panelGlance && !RM) glanceTimer = setTimeout(glance, Math.max(0, CFG.glanceAfterMs - 900));
     };
     const onScroll = () => {
