@@ -675,7 +675,7 @@
     plateImg: '',          // (modern theme: glass panel drawn in code)
     indicator: 'classic',     // level screen: 'dial' (needle) | 'bar' (all floors, current lit) | 'roll' (rolling name) | 'classic'
     screen: 'matrix',       // level screen text: 'lcd' (backlit type behind glass) | 'matrix' (dot-matrix LEDs)
-    display: 'name',       // indicator shows the floor 'name' (14-segment words) or 'number'
+    display: 'both',       // indicator shows 'both' ("1 INTRO"), just the floor 'name', or just the 'number'
     sfx: { ding:'', door:'', hum:'' },  // optional audio file URLs; blank = synthesised
 
     // scroll-scrubbed doors
@@ -859,13 +859,15 @@
 
   const numEl = $('.num'), arrowEl = $('.arrow');
   const NUMS = CFG.display === 'number';
-  const maxLen = NUMS ? 2 : Math.max(...F.map(f => f.n.length));
+  const BOTH = CFG.display === 'both';
+  const screenText = i => BOTH ? `${floorNo(i)} ${F[i].n}` : F[i].n;   // e.g. "12 Conclusion"
+  const maxLen = NUMS ? 2 : Math.max(...F.map((f, i) => screenText(i).length));
   const pad = t => { const l = Math.floor((maxLen - t.length) / 2); return ' '.repeat(l) + t + ' '.repeat(maxLen - t.length - l); };
   $('.ghost').textContent = (NUMS ? '8' : '~').repeat(maxLen);   // faint unlit segments behind the text
   const lampsEl = $('.lights');
   const lamps = F.map((f, i) => { const l = document.createElement('span'); l.className = 'lamp'; l.title = f.n; return l; });
   lamps.forEach(l => lampsEl.appendChild(l));   // first floor (Intro) on the left
-  const label = i => NUMS ? String(floorNo(i)).padStart(2, ' ') : pad(F[i].n);
+  const label = i => NUMS ? String(floorNo(i)).padStart(2, ' ') : pad(screenText(i));
 
 
   /* ===== SCREEN REALISM: glass layers, LCD lag, optional dot-matrix ===== */
@@ -893,7 +895,7 @@
     if (!w || !h) return;
     mtx.width = Math.round(w * dpr); mtx.height = Math.round(h * dpr);
     const g = mtx.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
-    const COLS = Math.max(...F.map(f => f.n.length)) * 6 + 3, ROWS = 9;
+    const COLS = Math.max(maxLen, ...F.map(f => f.n.length)) * 6 + 3, ROWS = 9;
     const p = Math.min(w / COLS, h / ROWS), ox = (w - COLS * p) / 2, oy = (h - ROWS * p) / 2, r = p * .36;
     const t = txt.trim().toUpperCase(), tw = t.length * 6 - 1, sx = Math.floor((COLS - tw) / 2);
     const on = new Set();
