@@ -586,6 +586,72 @@
         <div class="ph"></div>
         <h2>Scene four</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
         <div class="ph"></div>` },
+      { n:'Storyboard', bg:'#2a2620', img:'', ambience:'', html:`
+        <h1>Storyboard</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Opening</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Turning point</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Climax</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Closing frame</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Locations', bg:'#1f2622', img:'', ambience:'', html:`
+        <h1>Locations</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Interiors</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Exteriors</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scouting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Permits</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Wardrobe', bg:'#2a2129', img:'', ambience:'', html:`
+        <h1>Wardrobe</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Palette</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Lead looks</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Supporting cast</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Hair and make-up</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Music', bg:'#1e2330', img:'', ambience:'', html:`
+        <h1>Music</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Score</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Licensed tracks</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Sound design</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Mix</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Schedule', bg:'#28261d', img:'', ambience:'', html:`
+        <h1>Schedule</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Pre-production</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Shoot days</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Post-production</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Delivery</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Budget', bg:'#232527', img:'', ambience:'', html:`
+        <h1>Budget</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Overview</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Above the line</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Below the line</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Contingency</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
       { n:'Conclusion', bg:'#1d1d1d', img:'', ambience:'', html:`
         <h1>Conclusion</h1><p>Placeholder copy.</p>
         <div class="ph"></div>
@@ -624,6 +690,8 @@
 
     startAtBottom: false,  // true = loads on the ground floor; scroll UP to ride up (floors must be one screen each). List floors ground → top.
     descending: true,      // true = Intro is the top floor and the lift rides DOWN as you scroll down. false = rides up
+    numberFromTop: true,   // true = floors are numbered 1 (top, Intro) → 12 (bottom), panel reads 1-2-3 on the top row.
+                           // false = real-lift numbering (lowest floor is 1, numbers climb bottom row → top row)
     showPanel: true,
     panelCols: 3,          // columns of floor buttons
     floorSlots: 12,        // floor buttons on the panel; spares beyond your floors show as blank placeholders
@@ -733,15 +801,16 @@
   addEventListener('resize', layout);
   if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout()); floorEls.forEach(f => ro.observe(f.querySelector('.copy'))); }
   ['tl','tr','bl','br'].forEach(k => { const sc = document.createElement('span'); sc.className = 'screw ' + k; $('.panel').appendChild(sc); });
-  // Numbered like a real lift: 1 is the lowest floor, numbers climb left→right, bottom row → top row.
-  // The top floor gets the highest number; spare slots for sections to come sit above it.
+  // numberFromTop: 1 is the top floor (Intro), numbers run left→right, top row → bottom row.
+  // Otherwise numbered like a real lift: 1 is the lowest floor, numbers climb bottom row → top row.
+  // Spare slots for sections still to come take the numbers after your floors.
   const cols = CFG.panelCols;
   const floorRows = Math.ceil(CFG.floorSlots / cols);
   $('.panel').style.setProperty('--cols', cols);
-  const floorNo = i => CFG.descending ? F.length - i : i + 1;          // floor index → button number
+  const floorNo = i => CFG.numberFromTop || !CFG.descending ? i + 1 : F.length - i;   // floor index → floor number
   const place = (b, num) => {                                         // number → grid cell
     const k = num - 1;
-    b.style.gridRow = floorRows - Math.floor(k / cols);
+    b.style.gridRow = CFG.numberFromTop ? Math.floor(k / cols) + 1 : floorRows - Math.floor(k / cols);
     b.style.gridColumn = (k % cols) + 1;
   };
   const btns = F.map((f, i) => {
@@ -794,7 +863,7 @@
   const lampsEl = $('.lights');
   const lamps = F.map((f, i) => { const l = document.createElement('span'); l.className = 'lamp'; l.title = f.n; return l; });
   lamps.forEach(l => lampsEl.appendChild(l));   // first floor (Intro) on the left
-  const label = i => NUMS ? String(CFG.descending ? F.length - i : i + 1).padStart(2, ' ') : pad(F[i].n);
+  const label = i => NUMS ? String(floorNo(i)).padStart(2, ' ') : pad(F[i].n);
 
 
   /* ===== SCREEN REALISM: glass layers, LCD lag, optional dot-matrix ===== */
@@ -849,7 +918,7 @@
     if (style === 'classic') return;
     root.classList.add('ind-alt', 'ind-' + style);
     const box = document.createElement('div'); box.className = 'ind2 ' + style;
-    const fno = i => CFG.descending ? F.length - i : i + 1;     // floor number shown on buttons
+    const fno = floorNo;     // floor number shown on buttons
     const arrows = '<span class="arrs"><span class="ar u"></span><span class="ar d"></span></span>';
     if (style === 'dial') {
       box.innerHTML = `${arrows}<div class="face steelplate"></div><div class="tag"><span class="nm"></span></div>`;
