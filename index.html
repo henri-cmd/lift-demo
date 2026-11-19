@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lift — treatment demo</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#000}</style></head><body>
+<!-- LIFT — Readymag code embed. Paste into a Code widget, stretch it to full screen, keep the page one screen tall. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap" rel="stylesheet">
+<style>@font-face{font-family:"DSEG7";src:url(https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG7-Classic/DSEG7Classic-Bold.woff2) format("woff2");font-display:block}
+@font-face{font-family:"DSEG14";src:url(https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG14-Classic/DSEG14Classic-Bold.woff2) format("woff2");font-display:block}</style>
+
+<div id="lift">
+  <div class="cab">
+    <div class="room">
+      <!-- recessed doorway: doors sit behind the front wall -->
+      <div class="front">
+        <div class="shake">
+          <div class="scroller" tabindex="-1"></div>
+          <div class="door l"></div>
+          <div class="door r"></div>
+          <div class="frame"></div>
+          <div class="flicker"></div>
+        </div>
+        <div class="shade"></div>
+      </div>
+      <div class="jamb l"></div><div class="jamb r"></div><div class="soffit"></div>
+      <!-- front wall either side of the doors, flush with the header -->
+      <!-- header = top of the front wall, turns with the camera -->
+      <div class="hdr-bg" style="left:0.00%"></div><div class="hdr-bg" style="left:12.50%"></div><div class="hdr-bg" style="left:25.00%"></div><div class="hdr-bg" style="left:37.50%"></div><div class="hdr-bg" style="left:50.00%"></div><div class="hdr-bg" style="left:62.50%"></div><div class="hdr-bg" style="left:75.00%"></div><div class="hdr-bg" style="left:87.50%"></div>
+      <div class="hdr">
+        <div class="ind">
+          <span class="tri d"></span><span class="tri u"></span>
+          <span class="arrow"></span>
+          <span class="digits"><span class="ghost"></span><span class="num"></span></span>
+          <div class="lights"></div>
+        </div>
+      </div>
+      <div class="lintel"></div><div class="trim l"></div><div class="trim r"></div><div class="trim t"></div><div class="strip l"></div><div class="strip r"><div class="panel"></div></div>
+      <!-- cab interior revealed when the camera turns -->
+      <div class="wall l"></div>
+      <div class="wall r"></div>
+      <div class="ceil"></div>
+    </div>
+  </div>
+  <div class="lightfx"></div>
+  <div class="dim"></div>
+  <div class="flick"></div>
+  <div class="grain"></div>
+  <div class="alarmfx"></div>
+  <button class="snd" type="button">Sound off</button>
+  <!-- LOBBY: the site opens outside the lift -->
+  <div class="lobby">
+    <div class="lb-wall"></div>
+    <div class="lb-plaque"><div class="lb-title"></div><div class="lb-sub"></div></div>
+    <div class="lb-frame">
+      <div class="lb-ind"><span class="lb-arrow"></span><span class="lb-num"></span></div>
+      <div class="lb-opening">
+        <div class="lb-cab"><div class="lb-light"></div><div class="lb-rail"></div></div>
+        <div class="lb-door l"></div><div class="lb-door r"></div>
+        <div class="lb-shade"></div>
+      </div>
+    </div>
+    <div class="lb-call"><button class="lb-btn" type="button" aria-label="Call the lift"><span>▼</span></button><div class="lb-cap">Call</div></div>
+  </div>
+  <div class="hint">Scroll <span>↓</span></div>
+</div>
+
+<style>
+#lift{
+  --hdr-h:8.5vh;         /* height of the wall above the doors (indicator lives here) */
+  --ind-size:3.6vh;      /* LED text size */
+  --door-ms:950ms;       /* door speed for the button-panel ride */
+  --led:#ff5a1f;
+  --c:1;                 /* door closure 0 = open, 1 = shut (driven by JS) */
+  position:fixed; inset:0; overflow:hidden; background:#0b0b0c; z-index:1;
+  font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif; color:#eee;
+}
+#lift *{box-sizing:border-box}
+
+/* cab fills everything below the header */
+#lift .cab{position:absolute; inset:0; z-index:0}
+/* 3D cab. Camera sits --p in front of the front wall (z=0). The front wall (header + side strips) is flush;
+   the doorway is recessed --r behind it. Side walls/ceiling/floor run from the front wall towards the camera and
+   only come into view when the camera moves. --pan slides the camera sideways to the button panel. Sizes set by JS. */
+#lift .cab{perspective:var(--p,1000px); perspective-origin:50% 50%; overflow:hidden; filter:contrast(1.06) saturate(1.12); background:linear-gradient(180deg,#5a5c60,#3e4044)}
+#lift .room{position:absolute; inset:0; transform-style:preserve-3d;
+  transform:translateX(calc(-1 * var(--pan,0px)));
+  transition:transform var(--turn-ms,900ms) cubic-bezier(.45,0,.2,1)}
+#lift.rm .room{transition:none}
+/* front wall (header, strips, frame, panel) faces the camera at z=0, so it lives in a flat layer that slides with the
+   camera — identical on screen, and avoids browser glitches with large 3D surfaces. Only the recessed doorway is 3D. */
+#lift .flat{position:absolute; inset:0; pointer-events:none; transform:translateX(calc(-1 * var(--pan,0px)));
+  transition:transform var(--turn-ms,900ms) cubic-bezier(.45,0,.2,1)}
+#lift.rm .flat{transition:none}
+#lift .flat .strip,#lift .flat .panel{pointer-events:auto}
+#lift .front{position:absolute; top:var(--hp,13vh); height:calc(100% - var(--hp,13vh)); left:var(--s,5%); width:calc(100% - 2 * var(--s,5%)); overflow:hidden;
+  transform:translateZ(calc(-1 * var(--r,40px)))}
+#lift .shake{position:absolute; inset:0}
+/* the front wall's edges throw shadow onto the recessed doors (light from above) */
+#lift .shade{position:absolute; inset:0; z-index:5; pointer-events:none;
+  box-shadow:inset 0 3.2vh 3.5vh -1.6vh rgba(0,0,0,.75),inset 2.4vh 0 3vh -1.4vh rgba(0,0,0,.55),inset -2.4vh 0 3vh -1.4vh rgba(0,0,0,.55)}
+
+/* brushed steel shared by the front wall pieces */
+#lift .strip,#lift .jamb,#lift .soffit,#lift .sill,#lift .lintel{position:absolute;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,rgba(0,0,0,.04) 1px 3px),linear-gradient(180deg,#a3a6aa,#c4c6c9 30%,#8e9195)}
+/* front wall above the doorway (sits behind the fixed header; seen when the camera turns) */
+#lift .lintel{left:100%; width:var(--ext,40vw); top:0; height:var(--hp,13vh);
+  background:linear-gradient(180deg,rgba(255,255,255,.35) 0 1px,transparent 1px calc(100% - 1px),rgba(0,0,0,.5) calc(100% - 1px)),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,rgba(0,0,0,.04) 1px 3px),
+    linear-gradient(180deg,#9a9da1 0%,#c9cbce 45%,#8e9195 100%)}
+/* ceiling: level with the top of the header, running towards the camera */
+#lift .ceil{position:absolute; left:0; width:calc(100% + var(--ext,40vw)); height:var(--d,600px);
+  top:0; transform-origin:50% 0; transform:rotateX(90deg);
+  background:linear-gradient(90deg,transparent 47%,rgba(255,246,228,.85) 47% 53%,transparent 53%),linear-gradient(180deg,#76787c,#4d4f53)}
+#lift .strip{top:var(--hp,13vh); height:160%; width:var(--s,5%); cursor:pointer}
+/* wood-veneer wall pieces (texture mapped in JS so the grain lines up across pieces) */
+#lift .wood{background-repeat:repeat-x !important; background-color:#1d2724 !important; box-shadow:none !important}
+/* slim polished-stainless door frame */
+#lift .trim{position:absolute; transform:translateZ(.6px);
+  background:linear-gradient(90deg,#6f7377,#e4e6e8 35%,#a5a8ac 60%,#5d6064)}
+#lift .trim.l{left:calc(var(--s,5%) - var(--t,8px)); top:calc(var(--hp,13vh) - var(--t,8px)); width:var(--t,8px); height:160%}
+#lift .trim.r{left:calc(100% - var(--s,5%)); top:calc(var(--hp,13vh) - var(--t,8px)); width:var(--t,8px); height:160%;
+  background:linear-gradient(90deg,#5d6064,#a5a8ac 40%,#e4e6e8 65%,#6f7377)}
+#lift .trim.t{left:calc(var(--s,5%) - var(--t,8px)); top:calc(var(--hp,13vh) - var(--t,8px)); width:calc(100% - 2 * var(--s,5%) + 2 * var(--t,8px)); height:var(--t,8px);
+  background:linear-gradient(180deg,#e9ebed,#9a9da1 60%,#55585c)}
+#lift .strip.l{left:0; box-shadow:inset -1px 0 0 rgba(255,255,255,.35)}
+#lift .strip.r{left:calc(100% - var(--s,5%)); width:calc(var(--s,5%) + var(--ext,40vw)); box-shadow:inset 1px 0 0 rgba(255,255,255,.35)}
+#lift .jamb{top:var(--hp,13vh); height:160%; width:var(--r,40px)}
+#lift .jamb::after{content:""; position:absolute; top:0; bottom:0; width:38%; background:linear-gradient(90deg,#000,#0b0b0c)}
+#lift .jamb.l::after{right:0}
+#lift .jamb.r::after{left:0; background:linear-gradient(270deg,#000,#0b0b0c)}
+#lift .jamb.l{left:var(--s,5%); transform-origin:0 0; transform:rotateY(90deg); filter:brightness(.55)}
+#lift .jamb.r{left:calc(100% - var(--s,5%) - var(--r,40px)); transform-origin:100% 0; transform:rotateY(-90deg); filter:brightness(.7)}
+#lift .soffit{top:var(--hp,13vh); left:var(--s,5%); width:calc(100% - 2 * var(--s,5%)); height:var(--r,40px); transform-origin:50% 0; transform:rotateX(-90deg); filter:brightness(.35)}
+#lift .sill{top:calc(100% - var(--r,40px)); left:var(--s,5%); width:calc(100% - 2 * var(--s,5%)); height:var(--r,40px); transform-origin:50% 100%; transform:rotateX(90deg); filter:brightness(.9)}
+
+/* cab interior */
+#lift .wall{position:absolute; top:0; height:160%; width:var(--d,600px); backface-visibility:hidden;
+  background:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,rgba(0,0,0,.04) 1px 3px),
+    linear-gradient(180deg,rgba(255,255,255,.08),transparent 30%,transparent 75%,rgba(0,0,0,.25)),
+    #6d7075; background-size:cover}
+#lift .wall.r{left:calc(100% + var(--ext,40vw)); transform-origin:0 0; transform:rotateY(-90deg)}
+#lift .wall.l{left:calc(-1 * var(--d,600px)); transform-origin:100% 0; transform:rotateY(90deg)}
+#lift .wall.r::after,#lift .wall.l::after{content:""; position:absolute; inset:0; pointer-events:none}
+#lift .wall.r::after{background:linear-gradient(90deg,rgba(0,0,0,.4),transparent 35%)}
+#lift .wall.l::after{background:linear-gradient(270deg,rgba(0,0,0,.4),transparent 35%)}
+#lift.turned .strip.r{cursor:default}
+#lift.jolt .shake{animation:liftJolt .38s ease-out}
+
+@keyframes liftShake{0%,100%{transform:translate(0,0)}25%{transform:translate(0,.07vh)}50%{transform:translate(.04vh,-.06vh)}75%{transform:translate(-.04vh,.05vh)}}
+@keyframes liftJolt{0%{transform:none}30%{transform:translateY(.45vh)}65%{transform:translateY(-.12vh)}100%{transform:none}}
+
+/* one continuous scrolling page behind the doors */
+#lift .scroller{position:absolute; inset:0; z-index:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none; outline:none}
+#lift .scroller::-webkit-scrollbar{display:none}
+#lift.ride .scroller{overflow:hidden}
+/* each floor: outer .stop > sticky .hold (freezes the floor's last screen while doors close)
+   > sticky .floor (pins the floor's top while doors open) */
+#lift .stop{position:relative}
+#lift .hold{position:sticky}
+#lift .floor{position:sticky; top:0; background-size:cover; background-position:center}
+#lift .stop.gone{visibility:hidden}
+#lift .copy{max-width:960px; margin:0 auto; padding:14vh 6vw 22vh}
+#lift .copy h1{font-size:clamp(40px,7vw,96px); font-weight:600; letter-spacing:-.03em; line-height:1; margin:0 0 4vh}
+#lift .copy h2{font-size:clamp(20px,2.2vw,30px); font-weight:500; margin:10vh 0 2vh}
+#lift .copy p{font-size:clamp(15px,1.25vw,19px); line-height:1.6; max-width:52ch; margin:0 0 2vh; opacity:.8}
+#lift .copy .ph{aspect-ratio:16/9; background:rgba(255,255,255,.06); border-radius:4px; margin:4vh 0}
+
+/* doors — scrubbed by scroll; pointer-events off so scrolling works through them */
+#lift .door{position:absolute; top:0; height:100%; width:50.4%; z-index:1; will-change:transform; pointer-events:none; filter:brightness(1.18) contrast(1.08) saturate(.7);
+  background:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,rgba(0,0,0,.035) 1px 3px),
+    linear-gradient(90deg,#868a8f,#c4c7cb 38%,#a2a6ab 62%,#7b7f84)}
+#lift .door.l{left:0;  transform:translateX(calc((var(--c) - 1) * 101%)); box-shadow:inset -.25vh 0 0 rgba(0,0,0,.55),1.2vh 0 2vh rgba(0,0,0,.45)}
+/* leading-edge faces give the doors thickness; their visible width follows the perspective */
+#lift .door::after{content:""; position:absolute; top:0; bottom:0;
+  background:linear-gradient(180deg,#5e6166,#8a8d92 40%,#4d5054); box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+#lift .door.l::after{left:100%; width:var(--edge-l,0px)}
+#lift .door.r::after{right:100%; width:var(--edge-r,0px)}
+#lift .door.r{right:0; transform:translateX(calc((1 - var(--c)) * 101%)); box-shadow:inset .2vh 0 0 rgba(255,255,255,.25),-1.2vh 0 2vh rgba(0,0,0,.45)}
+#lift.ride .door{transition:transform var(--door-ms) cubic-bezier(.6,0,.3,1)}
+#lift.rm .door{transition:none}
+
+#lift .frame{position:absolute; inset:0; z-index:2; background-size:cover; background-position:center; pointer-events:none}
+#lift .flicker{position:absolute; inset:0; z-index:3; background:#000; opacity:0; pointer-events:none}
+
+@keyframes liftFlick{0%{opacity:0}61%{opacity:.07}63%{opacity:0}64%{opacity:.04}66%{opacity:0}}
+
+/* floor-indicator header — always visible */
+#lift .hdr{position:absolute; left:calc(50% - 18vh); width:36vh; top:0; height:var(--hdr-h); transform:translateZ(1px);
+  display:flex; flex-direction:column; gap:0; align-items:center; justify-content:center;
+  padding-top:var(--overscan,.9vh); box-sizing:border-box}   /* centre in the visible strip (cab is slightly zoomed to hide edges) */
+/* header plate drawn in four pieces: browsers can drop part of one very wide surface when it turns in 3D */
+#lift .hdr-bg{position:absolute; top:0; width:12.75%; height:var(--hdr-h);
+  /* gradients sized to the full header width and offset per piece, so the brushing runs on without seams */
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.35) 0 1px,transparent 1px calc(100% - 1px),rgba(0,0,0,.5) calc(100% - 1px)),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,rgba(0,0,0,.04) 1px 3px),
+    linear-gradient(180deg,#9a9da1 0%,#c9cbce 45%,#8e9195 100%);
+  background-size:393.7% 100%}
+#lift .hdr-bg:nth-of-type(1){background-position:0 0}
+#lift .hdr-bg:nth-of-type(2){background-position:33.6% 0}
+#lift .hdr-bg:nth-of-type(3){background-position:67.1% 0}
+#lift .hdr-bg:nth-of-type(4){background-position:100% 0}
+#lift.has-header .hdr-bg{background-size:393.7% 100%}
+/* indicator plate: photo of the plate, live seven-segment number in its window, triangles light up */
+#lift .ind{position:relative; width:var(--ind-w,21vh); aspect-ratio:4128/1024; border-radius:.15vh; background:var(--ind-img) center/100% 100% no-repeat;
+  box-shadow:0 .2vh .45vh rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.5)}
+#lift .ind .digits{position:absolute; left:19.26%; top:29.3%; width:61.56%; height:41.6%; display:flex; align-items:center; justify-content:center;
+  font-family:"DSEG14","DSEG7",ui-monospace,monospace; font-size:var(--ind-fs,1.55vh); line-height:1; letter-spacing:.06em;
+  color:#ff2a1e; text-shadow:0 0 .12em rgba(255,40,30,.9),0 0 .4em rgba(255,40,30,.45)}
+#lift .ind .ghost{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:rgba(255,40,30,.07); text-shadow:none}
+#lift .ind .num{position:relative; white-space:pre}
+#lift .ind .arrow{display:none}
+#lift .tri{position:absolute; opacity:0; transition:opacity .25s;
+  background:radial-gradient(circle at 50% 60%,#fffdf4,#fff1c8 70%); filter:drop-shadow(0 0 .5vh rgba(255,240,200,.9))}
+#lift .tri.d{left:5.96%; top:40.2%; width:8.94%; height:19.4%; clip-path:polygon(0 0,100% 0,50% 100%)}
+#lift .tri.u{left:85.17%; top:40.2%; width:8.94%; height:19.4%; clip-path:polygon(50% 0,100% 100%,0 100%)}
+#lift .tri.on{opacity:1}
+#lift.moving .tri.on{animation:liftBlink 1s steps(1) infinite}
+/* row of floor lamps under the display: left → right = lowest → highest floor */
+#lift .lights{position:absolute; left:19.26%; width:61.56%; top:78%; height:14%; display:flex; align-items:center; justify-content:center; gap:5%}
+#lift .lamp{height:62%; aspect-ratio:1; border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#4a2018,#1c0b07 70%); box-shadow:0 0 0 .1vh rgba(0,0,0,.55),inset 0 .08vh .15vh rgba(0,0,0,.8),0 .06vh 0 rgba(255,255,255,.5);
+  transition:background .25s,box-shadow .25s}
+#lift .lamp.on{background:radial-gradient(circle at 40% 35%,#ffd0b0,#ff3a24 60%);
+  box-shadow:0 0 0 .1vh rgba(0,0,0,.55),0 0 .5vh rgba(255,60,31,.9),0 0 1.1vh rgba(255,60,31,.45)}
+#lift .arrow{font-size:.6em; min-width:1em; opacity:0; transition:opacity .25s}
+#lift .arrow.on{opacity:1}
+#lift.moving .arrow.on{animation:liftBlink 1s steps(1) infinite}
+@keyframes liftBlink{50%{opacity:.25}}
+
+/* button panel — the full ride lives here */
+#lift .panel{position:absolute; left:calc(var(--s,5%) + var(--panel-off,6vw)); top:calc(var(--panel-y,50vh) - var(--hp,13vh)); transform:translateY(-50%);
+  display:grid; grid-template-columns:repeat(var(--cols,4),auto); gap:1.8vh 2vh; padding:3.4vh 3vh 3.1vh; border-radius:.5vh;
+  /* brushed stainless cover plate, flush-mounted with a slight bevel */
+  background:var(--plate-img, linear-gradient(115deg,#4a4c50,#2e3033)) center/100% 100% no-repeat;
+  box-shadow:0 .25vh .5vh rgba(0,0,0,.35),0 0 0 .1vh rgba(0,0,0,.25),
+    inset 0 .12vh 0 rgba(255,255,255,.7),inset 0 -.12vh 0 rgba(0,0,0,.25),inset .12vh 0 0 rgba(255,255,255,.35),inset -.12vh 0 0 rgba(0,0,0,.2)}
+#lift.no-panel .panel{display:none}
+/* corner screws */
+#lift .screw{position:absolute; width:.62vh; height:.62vh; border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#e4e5e7,#8e9195 75%); box-shadow:inset 0 0 0 .08vh rgba(0,0,0,.35),0 .06vh 0 rgba(255,255,255,.5)}
+#lift .screw::before,#lift .screw::after{content:""; position:absolute; left:22%; right:22%; top:calc(50% - .04vh); height:.08vh; background:rgba(0,0,0,.55); transform:rotate(var(--rot,30deg))}
+#lift .screw::before{transform:rotate(calc(var(--rot,30deg) + 90deg))}
+#lift .screw.tl{top:1vh; left:1vh} #lift .screw.tr{top:1vh; right:1vh; --rot:-20deg}
+#lift .screw.bl{bottom:1vh; left:1vh; --rot:75deg} #lift .screw.br{bottom:1vh; right:1vh; --rot:5deg}
+
+/* each floor = bezel-ringed push button with an engraved label underneath */
+#lift .btn{display:flex; flex-direction:column; align-items:center; gap:1.1vh; background:none; border:0; padding:0; cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+/* black push button in a thin dark-steel collar; number is backlit */
+#lift .cap{position:relative; width:4.5vh; height:4.5vh; border-radius:50%;
+  background:radial-gradient(circle at 50% 40%,#3a3c3f,#1a1b1d 70%,#0e0e0f);
+  box-shadow:0 .25vh .4vh rgba(0,0,0,.6),inset 0 .1vh 0 rgba(255,255,255,.18)}
+#lift .cap::before{content:""; position:absolute; inset:.38vh; border-radius:50%;
+  background:radial-gradient(circle at 50% 30%,#2b2c2e,#111213 65%,#060606);
+  box-shadow:inset 0 .15vh .2vh rgba(255,255,255,.12),inset 0 -.3vh .5vh rgba(0,0,0,.6);
+  transition:transform .08s,filter .2s}
+#lift .lbl{font:700 1.3vh/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.2em; text-transform:uppercase;
+  color:#dfe1e4; text-shadow:0 -.08vh 0 rgba(0,0,0,.8); opacity:.92}
+#lift .btn:hover .cap::before{filter:brightness(1.2)}
+#lift .btn:active .cap::before{transform:scale(.94)}
+#lift .btn.lit .num-cap{animation:liftBtnPulse .9s ease-in-out infinite}
+@keyframes liftBtnPulse{50%{opacity:.45}}
+#lift .btn:focus-visible .cap{outline:.25vh solid #fff; outline-offset:.4vh}
+#lift .lbl{min-width:5.8vh; text-align:center; font-size:1vh; letter-spacing:.12em}
+/* spare floor slots for sections still to come */
+#lift .btn.ph{cursor:default}
+#lift .btn.ph .cap::before{filter:brightness(.85)}
+#lift .btn.ph .lbl{color:#8a8d91; letter-spacing:.3em}
+#lift .fns{display:grid; grid-template-columns:repeat(2,auto); justify-content:center; gap:1.9vh 2.6vh; margin-top:1vh;
+  padding-top:1.9vh; border-top:1px solid rgba(0,0,0,.45); box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+#lift .btn .num-cap{font:700 2.1vh/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:-.03em; color:#f6f5f0; text-shadow:0 0 .3vh rgba(255,255,250,.85),0 0 .9vh rgba(255,255,245,.45); transition:color .15s,text-shadow .15s}
+#lift .btn.ph .num-cap{color:#d9d8d2; text-shadow:0 0 .25vh rgba(255,255,250,.5)}
+#lift .btn.here .num-cap,#lift .btn.lit .num-cap,#lift .btn:hover .num-cap{color:#62b4ff; text-shadow:0 0 .35vh rgba(80,165,255,0.47),0 0 1.1vh rgba(60,145,245,0.30)}
+#lift.ride .btn.here:not(.lit):not(:hover) .num-cap{color:#f6f5f0; text-shadow:0 0 .3vh rgba(255,255,250,.85),0 0 .9vh rgba(255,255,245,.45)}
+#lift .btn.ph:active .cap::before{transform:none}
+/* lift-function row */
+#lift .ico{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:1;
+  font:700 1.9vh/1 -apple-system,Helvetica,Arial,sans-serif; color:#3a3b3e; text-shadow:0 .08vh 0 rgba(255,255,255,.6); letter-spacing:-.1em}
+#lift .btn.fn .ico svg{width:1.9vh; height:1.9vh; fill:none; stroke:#f6f5f0; filter:drop-shadow(0 0 .3vh rgba(255,255,250,.7)); transition:stroke .2s,filter .2s; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+#lift .btn.fn.on .ico svg,#lift .btn.fn:hover .ico svg{stroke:#62b4ff; filter:drop-shadow(0 0 .4vh rgba(80,165,255,0.45))}
+
+/* ===== LOBBY ===== */
+#lift .lobby{position:absolute; inset:0; z-index:20; overflow:hidden; transform-origin:50% 58%;
+  transform:translate(var(--lsx,0px),var(--lsy,0px))}
+#lift .lobby.in{transform:scale(2.4); opacity:0; pointer-events:none;
+  transition:transform 1.3s cubic-bezier(.55,0,.2,1),opacity .7s ease .55s}
+#lift .lobby.gone{display:none}
+#lift .lb-wall{position:absolute; inset:-2%;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 0%,rgba(255,232,200,.22),transparent 70%),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 2px,transparent 2px 7px),
+    repeating-linear-gradient(90deg,transparent 0 24vw,rgba(0,0,0,.25) 24vw calc(24vw + 2px)),
+    linear-gradient(180deg,#3d3732,#24201d)}
+#lift .lb-frame{position:absolute; left:50%; bottom:0; transform:translateX(-50%); width:40vw; height:86vh;
+  padding:0 1.3vw; display:flex; flex-direction:column;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,rgba(0,0,0,.04) 1px 3px),linear-gradient(180deg,#a3a6aa,#c7c9cc 20%,#8d9094);
+  box-shadow:0 0 0 .3vh #1b1a19,0 2vh 6vh rgba(0,0,0,.6)}
+#lift .lb-ind{height:9vh; display:flex; align-items:center; justify-content:center; gap:.35em;
+  font-family:"Doto",ui-monospace,monospace; font-weight:900; font-size:4.2vh; color:var(--led);
+  text-shadow:0 0 .12em var(--led),0 0 .45em rgba(255,90,31,.55)}
+#lift .lb-ind span{background:#080404; padding:.12em .35em; border-radius:.12em; box-shadow:inset 0 0 .4em #000,0 0 0 .08em #3a3a3c; min-width:1.4em; text-align:center}
+#lift .lb-ind .lb-arrow{font-size:.6em; min-width:1.2em}
+#lift .lb-ind .lb-arrow:empty{visibility:hidden}
+#lift .lb-opening{position:relative; flex:1; overflow:hidden; background:#000}
+#lift .lb-cab{position:absolute; inset:0;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.04) 0 1px,rgba(0,0,0,.05) 1px 3px),
+    linear-gradient(90deg,#4b4d50,#8e9094 25%,#9a9ca0 75%,#4b4d50)}
+#lift .lb-light{position:absolute; left:15%; right:15%; top:0; height:2.2%; background:#fff3df; box-shadow:0 0 6vh 2vh rgba(255,236,205,.45)}
+#lift .lb-rail{position:absolute; left:8%; right:8%; top:52%; height:1.1vh; border-radius:1vh;
+  background:linear-gradient(180deg,#e9eaec,#7c7f83); box-shadow:0 .8vh 1vh rgba(0,0,0,.35)}
+#lift .lb-door{position:absolute; top:0; height:100%; width:50.4%; transition:transform 1s cubic-bezier(.6,0,.3,1);
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,rgba(0,0,0,.035) 1px 3px),linear-gradient(90deg,#868a8f,#c4c7cb 38%,#a2a6ab 62%,#7b7f84)}
+#lift .lb-door.l{left:0; box-shadow:inset -.25vh 0 0 rgba(0,0,0,.55),1vh 0 2vh rgba(0,0,0,.4)}
+#lift .lb-door.r{right:0; box-shadow:inset .2vh 0 0 rgba(255,255,255,.25),-1vh 0 2vh rgba(0,0,0,.4)}
+#lift .lobby.open .lb-door.l{transform:translateX(-101%)}
+#lift .lobby.open .lb-door.r{transform:translateX(101%)}
+#lift .lb-shade{position:absolute; inset:0; pointer-events:none; box-shadow:inset 0 2.6vh 3vh -1.4vh rgba(0,0,0,.7),inset 1.8vh 0 2.4vh -1.2vh rgba(0,0,0,.5),inset -1.8vh 0 2.4vh -1.2vh rgba(0,0,0,.5)}
+#lift .lb-call{position:absolute; left:calc(50% + 20vw + 5vw); top:58%; transform:translate(-50%,-50%);
+  display:flex; flex-direction:column; align-items:center; gap:1.4vh; padding:3vh 2.4vh 2.4vh; border-radius:.5vh;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.045) 0 1px,rgba(0,0,0,.035) 1px 2px,transparent 2px 4px),linear-gradient(115deg,#c6c8cb,#a9acb0 38%,#cfd1d4 55%,#a2a5a9);
+  box-shadow:0 .4vh .8vh rgba(0,0,0,.45),inset 0 .12vh 0 rgba(255,255,255,.7)}
+#lift .lb-btn{width:7vh; height:7vh; border-radius:50%; border:0; padding:0; cursor:pointer; position:relative;
+  background:conic-gradient(from 210deg,#e2e3e5,#8a8d91 18%,#d6d8db 35%,#7c7f83 55%,#e6e7e9 75%,#9a9da1 90%,#e2e3e5);
+  box-shadow:0 .18vh .3vh rgba(0,0,0,.4)}
+#lift .lb-btn span{position:absolute; inset:1vh; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font:700 2vh/1 -apple-system,Helvetica,Arial,sans-serif; color:#2f3033;
+  background:radial-gradient(circle at 50% 30%,#f6f7f8,#c9cbce 55%,#a4a7ab);
+  box-shadow:0 0 0 .28vh #1d1e20,inset 0 .2vh .25vh rgba(255,255,255,.9); transition:box-shadow .25s,transform .08s,color .2s}
+#lift .lb-btn:hover span{filter:brightness(1.06)}
+#lift .lb-btn:active span{transform:scale(.94)}
+#lift .lb-btn.lit span{color:var(--led); box-shadow:0 0 0 .28vh var(--led),0 0 1.6vh .2vh rgba(255,90,31,.8),inset 0 .2vh .25vh rgba(255,255,255,.9)}
+#lift .lb-btn:not(.lit) span{animation:lbInvite 2.4s ease-in-out infinite}
+@keyframes lbInvite{50%{box-shadow:0 0 0 .28vh #4a3328,0 0 1vh rgba(255,90,31,.35),inset 0 .2vh .25vh rgba(255,255,255,.9)}}
+#lift .lb-cap{font:700 1.2vh/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.22em; text-transform:uppercase; color:#2e2f32}
+#lift .lb-plaque{position:absolute; right:calc(50% + 20vw + 4vw); top:50%; transform:translateY(-50%); text-align:right; color:#d8cfc3; max-width:22vw}
+#lift .lb-title{font:600 clamp(18px,2.4vw,40px)/1.05 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:-.01em}
+#lift .lb-sub{margin-top:1.4vh; font:500 11px/1.4 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.18em; text-transform:uppercase; opacity:.6}
+
+/* ===== ATMOSPHERE ===== */
+/* overhead light: soft warm pool from the ceiling, gentle falloff to the edges and floor */
+#lift .lightfx{position:absolute; inset:0; z-index:6; pointer-events:none;
+  background:radial-gradient(ellipse 80% 65% at 50% 0%,rgba(255,224,176,.22),transparent 72%),
+             radial-gradient(ellipse 120% 100% at 50% 30%,transparent 58%,rgba(0,0,0,.26) 100%),
+             linear-gradient(180deg,transparent 60%,rgba(0,0,0,.12));
+  mix-blend-mode:normal}
+/* cab gets a touch darker as the doors shut (landing light is cut off) — follows --c */
+#lift .dim{position:absolute; inset:0; z-index:7; pointer-events:none;
+  background:radial-gradient(ellipse 120% 90% at 50% 15%,rgba(0,0,0,.75),#000);
+  opacity:calc(var(--c,0) * var(--dark-amt,.28))}
+/* very subtle flicker while the lift is moving (opacity driven by JS) */
+#lift .flick{position:absolute; inset:0; z-index:7; pointer-events:none; background:#000; opacity:0}
+/* subtle film grain over everything (noise tile generated in JS, jittered every frame) */
+#lift .grain{position:absolute; inset:-50%; z-index:11; pointer-events:none; opacity:var(--grain,.09); mix-blend-mode:overlay;
+  background-size:256px 256px; will-change:transform}
+/* alarm: lights drop, red emergency light pulses */
+#lift .alarmfx{position:absolute; inset:0; z-index:9; pointer-events:none; opacity:0; mix-blend-mode:multiply;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%,#ff3a1a,#5a0600 70%)}
+#lift.alarm .alarmfx{animation:liftAlarm .9s ease-in-out infinite}
+#lift.alarm .cab{filter:brightness(.7)}
+@keyframes liftAlarm{0%,100%{opacity:.95}50%{opacity:.55}}
+
+#lift .hint{position:absolute; left:50%; bottom:3vh; transform:translateX(-50%); z-index:12; pointer-events:none;
+  font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#2a2a2c;
+  background:rgba(255,255,255,.55); padding:9px 14px; border-radius:20px; opacity:0; transition:opacity .6s}
+#lift .hint.on{opacity:1}
+#lift .hint span{display:inline-block; animation:liftHint 1.4s ease-in-out infinite}
+@keyframes liftHint{50%{transform:translateY(-4px)}}
+#lift .snd{position:absolute; left:2vw; bottom:2vh; z-index:12; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.75);
+  font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase; padding:8px 12px; border-radius:20px; cursor:pointer}
+
+/* ===================== MODERN THEME (minimal corporate) ===================== */
+/* indicator: photographed brushed-steel plate with a flush black-glass display (CFG.indicatorImg); live text + lamps sit in the glass */
+#lift .ind{width:var(--ind-w,24vh); aspect-ratio:4/1; border-radius:.2vh; background:var(--ind-img) center/100% 100% no-repeat !important;
+  box-shadow:0 .2vh .5vh rgba(0,0,0,.3),0 0 0 .08vh rgba(0,0,0,.3)}
+#lift .ind .digits{left:18.5%; width:63%; top:24%; height:38%;
+  font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-weight:400; font-size:1.45vh; letter-spacing:.3em; text-indent:.3em;
+  color:#f2f4f6; text-transform:uppercase; text-shadow:0 0 .15vh rgba(255,255,255,.5)}
+#lift .ind .ghost{display:none}
+#lift .tri{background:rgba(0,0,0,.28); filter:drop-shadow(0 .06vh 0 rgba(255,255,255,.55)); opacity:1}
+#lift .tri.on{background:#62b4ff; filter:drop-shadow(0 0 .3vh rgba(80,165,255,0.42))}
+#lift .tri.d{left:6.6%; top:42%; width:4.2%; height:16%}
+#lift .tri.u{left:89.2%; top:42%; width:4.2%; height:16%}
+#lift .lights{left:18.5%; width:63%; top:64%; height:8%; gap:6%}
+#lift .lamp{height:45%; background:rgba(255,255,255,.13); box-shadow:none}
+#lift .lamp.on{background:#62b4ff; box-shadow:0 0 .35vh rgba(80,165,255,0.40)}
+
+/* button panel: satin brushed-steel plate (same steel as the doors), black push buttons, engraved labels */
+#lift .panel{background:var(--steel-img) center/cover, linear-gradient(160deg,#c9ccd0,#9a9da2) !important; border-radius:.5vh;
+  box-shadow:0 .35vh .9vh rgba(0,0,0,.28),0 0 0 .1vh rgba(0,0,0,.35),inset 0 .12vh 0 rgba(255,255,255,.55),inset 0 -.12vh 0 rgba(0,0,0,.25)}
+#lift .panel::after{content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,0) 40%,rgba(0,0,0,.08))}
+#lift .screw{display:none}
+#lift .fns{border-top:1px solid rgba(0,0,0,.22); box-shadow:none; background:linear-gradient(180deg,rgba(255,255,255,.3) 0 1px,transparent 1px)}
+/* black button inserts in a fine steel collar; backlit white numerals, red when current / selected / hovered */
+#lift .cap{background:radial-gradient(circle at 50% 35%,#e6e8ea,#9ea1a5 70%); box-shadow:0 .12vh .2vh rgba(0,0,0,.35),inset 0 .08vh 0 rgba(255,255,255,.7)}
+#lift .cap::before{inset:.3vh; background:radial-gradient(circle at 50% 30%,#2a2b2d,#0c0c0d 70%); box-shadow:inset 0 .12vh .2vh rgba(255,255,255,.12),inset 0 -.2vh .4vh rgba(0,0,0,.6)}
+#lift .btn:hover .cap::before{filter:none}
+#lift .btn:hover .cap,#lift .btn.here .cap,#lift .btn.lit .cap{box-shadow:0 .12vh .2vh rgba(0,0,0,.35),inset 0 .08vh 0 rgba(255,255,255,.7),0 0 .8vh rgba(80,165,255,0.17)}
+#lift .btn .num-cap{font:500 1.9vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:0}
+#lift .lbl{font:600 .95vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:.22em; color:#2c2e31; text-shadow:0 .08vh 0 rgba(255,255,255,.5); opacity:.9}
+#lift .btn.ph .lbl{color:#6a6d72}
+/* thinner, satin door frame */
+#lift .trim{filter:saturate(.6) brightness(1.05)}
+
+/* ===================== LEVEL SCREEN VARIANTS (CFG.indicator) ===================== */
+#lift .ind2{position:relative; display:flex; align-items:center; justify-content:center}
+#lift.ind-alt .ind{display:none}
+#lift .ind2 .ar{width:1vh; height:.85vh; background:rgba(255,255,255,.14); transition:background .25s,filter .25s}
+#lift .ind2 .ar.u{clip-path:polygon(50% 0,100% 100%,0 100%)}
+#lift .ind2 .ar.d{clip-path:polygon(0 0,100% 0,50% 100%)}
+#lift .ind2 .ar.on{background:#62b4ff; filter:drop-shadow(0 0 .35vh rgba(80,165,255,0.47))}
+#lift.moving .ind2 .ar.on{animation:liftBlink 1s steps(1) infinite}
+#lift .steelplate{background:var(--steel-img) center/cover, linear-gradient(160deg,#c9ccd0,#9a9da2);
+  box-shadow:0 .25vh .6vh rgba(0,0,0,.28),0 0 0 .1vh rgba(0,0,0,.35),inset 0 .1vh 0 rgba(255,255,255,.55),inset 0 -.1vh 0 rgba(0,0,0,.25)}
+
+/* A — DIAL: art-deco half-moon floor dial with a sweeping needle */
+#lift .ind2.dial{gap:0}
+#lift .dial .face{position:relative; width:12vh; height:6vh; border-radius:6vh 6vh .3vh .3vh; transform:scale(.92); transform-origin:50% 60%}
+#lift .dial .face::before{content:""; position:absolute; left:.45vh; right:.45vh; top:.45vh; bottom:.3vh; border-radius:6.1vh 6.1vh .15vh .15vh;
+  background:radial-gradient(ellipse at 50% 100%,#1d1e20,#0a0a0b 75%); box-shadow:inset 0 .15vh .35vh rgba(0,0,0,.9),0 .08vh 0 rgba(255,255,255,.45)}
+#lift .dial .mk{position:absolute; left:50%; bottom:.35vh; width:0; height:0}
+#lift .dial .mk i{position:absolute; left:-.06vh; top:-5.6vh; width:.12vh; height:.55vh; background:rgba(255,255,255,.35)}
+#lift .dial .mk b{position:absolute; left:-1vh; top:-4.7vh; width:2vh; text-align:center; font:500 1.05vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif;
+  color:rgba(255,255,255,.55); transition:color .3s,text-shadow .3s}
+#lift .dial .mk.on b{color:#62b4ff; text-shadow:0 0 .4vh rgba(80,165,255,0.42)}
+#lift .dial .mk.on i{background:#62b4ff}
+#lift .dial .needle{position:absolute; left:calc(50% - .1vh); bottom:.35vh; width:.2vh; height:3.15vh; transform-origin:50% 100%;
+  background:linear-gradient(180deg,#bfe0ff,#3a8ae8); border-radius:.1vh .1vh 0 0; box-shadow:0 0 .35vh rgba(80,165,255,0.30);
+  transition:transform .7s cubic-bezier(.45,1.35,.5,1)}
+#lift .dial .hub{position:absolute; left:calc(50% - .55vh); bottom:-.2vh; width:1.1vh; height:1.1vh; border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#f2f3f4,#8d9094 70%); box-shadow:0 .08vh .15vh rgba(0,0,0,.6)}
+#lift .dial .tag{position:absolute; left:calc(100% + 1.4vh); top:50%; transform:translateY(-50%)}
+#lift .dial > .arrs{position:absolute; right:calc(100% + 1.4vh); top:50%; transform:translateY(-50%); padding:.7vh .75vh; border-radius:.2vh;
+  background:linear-gradient(180deg,#141516,#070708); box-shadow:inset 0 .12vh .25vh rgba(0,0,0,.9),0 0 0 .1vh rgba(0,0,0,.35),0 .08vh 0 rgba(255,255,255,.45)}
+#lift .dial .tag .nm{min-width:9.5vh; text-align:center; font:500 1.1vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:.3em; text-indent:.3em; text-transform:uppercase;
+  color:#62b4ff; text-shadow:0 0 .35vh rgba(80,165,255,0.35); padding:.75vh .8vh; border-radius:.2vh;
+  background:linear-gradient(180deg,#141516,#070708); box-shadow:inset 0 .12vh .25vh rgba(0,0,0,.9),0 0 0 .1vh rgba(0,0,0,.35),0 .08vh 0 rgba(255,255,255,.45)}
+#lift .dial .arrs{display:flex; flex-direction:column; gap:.5vh}
+#lift .dial .arrs .ar{background:rgba(255,255,255,.14)}
+#lift .dial .arrs .ar.on{background:#62b4ff}
+
+/* B — BAR: every floor engraved along one steel bar; current floor lit gold */
+#lift.ind-bar .hdr{left:calc(50% - 34vh); width:68vh}
+#lift .ind2.bar{gap:1.3vh; padding:0 1.4vh; height:3.6vh; border-radius:.3vh}
+#lift .bar .names{display:flex; align-items:center; gap:.4vh; height:2.5vh; padding:0 .4vh; border-radius:.15vh;
+  background:linear-gradient(180deg,#141516,#070708); box-shadow:inset 0 .15vh .3vh rgba(0,0,0,.9),0 .08vh 0 rgba(255,255,255,.45)}
+#lift .bar .nm{position:relative; font:500 .95vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:.24em; text-indent:.24em; text-transform:uppercase;
+  color:rgba(255,255,255,.26); padding:0 .9vh; transition:color .35s,text-shadow .35s}
+#lift .bar .nm + .nm::before{content:""; position:absolute; left:-.25vh; top:calc(50% - .1vh); width:.2vh; height:.2vh; border-radius:50%; background:rgba(255,255,255,.22)}
+#lift .bar .nm.on{color:#62b4ff; text-shadow:0 0 .35vh rgba(80,165,255,0.42),0 0 1vh rgba(80,165,255,0.17)}
+#lift .bar .ar{background:rgba(0,0,0,.35)}
+#lift .bar .ar.on{background:#62b4ff}
+
+/* C — ROLL: flush black-glass display, floor name rolls up/down like a departures board */
+#lift .ind2.roll{gap:1.4vh; height:4.8vh; padding:0 1.6vh; border-radius:.35vh;
+  background:linear-gradient(180deg,#18191b,#060607); box-shadow:0 .25vh .6vh rgba(0,0,0,.35),0 0 0 .12vh #8e9195,0 0 0 .22vh rgba(0,0,0,.4),inset 0 .1vh 0 rgba(255,255,255,.12)}
+#lift .ind2.roll::after{content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(170deg,rgba(255,255,255,.1),rgba(255,255,255,0) 40%)}
+#lift .roll .no{font:300 2.3vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif; color:#62b4ff; text-shadow:0 0 .4vh rgba(80,165,255,0.35);
+  font-variant-numeric:tabular-nums; min-width:2.8vh; text-align:right}
+#lift .roll .sep{width:.1vh; height:2.6vh; background:rgba(255,255,255,.18)}
+#lift .roll .win{position:relative; height:2.4vh; width:15vh; overflow:hidden;
+  -webkit-mask:linear-gradient(180deg,transparent,#000 22%,#000 78%,transparent); mask:linear-gradient(180deg,transparent,#000 22%,#000 78%,transparent)}
+#lift .roll .col{position:absolute; left:0; right:0; top:0; transition:transform .5s cubic-bezier(.6,0,.25,1)}
+#lift .roll .col span{display:block; height:2.4vh; font:400 1.5vh/2.4vh "Helvetica Neue",Helvetica,Arial,sans-serif;
+  letter-spacing:.34em; text-transform:uppercase; color:#f5f7f9; text-shadow:0 0 .3vh rgba(255,255,255,.55)}
+#lift .roll .arrs{display:flex; flex-direction:column; gap:.45vh}
+
+/* ===================== SCREEN REALISM ===================== */
+/* LCD/LED panel behind the glass: backlight bleed (blacks aren't pure black), fine pixel grid, glass reflection on top */
+#lift .ind .scr{position:absolute; left:17.6%; width:64.8%; top:20.4%; height:59.4%; border-radius:.1vh; pointer-events:none;
+  background:radial-gradient(ellipse 70% 90% at 50% 45%,rgba(58,64,70,.32),rgba(20,22,24,.12) 70%,transparent);
+  opacity:calc(.75 + .25 * (1 - var(--c,0)))}
+#lift .ind .scr::after{content:""; position:absolute; inset:0; border-radius:inherit; opacity:.3;
+  background:repeating-linear-gradient(90deg,rgba(0,0,0,.35) 0 1px,transparent 1px 2px),repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 1px,transparent 1px 2px)}
+#lift .ind .refl{position:absolute; left:17.6%; width:64.8%; top:20.4%; height:59.4%; border-radius:.1vh; pointer-events:none; overflow:hidden; z-index:3;
+  box-shadow:inset 0 .1vh .25vh rgba(0,0,0,.85),inset 0 -.05vh 0 rgba(255,255,255,.08)}
+#lift .ind .refl::before{content:""; position:absolute; top:-60%; height:220%; width:38%; left:calc(18% + var(--rx,0) * 1%);
+  transform:rotate(18deg); background:linear-gradient(90deg,transparent,rgba(255,255,255,.07) 35%,rgba(255,255,255,.11) 50%,rgba(255,255,255,.04) 65%,transparent);
+  mix-blend-mode:screen}
+#lift .ind .refl::after{content:""; position:absolute; inset:0;
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0) 38%,rgba(255,255,255,0) 80%,rgba(255,255,255,.03)); mix-blend-mode:screen}
+/* text sits behind the glass: soft bloom, slight LCD lag when it changes */
+#lift .ind .digits{z-index:2; color:#e8edf1; text-shadow:0 0 .08vh rgba(255,255,255,.9),0 0 .5vh rgba(200,220,245,.28); transition:opacity .12s linear}
+#lift .ind .digits.swap{opacity:.15; transition:none}
+#lift .ind .lights{z-index:2}
+/* dot-matrix LED mode */
+#lift .ind .mtx{position:absolute; left:20%; width:60%; top:24%; height:37%; z-index:2; display:none}
+#lift.screen-matrix .ind .mtx{display:block}
+#lift.screen-matrix .ind .digits{display:none}
+/* direction arrows: frosted acrylic lenses set into the steel, backlit when travelling */
+#lift .ind .tri{clip-path:none !important; background:none !important; opacity:1 !important; animation:none !important; z-index:2;
+  top:35%; width:7.2%; height:30%;
+  filter:drop-shadow(0 .07vh 0 rgba(255,255,255,.65)) drop-shadow(0 -.05vh 0 rgba(0,0,0,.35));
+  transition:filter .18s ease-out}
+#lift .ind .tri.d{left:5.15%}
+#lift .ind .tri.u{left:87.65%}
+#lift .ind .tri::before,#lift .ind .tri::after{content:""; position:absolute; inset:0}
+#lift .ind .tri.u::before,#lift .ind .tri.u::after{clip-path:polygon(50% 0,100% 100%,0 100%)}
+#lift .ind .tri.d::before,#lift .ind .tri.d::after{clip-path:polygon(0 0,100% 0,50% 100%)}
+/* unlit: milky grey lens, darker toward the edges where it meets the steel */
+#lift .ind .tri::before{background:radial-gradient(ellipse 60% 55% at 50% 55%,#8d8f90,#6b6d6f 55%,#4c4e50 100%)}
+#lift .ind .tri.d::before{background:radial-gradient(ellipse 60% 55% at 50% 40%,#8d8f90,#6b6d6f 55%,#4c4e50 100%)}
+/* lit: hot white-gold core falling off to amber at the edges */
+#lift .ind .tri::after{opacity:0; transition:opacity .18s ease-out;
+  background:radial-gradient(ellipse 55% 50% at 50% 62%,#a8d2ff 0%,#7fbcff 35%,#4f9df0 70%,#2a6fc8 100%)}
+#lift .ind .tri.d::after{background:radial-gradient(ellipse 55% 50% at 50% 38%,#a8d2ff 0%,#7fbcff 35%,#4f9df0 70%,#2a6fc8 100%)}
+#lift .ind .tri.on::after{opacity:1}
+/* halo the lens throws onto the brushed steel */
+#lift .ind .tri.on{filter:drop-shadow(0 0 .12vh rgba(205,232,255,0.47)) drop-shadow(0 0 .55vh rgba(90,170,255,0.35)) drop-shadow(0 0 1.4vh rgba(50,135,240,0.17))}
+#lift.moving .ind .tri.on::after{animation:arrowHum 2.4s ease-in-out infinite}
+@keyframes arrowHum{0%,100%{opacity:1}50%{opacity:.9}}
+</style>
+
+<script>
+(() => {
+  /* ===== CONFIG ===== */
+  const CFG = {
+    // Floors stack into one continuous scrolling page. Each floor is at least one screen tall.
+    floors: [
+      { n:'Intro', bg:'#2b2620', img:'', ambience:'', html:`
+        <h1>Intro</h1><p>Scroll down to ride — the doors close between floors and open again as you keep going.</p>
+        <div class="ph"></div>
+        <h2>The idea</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Why now</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>The world</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>In a sentence</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Tone', bg:'#1f2a2b', img:'', ambience:'', html:`
+        <h1>Tone</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Feel</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>References</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Colour</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Sound</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Approach', bg:'#2b1f24', img:'', ambience:'', html:`
+        <h1>Approach</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Camera</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Lighting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Edit</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Production design</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Characters', bg:'#22232e', img:'', ambience:'', html:`
+        <h1>Characters</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Character one</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Character two</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Character three</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Casting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Script', bg:'#262a22', img:'', ambience:'', html:`
+        <h1>Script</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene one</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene two</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene three</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene four</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Conclusion', bg:'#1d1d1d', img:'', ambience:'', html:`
+        <h1>Conclusion</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>What we deliver</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Timeline</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>The team</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Thank you</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` }
+    ],
+    headerImg: '',         // indicator housing plate (wide strip, blank display window in the centre)
+    frameImg: '',          // optional overlay above the doors (reflections/grime), transparent PNG
+    doorL: 'assets/lift-door-l-v4.webp',
+    doorR: 'assets/lift-door-r-v4.webp',
+    wallTex: 'assets/lift-wall-v3.webp',      // wood-veneer wall (tiles left↔right)
+    indicatorImg: 'assets/lift-indicator-v4.webp',  // photo of the indicator plate (4:1, blank glass window)
+    plateImg: '',          // (modern theme: glass panel drawn in code)
+    indicator: 'classic',     // level screen: 'dial' (needle) | 'bar' (all floors, current lit) | 'roll' (rolling name) | 'classic'
+    screen: 'matrix',       // level screen text: 'lcd' (backlit type behind glass) | 'matrix' (dot-matrix LEDs)
+    display: 'name',       // indicator shows the floor 'name' (14-segment words) or 'number'
+    sfx: { ding:'', door:'', hum:'' },  // optional audio file URLs; blank = synthesised
+
+    // scroll-scrubbed doors
+    doorZone: 0.7,         // scroll distance (in screen heights) for the doors to close — and the same again to open
+    closedHold: 0.28,      // fraction of the zone where the doors sit fully shut
+    doorEase: 0.22,        // smoothing (0–1). Lower = floatier, higher = tighter to the scroll
+    scrollDing: true,      // soft ding when you pass a floor by scrolling
+
+    // button-panel ride
+    doorMs: 950,
+    perFloorMs: 750,
+    arriveDwellMs: 300,
+    bellHz: 1046.5,
+
+    startAtBottom: false,  // true = loads on the ground floor; scroll UP to ride up (floors must be one screen each). List floors ground → top.
+    descending: true,      // true = Intro is the top floor and the lift rides DOWN as you scroll down. false = rides up
+    showPanel: true,
+    panelCols: 3,          // columns of floor buttons
+    floorSlots: 12,        // floor buttons on the panel; spares beyond your floors show as blank placeholders
+    functions: ['open', 'close', 'alarm', 'call'],  // bottom-row lift buttons (any of: open, close, alarm, call)
+    // 3D cab + camera turn
+    wallWidth: 0.022,       // width of the front wall either side of the doors (fraction of screen width)
+    recess: 0.018,
+    doorThickness: 0.035,  // depth of each door leaf (fraction of screen width) — shows on the leading edges as they move         // how far the doors sit back behind the front wall (fraction of screen width)
+    persp: 1.1,            // camera distance from the doors, as a fraction of screen width (lower = wider lens)
+    turnMs: 900,           // camera slide duration
+    panelOffset: 0.02,     // panel sits on the front wall this far past the right edge of the screen (fraction of width)
+    panelWallExt: 1,       // how far the front wall carries on past the screen edge before the cab corner
+    revealDistance: 90,    // px — mouse this close to the right edge turns the camera to the panel
+    turnBackAfterMs: 4000, // turn back to the doors after this long idle on the panel
+    wallImg: '',           // side-wall texture (optional)
+    ceilImg: 'assets/lift-ceiling.webp',
+    startClosed: true,         // doors start shut on load; the first scroll opens them onto Intro
+    openOnLoad: false,         // (if startClosed is false) doors open by themselves on load
+
+    // lobby start
+    lobby: false,              // lobby start (off for now — set true to bring it back)
+    lobbyTitle: 'Treatment title',
+    lobbySub: 'Director · Client · 2026',
+    lobbyWallImg: '', lobbyDoorImg: '', lobbyCabImg: '',
+
+    // camera sway (0 = off)
+    sway: 1,
+    grain: 0.035,              // film grain strength (0 = off)
+    flicker: 1,                // faint light flicker while the lift is moving (0 = off)
+    cursorLook: 1,             // camera leans slightly towards the mouse (0 = off)
+    vibration: 1,              // cab shake while travelling (0 = off, 2 = rough old lift)
+    haptics: true,             // also buzz phones that support it (Android) while travelling
+
+    // button jobs
+    contactEmail: '',          // Call button opens an email to this address (blank = just rings)
+    contactSubject: 'Treatment',
+
+    // sound & atmosphere
+    muzak: '',                 // lift-music file (loop). Blank = synthesised bossa
+    muzakVolume: 0.6,
+    floorAmbience: false,      // per-floor background sound (off). If on, uses each floor's 'ambience' file
+    ambienceVolume: 0.6
+  };
+
+  const root = document.getElementById('lift');
+  const $ = s => root.querySelector(s);
+  if (CFG.startAtBottom) CFG.descending = true;
+  const F = CFG.startAtBottom ? [...CFG.floors].reverse() : CFG.floors;  // page order is always top → bottom
+  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const T = ms => RM ? 0 : ms;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const sc = $('.scroller');
+
+  root.style.setProperty('--door-ms', CFG.doorMs + 'ms');
+  if (RM) root.classList.add('rm');
+  if (!CFG.showPanel) root.classList.add('no-panel');
+  if (CFG.indicatorImg) root.style.setProperty('--ind-img', `url(${CFG.indicatorImg})`);
+  if (CFG.doorL) root.style.setProperty('--steel-img', `url(${CFG.doorL})`);
+  if (CFG.plateImg) { root.style.setProperty('--plate-img', `url(${CFG.plateImg})`); root.classList.add('has-plate'); }
+  if (CFG.headerImg) {
+    root.classList.add('has-header');
+    root.querySelectorAll('.hdr-bg').forEach((b, k) => { b.style.backgroundImage = `url(${CFG.headerImg})`; b.style.backgroundPosition = ['0','33.6%','67.1%','100%'][k] + ' 50%'; });
+  }
+  if (CFG.frameImg) $('.frame').style.backgroundImage = `url(${CFG.frameImg})`;
+  if (CFG.doorL) $('.door.l').style.background = `url(${CFG.doorL}) right center/cover`;
+  if (CFG.doorR) $('.door.r').style.background = `url(${CFG.doorR}) left center/cover`;
+
+  /* build floors + buttons */
+  const stops = [], holds = [], floorEls = [];
+  F.forEach((f, i) => {
+    const stop = document.createElement('div'); stop.className = 'stop'; stop.style.zIndex = F.length - i;
+    const hold = document.createElement('div'); hold.className = 'hold';
+    const d = document.createElement('section'); d.className = 'floor';
+    d.style.backgroundColor = f.bg || '#111';
+    if (f.img) d.style.backgroundImage = `url(${f.img})`;
+    d.innerHTML = `<div class="copy">${f.html || ''}</div>`;
+    hold.appendChild(d); stop.appendChild(hold); sc.appendChild(stop);
+    stops.push(stop); holds.push(hold); floorEls.push(d);
+  });
+
+  /* layout: works out where each floor freezes, swaps and pins */
+  let swaps = [], starts = [], Z = 0;   // swaps[i] = scroll position where floor i hands over to i+1 (doors shut)
+  function layout() {
+    const H = sc.clientHeight, n = F.length;
+    Z = Math.round(H * CFG.doorZone);
+    let o = 0; swaps = []; starts = [CFG.startClosed ? Z : 0];
+    for (let i = 0; i < n; i++) {
+      const zs = i > 0 || CFG.startClosed ? Z : 0, ze = i < n - 1 ? Z : 0;
+      floorEls[i].style.minHeight = H + 'px';
+      const h = floorEls[i].offsetHeight;
+      const hHold = h + zs, hStop = hHold + ze;
+      holds[i].style.height = hHold + 'px';
+      holds[i].style.top = (H - hHold) + 'px';
+      stops[i].style.height = hStop + 'px';
+      stops[i].style.marginTop = i > 0 ? -H + 'px' : '0';
+      if (i < n - 1) { o += hStop - H; swaps.push(o); starts.push(o + Z); }
+    }
+  }
+  layout();
+  addEventListener('resize', layout);
+  if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout()); floorEls.forEach(f => ro.observe(f.querySelector('.copy'))); }
+  ['tl','tr','bl','br'].forEach(k => { const sc = document.createElement('span'); sc.className = 'screw ' + k; $('.panel').appendChild(sc); });
+  // Numbered like a real lift: 1 is the lowest floor, numbers climb left→right, bottom row → top row.
+  // The top floor gets the highest number; spare slots for sections to come sit above it.
+  const cols = CFG.panelCols;
+  const floorRows = Math.ceil(CFG.floorSlots / cols);
+  $('.panel').style.setProperty('--cols', cols);
+  const floorNo = i => CFG.descending ? F.length - i : i + 1;          // floor index → button number
+  const place = (b, num) => {                                         // number → grid cell
+    const k = num - 1;
+    b.style.gridRow = floorRows - Math.floor(k / cols);
+    b.style.gridColumn = (k % cols) + 1;
+  };
+  const btns = F.map((f, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn'; b.setAttribute('aria-label', `${floorNo(i)} ${f.n}`);
+    b.innerHTML = `<span class="cap"><span class="ico num-cap">${floorNo(i)}</span></span><span class="lbl">${f.n}</span>`;
+    b.addEventListener('pointerdown', () => { initAudioQuiet(); click(); });
+    b.addEventListener('click', () => go(i));
+    place(b, floorNo(i));
+    $('.panel').appendChild(b);
+    return b;
+  });
+  for (let num = F.length + 1; num <= CFG.floorSlots; num++) {        // spare slots for sections still to come
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn ph'; b.tabIndex = -1; b.setAttribute('aria-hidden', 'true');
+    b.innerHTML = `<span class="cap"><span class="ico num-cap">${num}</span></span><span class="lbl">—</span>`;
+    b.addEventListener('pointerdown', () => { initAudioQuiet(); click(); });
+    b.addEventListener('click', () => { buzz(); flashDisplay(['COMING', 'SOON', 'COMING', 'SOON'], 380); });
+    place(b, num);
+    $('.panel').appendChild(b);
+  }
+  const ICONS = {
+    open:  '<svg viewBox="0 0 24 24"><path d="M3 12h6M3 12l3-3M3 12l3 3M21 12h-6M21 12l-3-3M21 12l-3 3M12 5v14"/></svg>',
+    close: '<svg viewBox="0 0 24 24"><path d="M3 12h6M9 12l-3-3M9 12l-3 3M21 12h-6M15 12l3-3M15 12l3 3M12 5v14"/></svg>',
+    alarm: '<svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0"/></svg>',
+    call:  '<svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>'
+  };
+  CFG.functions.forEach(fn => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn fn'; b.setAttribute('aria-label', fn);
+    b.innerHTML = `<span class="cap"><span class="ico">${ICONS[fn] || ''}</span></span><span class="lbl">${fn}</span>`;
+    b.addEventListener('pointerdown', () => { initAudioQuiet(); click(); });
+    b.addEventListener('click', () => liftFn(fn, b));
+    $('.panel').appendChild(b);
+  });
+  // lift functions sit under the floor buttons, two to a row, centred
+  const fnBtns = [...root.querySelectorAll('.btn.fn')];
+  if (fnBtns.length) {
+    const fns = document.createElement('div'); fns.className = 'fns';
+    fns.style.gridRow = floorRows + 1; fns.style.gridColumn = '1 / -1';
+    fnBtns.forEach(fb => fns.appendChild(fb));
+    $('.panel').appendChild(fns);
+  }
+
+  const numEl = $('.num'), arrowEl = $('.arrow');
+  const NUMS = CFG.display === 'number';
+  const maxLen = NUMS ? 2 : Math.max(...F.map(f => f.n.length));
+  const pad = t => { const l = Math.floor((maxLen - t.length) / 2); return ' '.repeat(l) + t + ' '.repeat(maxLen - t.length - l); };
+  $('.ghost').textContent = (NUMS ? '8' : '~').repeat(maxLen);   // faint unlit segments behind the text
+  const lampsEl = $('.lights');
+  const lamps = F.map((f, i) => { const l = document.createElement('span'); l.className = 'lamp'; l.title = f.n; return l; });
+  lamps.forEach(l => lampsEl.appendChild(l));   // first floor (Intro) on the left
+  const label = i => NUMS ? String(CFG.descending ? F.length - i : i + 1).padStart(2, ' ') : pad(F[i].n);
+
+
+  /* ===== SCREEN REALISM: glass layers, LCD lag, optional dot-matrix ===== */
+  const indEl = $('.ind');
+  (function () {
+    const scr = document.createElement('span'); scr.className = 'scr'; indEl.insertBefore(scr, indEl.firstChild);
+    const refl = document.createElement('span'); refl.className = 'refl'; indEl.appendChild(refl);
+  })();
+  const GLYPH = {A:'.###.#...##...#######...##...##...#',B:'####.#...##...#####.#...##...#####.',C:'.###.#...##....#....#....#...#.###.',D:'####.#...##...##...##...##...#####.',
+    E:'######....#....####.#....#....#####',F:'######....#....####.#....#....#....',G:'.###.#...##....#.####...##...#.####',H:'#...##...##...#######...##...##...#',
+    I:'.###...#....#....#....#....#...###.',J:'..###...#....#....#....#.#..#..##..',K:'#...##..#.#.#..##...#.#..#..#.#...#',L:'#....#....#....#....#....#....#####',
+    M:'#...###.###.#.##.#.##...##...##...#',N:'#...##...###..##.#.##..###...##...#',O:'.###.#...##...##...##...##...#.###.',P:'####.#...##...#####.#....#....#....',
+    Q:'.###.#...##...##...##.#.##..#..##.#',R:'####.#...##...#####.#.#..#..#.#...#',S:'.#####....#.....###.....#....#####.',T:'#####..#....#....#....#....#....#..',
+    U:'#...##...##...##...##...##...#.###.',V:'#...##...##...##...##...#.#.#...#..',W:'#...##...##...##.#.##.#.##.#.#.#.#.',X:'#...##...#.#.#...#...#.#.#...##...#',
+    Y:'#...##...#.#.#...#....#....#....#..',Z:'#####....#...#...#...#...#....#####',
+    0:'.###.#...##..###.#.###..##...#.###.',1:'..#...##....#....#....#....#...###.',2:'.###.#...#....#...#...#...#...#####',3:'#####...#...#.....#....##...#.###.',
+    4:'...#...##..#.#.#..#.#####...#....#.',5:'######....####.....#....##...#.###.',6:'..##..#...#....####.#...##...#.###.',7:'#####....#...#...#...#....#....#...',
+    8:'.###.#...##...#.###.#...##...#.###.',9:'.###.#...##...#.####....#...#..##..'};
+  const mtx = document.createElement('canvas'); mtx.className = 'mtx'; indEl.appendChild(mtx);
+  let mtxText = '';
+  function drawMatrix(txt) {
+    mtxText = txt;
+    if (!root.classList.contains('screen-matrix')) return;
+    const dpr = Math.min(3, devicePixelRatio || 1), w = mtx.clientWidth, h = mtx.clientHeight;
+    if (!w || !h) return;
+    mtx.width = Math.round(w * dpr); mtx.height = Math.round(h * dpr);
+    const g = mtx.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const COLS = Math.max(...F.map(f => f.n.length)) * 6 + 3, ROWS = 9;
+    const p = Math.min(w / COLS, h / ROWS), ox = (w - COLS * p) / 2, oy = (h - ROWS * p) / 2, r = p * .36;
+    const t = txt.trim().toUpperCase(), tw = t.length * 6 - 1, sx = Math.floor((COLS - tw) / 2);
+    const on = new Set();
+    [...t].forEach((ch, k) => { const gl = GLYPH[ch]; if (!gl) return; for (let i = 0; i < 35; i++) if (gl[i] === '#') on.add((1 + Math.floor(i / 5)) * COLS + sx + k * 6 + (i % 5)); });
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+      const lit = on.has(y * COLS + x);
+      g.beginPath(); g.arc(ox + (x + .5) * p, oy + (y + .5) * p, r, 0, Math.PI * 2);
+      if (lit) { g.fillStyle = '#f4f7fa'; g.shadowColor = 'rgba(220,235,255,.8)'; g.shadowBlur = p * 1.6; }
+      else { g.fillStyle = 'rgba(255,255,255,.055)'; g.shadowBlur = 0; }
+      g.fill();
+    }
+  }
+  if (CFG.screen === 'matrix') root.classList.add('screen-matrix');
+  addEventListener('resize', () => drawMatrix(mtxText)); setTimeout(() => drawMatrix(mtxText), 300);
+  const digitsEl = $('.ind .digits');
+  const screenSet = txt => {
+    drawMatrix(txt);
+    digitsEl.classList.add('swap'); requestAnimationFrame(() => requestAnimationFrame(() => digitsEl.classList.remove('swap')));
+  };
+  /* ===== LEVEL SCREEN VARIANTS ===== */
+  let ind2Set = null, ind2Dir = null;
+  (function buildInd2() {
+    let style = CFG.indicator || 'classic'; if (style === 'strip') style = 'bar';
+    if (style === 'classic') return;
+    root.classList.add('ind-alt', 'ind-' + style);
+    const box = document.createElement('div'); box.className = 'ind2 ' + style;
+    const fno = i => CFG.descending ? F.length - i : i + 1;     // floor number shown on buttons
+    const arrows = '<span class="arrs"><span class="ar u"></span><span class="ar d"></span></span>';
+    if (style === 'dial') {
+      box.innerHTML = `${arrows}<div class="face steelplate"></div><div class="tag"><span class="nm"></span></div>`;
+      const face = box.querySelector('.face');
+      const span = 140, ang = i => { const k = fno(i) - 1; return F.length > 1 ? -span / 2 + k * span / (F.length - 1) : 0; };
+      const mks = F.map((f, i) => {
+        const m = document.createElement('span'); m.className = 'mk'; m.title = f.n;
+        const a = ang(i), r = a * Math.PI / 180;
+        m.innerHTML = `<i style="transform:rotate(${a}deg); transform-origin:50% 5.6vh"></i><b style="transform:translate(${(Math.sin(r) * 3.9).toFixed(2)}vh,${(4.0 - Math.cos(r) * 3.9).toFixed(2)}vh)">${fno(i)}</b>`;
+        face.appendChild(m); return m;
+      });
+      const nd = document.createElement('span'); nd.className = 'needle'; face.appendChild(nd);
+      const hub = document.createElement('span'); hub.className = 'hub'; face.appendChild(hub);
+      const nm = box.querySelector('.nm');
+      ind2Set = i => { nd.style.transform = `rotate(${ang(i)}deg)`; mks.forEach((m, k) => m.classList.toggle('on', k === i)); nm.textContent = F[i].n; };
+    } else if (style === 'bar') {
+      box.classList.add('steelplate');
+      box.innerHTML = `<span class="ar d"></span><span class="names">${F.map(f => `<span class="nm">${f.n}</span>`).join('')}</span><span class="ar u"></span>`;
+      const nms = [...box.querySelectorAll('.nm')];
+      ind2Set = i => nms.forEach((n, k) => n.classList.toggle('on', k === i));
+    } else if (style === 'roll') {
+      box.innerHTML = `<span class="no"></span><span class="sep"></span><span class="win"><span class="col">${F.map(f => `<span>${f.n}</span>`).join('')}</span></span>${arrows}`;
+      const no = box.querySelector('.no'), col = box.querySelector('.col');
+      ind2Set = i => { no.textContent = String(fno(i)).padStart(2, '0'); col.style.transform = `translateY(${-i * 2.4}vh)`; };
+    }
+    $('.hdr').appendChild(box);
+    const au = box.querySelector('.ar.u'), ad = box.querySelector('.ar.d');
+    ind2Dir = d => { au && au.classList.toggle('on', d > 0); ad && ad.classList.toggle('on', d < 0); };
+  })();
+  const setNum = i => { const changed = numEl.textContent !== label(i); numEl.textContent = label(i); if (changed) screenSet(label(i)); lamps.forEach((l, k) => l.classList.toggle('on', k === i)); if (ind2Set) ind2Set(i); };
+  const liftDir = d => CFG.descending ? -d : d;   // page direction → lift direction
+  const triU = $('.tri.u'), triD = $('.tri.d');
+  const setArrow = dir => { dir = liftDir(dir); triU.classList.toggle('on', dir > 0); triD.classList.toggle('on', dir < 0); if (ind2Dir) ind2Dir(dir); };
+  const markHere = i => {
+    btns.forEach((b, k) => b.classList.toggle('here', k === i));
+  };
+  const jolt = () => { if (RM) return; root.classList.remove('jolt'); void root.offsetWidth; root.classList.add('jolt'); };
+  let cVal = 1;
+  const setC = v => { cVal = v; root.style.setProperty('--c', v.toFixed(4)); };
+  // door leading-edge thickness as seen from the camera: wider the further the edge is from centre
+  const dl = $('.door.l'), dr = $('.door.r');
+  function doorEdges() {
+    const p = parseFloat(getComputedStyle(root).getPropertyValue('--p')) || 1000;
+    const mid = innerWidth / 2, a = dl.getBoundingClientRect(), b = dr.getBoundingClientRect();
+    const t = innerWidth * CFG.doorThickness;
+    root.style.setProperty('--edge-l', Math.max(0, (mid - a.right) / p * t) + 'px');
+    root.style.setProperty('--edge-r', Math.max(0, (b.left - mid) / p * t) + 'px');
+    requestAnimationFrame(doorEdges);
+  }
+  requestAnimationFrame(doorEdges);
+
+  /* ===== AUDIO ===== */
+  let ac = null, soundOn = false, noiseBuf = null, hum = null, humEl = null;
+  function initAudio() {
+    if (!ac) {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      const len = ac.sampleRate * 2;
+      noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0); let last = 0;
+      for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
+    }
+    if (ac.state === 'suspended') ac.resume();
+  }
+  const initAudioQuiet = () => { if (soundOn) initAudio(); };
+  const playFile = (url, vol = 1) => { const a = new Audio(url); a.volume = vol; a.play().catch(() => {}); return a; };
+
+  function bell(f, t0, vol = .3) {
+    const out = ac.createGain(); out.gain.value = vol; out.connect(ac.destination);
+    [[1, .6, 2.4], [2, .22, 1.5], [2.76, .16, 1], [5.4, .06, .5]].forEach(([r, g, dur]) => {
+      const o = ac.createOscillator(), e = ac.createGain();
+      o.type = 'sine'; o.frequency.value = f * r;
+      e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g, t0 + .004);
+      e.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+      o.connect(e).connect(out); o.start(t0); o.stop(t0 + dur + .05);
+    });
+  }
+  function ding(dir, vol = .3) { // once going up, twice going down — like real car lanterns
+    if (!soundOn) return;
+    dir = liftDir(dir);
+    if (CFG.sfx.ding) { playFile(CFG.sfx.ding, vol / .3); if (dir < 0) setTimeout(() => playFile(CFG.sfx.ding, vol / .3), 450); return; }
+    const t = ac.currentTime; bell(CFG.bellHz, t, vol); if (dir < 0) bell(CFG.bellHz * .84, t + .45, vol);
+  }
+  function noiseBurst(t, dur, type, freq, peak, attack) {
+    const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+    const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = .8;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + attack);
+    g.gain.setValueAtTime(peak, t + Math.max(attack, dur - .2)); g.gain.linearRampToValueAtTime(0, t + dur);
+    s.connect(f).connect(g).connect(ac.destination); s.start(t); s.stop(t + dur + .05);
+  }
+  /* lift-function buttons */
+  async function liftFn(fn, b) {
+    if (fn === 'close') {             // doors shut briefly, then reopen (nowhere to go)
+      if (busy) return; busy = true; b.classList.add('on');
+      root.classList.add('ride'); void root.offsetWidth; setC(1); doorSound();
+      await sleep(T(CFG.doorMs + 900)); setC(0); doorSound();
+      await sleep(T(CFG.doorMs)); root.classList.remove('ride'); b.classList.remove('on'); busy = false;
+    } else if (fn === 'open') {       // doors are already open at rest; just acknowledges
+      b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 600);
+    } else if (fn === 'alarm') {             // emergency lighting for a few seconds
+      if (root.classList.contains('alarm')) return;
+      b.classList.add('on'); root.classList.add('alarm'); alarmSound(); flashDisplay(['ALARM', 'ALARM', 'ALARM'], 900);
+      setTimeout(() => { root.classList.remove('alarm'); b.classList.remove('on'); }, 3200);
+    } else if (fn === 'call') {              // rings, then opens an email to you
+      b.classList.add('on'); callSound(); flashDisplay(['CALLING'], 1600);
+      setTimeout(() => {
+        b.classList.remove('on');
+        if (CFG.contactEmail) {
+          const url = `mailto:${CFG.contactEmail}?subject=${encodeURIComponent(CFG.contactSubject || '')}`;
+          try { window.top.location.href = url; } catch (e) { window.location.href = url; }
+        }
+      }, 1700);
+    }
+  }
+  // temporarily show words on the floor display, then go back to the floor name
+  let flashTimer = 0;
+  function flashDisplay(words, each = 750) {
+    clearTimeout(flashTimer);
+    let k = 0;
+    const step = () => {
+      if (k < words.length) {
+        const w = words[k++];
+        numEl.textContent = NUMS ? ({ COMING: '--', SOON: '  ', ALARM: 'AL', CALLING: 'CA' }[w] ?? w.slice(0, 2)) : pad(w.slice(0, maxLen).toUpperCase());
+        screenSet(numEl.textContent);
+        flashTimer = setTimeout(step, each);
+      } else { numEl.textContent = label(cur); screenSet(label(cur)); }
+    };
+    step();
+  }
+  function buzz() {                   // flat 'not available' buzz
+    if (!soundOn) return;
+    const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
+    o.type = 'square'; o.frequency.value = 118; f.type = 'lowpass'; f.frequency.value = 900;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.06, t + .01); g.gain.setValueAtTime(.06, t + .3); g.gain.linearRampToValueAtTime(0, t + .34);
+    o.connect(f).connect(g).connect(ac.destination); o.start(t); o.stop(t + .36);
+  }
+  function alarmSound() {             // old-school alarm bell: fast repeated strikes
+    if (!soundOn) return;
+    const t = ac.currentTime;
+    for (let k = 0; k < 34; k++) bell(2200, t + k * .085, .1);
+  }
+  function callSound() {              // intercom ring: two short bursts
+    if (!soundOn) return;
+    const t = ac.currentTime;
+    [0, .45].forEach(d => {
+      const o = ac.createOscillator(), m = ac.createOscillator(), g = ac.createGain(), mg = ac.createGain();
+      o.frequency.value = 440; m.frequency.value = 20; mg.gain.value = 0.5;
+      g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(.08, t + d + .02);
+      g.gain.setValueAtTime(.08, t + d + .35); g.gain.linearRampToValueAtTime(0, t + d + .38);
+      m.connect(mg).connect(g.gain); o.connect(g).connect(ac.destination);
+      o.start(t + d); m.start(t + d); o.stop(t + d + .4); m.stop(t + d + .4);
+    });
+  }
+  function click() { // button press
+    if (!soundOn) return;
+    const t = ac.currentTime;
+    noiseBurst(t, .03, 'highpass', 2500, .25, .001);
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = 180; g.gain.setValueAtTime(.12, t); g.gain.exponentialRampToValueAtTime(.0001, t + .05);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t + .06);
+  }
+  function doorSound() {
+    if (!soundOn) return;
+    if (CFG.sfx.door) { playFile(CFG.sfx.door, .8); return; }
+    const t = ac.currentTime, d = CFG.doorMs / 1000;
+    noiseBurst(t, d, 'bandpass', 320, .16, .15);
+    noiseBurst(t + d - .02, .16, 'lowpass', 140, .45, .005);
+  }
+  function humOn() {
+    if (!soundOn) return;
+    if (CFG.sfx.hum) { humEl = new Audio(CFG.sfx.hum); humEl.loop = true; humEl.volume = .6; humEl.play().catch(() => {}); return; }
+    const t = ac.currentTime;
+    const g = ac.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.12, t + .6);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 180;
+    const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 48;
+    const n = ac.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
+    const ng = ac.createGain(); ng.gain.value = .5;
+    o.connect(lp); n.connect(ng).connect(lp); lp.connect(g).connect(ac.destination);
+    o.start(t); n.start(t); hum = { g, o, n };
+  }
+  function humOff() {
+    if (humEl) { const a = humEl; humEl = null; let v = a.volume; const iv = setInterval(() => { v -= .06; if (v <= 0) { a.pause(); clearInterval(iv); } else a.volume = v; }, 40); }
+    if (!hum) return;
+    const { g, o, n } = hum, t = ac.currentTime; hum = null;
+    g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + .5);
+    o.stop(t + .55); n.stop(t + .55);
+  }
+  /* ===== LIFT MUSIC + FLOOR AMBIENCE ===== */
+  // Music fades up whenever you're between floors (doors closing/shut) and during rides.
+  // Each floor's ambience is muffled while the doors are shut and opens up as they part.
+  let mus = null, amb = null, musEl = null, ambEls = [];
+  function initAtmos() {
+    if (mus || !ac) return;
+    // music bus: through a small 'cab speaker' band-pass
+    const musGain = ac.createGain(); musGain.gain.value = 0;
+    const spk = ac.createBiquadFilter(); spk.type = 'bandpass'; spk.frequency.value = 1700; spk.Q.value = .32;
+    musGain.connect(spk).connect(ac.destination);
+    mus = { gain: musGain, next: ac.currentTime + .1, step: 0 };
+    if (CFG.muzak) { musEl = new Audio(CFG.muzak); musEl.loop = true; musEl.volume = 0; musEl.play().catch(() => {}); }
+    else setInterval(scheduleMuzak, 100);
+    // ambience bus: low-pass opened by the doors (only if floorAmbience is on)
+    if (!CFG.floorAmbience) return;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 300;
+    const ag = ac.createGain(); ag.gain.value = CFG.ambienceVolume;
+    lp.connect(ag).connect(ac.destination);
+    // placeholder ambience: soft room tone + a faint, bright major chord per floor (no low drones)
+    const chordsByFloor = [[523.25, 659.25, 783.99], [587.33, 739.99, 880], [493.88, 622.25, 739.99], [440, 554.37, 659.25], [659.25, 830.61, 987.77], [392, 493.88, 587.33]];
+    amb = { lp, floors: F.map((f, i) => {
+      const g = ac.createGain(); g.gain.value = 0; g.connect(lp);
+      if (f.ambience) { const el = new Audio(f.ambience); el.loop = true; el.volume = 0; el.play().catch(() => {}); ambEls[i] = el; return g; }
+      if (!f.ambience) return g;   // no file = silence
+      const n = ac.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
+      const nf = ac.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 500 + i * 120; nf.Q.value = .6;
+      const ng = ac.createGain(); ng.gain.value = .35;
+      n.connect(nf).connect(ng).connect(g); n.start();
+      chordsByFloor[i % chordsByFloor.length].forEach(fq => {
+        const o = ac.createOscillator(), og = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain();
+        o.type = 'sine'; o.frequency.value = fq; og.gain.value = .025;
+        lfo.frequency.value = .1 + Math.random() * .15; lg.gain.value = .02; lfo.connect(lg).connect(og.gain);
+        o.connect(og).connect(g); o.start(); lfo.start();
+      });
+      return g;
+    }) };
+  }
+  // synthesised lift music: breezy bossa in C major — I–vi–ii–V, vibraphone melody, soft keys, bass, shaker
+  const CHORDS = [[523.25, 659.25, 783.99, 987.77, 130.81], [440, 523.25, 659.25, 783.99, 110], [587.33, 698.46, 880, 1046.5, 146.83], [392, 493.88, 587.33, 698.46, 98]];
+  const MEL = [  // one note per eighth over 4 bars (0 = rest)
+    783.99, 0, 659.25, 783.99, 880, 0, 783.99, 0,      1046.5, 0, 880, 0, 783.99, 659.25, 0, 0,
+    698.46, 0, 880, 0, 1046.5, 0, 987.77, 880,        783.99, 0, 698.46, 0, 587.33, 0, 659.25, 0];
+  const EIGHTH = 60 / 124 / 2;
+  function vib(f, t, v, dur = 1.4) {          // vibraphone-ish: sine + soft octave, with tremolo
+    const o = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain(), g2 = ac.createGain();
+    const tr = ac.createOscillator(), tg = ac.createGain();
+    o.type = 'sine'; o2.type = 'sine'; o.frequency.value = f; o2.frequency.value = f * 4.0;
+    g2.gain.value = .08; tr.frequency.value = 5.5; tg.gain.value = v * .25;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    tr.connect(tg).connect(g.gain);
+    o.connect(g); o2.connect(g2).connect(g); g.connect(mus.gain);
+    o.start(t); o2.start(t); tr.start(t); o.stop(t + dur + .05); o2.stop(t + dur + .05); tr.stop(t + dur + .05);
+  }
+  function keys(ch, t) {                      // soft chord stab
+    ch.slice(0, 4).forEach(f => vib(f / 2, t, .028, .5));
+  }
+  function bassNote(f, t) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.3, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + .42);
+    o.connect(g).connect(mus.gain); o.start(t); o.stop(t + .45);
+  }
+  function shaker(t, v) {
+    const s = ac.createBufferSource(); s.buffer = noiseBuf;
+    const f = ac.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 6500;
+    const g = ac.createGain(); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + .06);
+    s.connect(f).connect(g).connect(mus.gain); s.start(t, Math.random()); s.stop(t + .07);
+  }
+  function scheduleMuzak() {
+    if (!soundOn || !mus) return;
+    if (mus.next < ac.currentTime) mus.next = ac.currentTime + .05;
+    while (mus.next < ac.currentTime + .35) {
+      const bar = Math.floor(mus.step / 8) % CHORDS.length, st = mus.step % 8, ch = CHORDS[bar];
+      const m = MEL[mus.step % MEL.length];
+      if (m) vib(m, mus.next, .085);
+      if (st === 0 || st === 3 || st === 6) keys(ch, mus.next);                    // bossa comping
+      if (st === 0 || st === 3 || st === 4 || st === 7) bassNote(ch[4] * (st === 3 || st === 7 ? 1.5 : 1), mus.next);
+      shaker(mus.next, st % 2 ? .012 : .02);
+      mus.next += EIGHTH * (st % 2 ? .86 : 1.14);   // light swing
+      mus.step++;
+    }
+  }
+  function updateAtmos() {
+    if (!ac || !mus) return;
+    const t = ac.currentTime, open = 1 - cVal;
+    // music: up between floors / during rides, down when a floor is open
+    const between = busy && !lobbyActive ? 1 : Math.min(1, Math.max(0, (cVal - .15) / .55));
+    const mv = soundOn ? between * CFG.muzakVolume : 0;
+    mus.gain.gain.setTargetAtTime(mv * .9, t, .25);
+    if (musEl) musEl.volume = Math.min(1, mv);
+    // ambience: current floor only, opened up by the doors
+    if (!amb) return;
+    amb.lp.frequency.setTargetAtTime(220 + open * open * 7000, t, .06);
+    amb.floors.forEach((g, i) => {
+      const v = soundOn && !lobbyActive && i === cur ? 1 : 0;
+      g.gain.setTargetAtTime(v * .55, t, .5);
+      if (ambEls[i]) ambEls[i].volume = Math.min(1, v * (.15 + .85 * open) * CFG.ambienceVolume);
+    });
+  }
+
+  const sndBtn = $('.snd');
+  sndBtn.addEventListener('click', () => {
+    initAudio(); initAtmos(); soundOn = !soundOn;
+    sndBtn.textContent = soundOn ? 'Sound on' : 'Sound off';
+    if (!soundOn) humOff();
+  });
+
+  /* ===== SCROLL-SCRUBBED DOORS ===== */
+  // Approaching the end of a floor, it freezes on its last screen while the doors close.
+  // At the shut point the next floor swaps in, pinned at the top, and the doors open over it.
+  // Stop anywhere and the doors stay where they are.
+  const smooth = x => x * x * (3 - 2 * x);
+  function scrollTarget() {
+    const v = sc.scrollTop; let c = 0;
+    for (const s of (CFG.startClosed ? [0, ...swaps] : swaps)) {   // 0 = shut at the very top
+      const d = Math.abs(v - s);
+      if (d < Z) c = Math.max(c, Math.min(1, (1 - d / Z) / (1 - CFG.closedHold)));
+    }
+    return smooth(c);
+  }
+  function floorNow() {
+    const v = sc.scrollTop; let f = 0;
+    swaps.forEach((s, i) => { if (v > s) f = i + 1; });
+    return f;
+  }
+  function updateVisibility() {
+    const v = sc.scrollTop;
+    stops.forEach((st, i) => st.classList.toggle('gone', i < swaps.length && v > swaps[i]));
+  }
+
+  let cur = 0, busy = false, lastTop = 0, idleTimer = 0;
+  function tick() {
+    updateVisibility(); updateAtmos();
+    if (!busy) {
+      const target = scrollTarget();
+      const next = RM ? target : cVal + (target - cVal) * CFG.doorEase;
+      if (Math.abs(next - cVal) > .0005 || target === 0 && cVal !== 0) setC(Math.abs(next - target) < .001 ? target : next);
+      const f = floorNow();
+      if (f !== cur) {
+        const dir = f > cur ? 1 : -1;
+        cur = f; setNum(f); markHere(f);
+        if (CFG.scrollDing) ding(dir, .14);
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  sc.addEventListener('scroll', () => {
+    if (busy) return;
+    const top = sc.scrollTop, dir = Math.sign(top - lastTop); lastTop = top;
+    if (dir) setArrow(dir);
+    clearTimeout(idleTimer); idleTimer = setTimeout(() => setArrow(0), 450);
+  }, { passive: true });
+
+  // wheel over the header/panel still scrolls the page
+  root.addEventListener('wheel', e => {
+    if (busy) { e.preventDefault(); return; }
+    if (!sc.contains(e.target) && !e.target.closest('.panel')) { e.preventDefault(); sc.scrollTop += e.deltaY; }
+  }, { passive: false });
+
+  /* ===== BUTTON-PANEL RIDE ===== */
+  async function go(t) {
+    if (busy || t === cur || t < 0 || t >= F.length) return;
+    busy = true;
+    const dir = t > cur ? 1 : -1;
+    btns[t].classList.add('lit');
+    clearTimeout(idleTimer);
+    if (turned) { await sleep(T(250)); look(false); await sleep(T(CFG.turnMs)); }
+
+    root.classList.add('ride');
+    void root.offsetWidth;
+    setC(1); doorSound();
+    await sleep(T(CFG.doorMs + 200));
+
+    setArrow(dir); jolt(); root.classList.add('moving'); humOn();
+    let i = cur;
+    while (i !== t) { await sleep(T(CFG.perFloorMs)); i += dir; setNum(i); if (typeof floorBump === 'function') floorBump(); }
+    root.classList.remove('moving'); humOff(); jolt();
+
+    sc.scrollTop = starts[t]; lastTop = sc.scrollTop; updateVisibility();
+    cur = t; markHere(t);
+    await sleep(T(CFG.arriveDwellMs));
+    ding(dir); btns[t].classList.remove('lit');
+    await sleep(T(350));
+
+    setC(0); doorSound();
+    await sleep(T(CFG.doorMs));
+    root.classList.remove('ride'); setArrow(0);
+    sc.focus({ preventScroll: true });
+    busy = false;
+  }
+
+  /* ===== 3D CAB + CAMERA TURN ===== */
+  const cab = $('.cab'), wallR = $('.strip.r');
+  { // move the front-wall pieces out of the 3D room into a flat sliding layer
+    const flat = document.createElement('div'); flat.className = 'flat'; cab.appendChild(flat);
+    root.querySelectorAll('.room > .hdr-bg, .room > .hdr, .room > .lintel, .room > .strip, .room > .trim').forEach(el => flat.appendChild(el));
+  }
+  if (CFG.wallImg) root.querySelectorAll('.wall').forEach(w => w.style.backgroundImage = `url(${CFG.wallImg})`);
+  root.style.setProperty('--turn-ms', CFG.turnMs + 'ms');
+  if (CFG.ceilImg) $('.ceil').style.background = `url(${CFG.ceilImg}) center/cover`;
+  let panPx = 300, turned = false;
+  function geom() {
+    const W = cab.clientWidth, p = W * CFG.persp;
+    root.style.setProperty('--p', p + 'px');
+    root.style.setProperty('--s', (W * CFG.wallWidth) + 'px');
+    root.style.setProperty('--r', (W * CFG.recess) + 'px');
+    const d = p * 0.92;   // interior walls reach from the front wall almost to the camera
+    root.style.setProperty('--d', d + 'px');
+    root.style.setProperty('--ext', (W * CFG.panelWallExt) + 'px');
+    const hp = $('.hdr').offsetHeight;
+    root.style.setProperty('--hp', hp + 'px');
+    root.style.setProperty('--panel-y', (hp + (cab.clientHeight - hp) / 2) + 'px');
+    root.style.setProperty('--panel-off', (W * CFG.panelOffset) + 'px');
+    // slide: the gap between the doorway and the panel is matched on the panel's right, at the frame edge
+    const pw = $('.panel').offsetWidth || W * .12;
+    const gap = W * CFG.wallWidth + W * CFG.panelOffset;
+    panPx = pw + gap + W * CFG.panelOffset;
+    if (turned) root.style.setProperty('--pan', panPx + 'px');
+    // slim door-frame trim
+    root.style.setProperty('--t', Math.max(3, W * .0026) + 'px');
+    // wood wall: one continuous texture across every wall piece, rail at the same height everywhere
+    if (CFG.wallTex) {
+      const H = cab.clientHeight, s = W * CFG.wallWidth, wood = (el, left, top) => {
+        if (!el) return;
+        el.classList.add('wood');
+        el.style.background = `url(${CFG.wallTex}) ${-left}px ${-top}px / auto ${H}px repeat-x`;
+      };
+      root.querySelectorAll('.hdr-bg').forEach((el, k) => wood(el, W * k * .125, 0));
+      wood($('.lintel'), W, 0);
+      wood($('.strip.l'), 0, hp);
+      wood($('.strip.r'), W - s, hp);
+      root.querySelectorAll('.wall').forEach(el => wood(el, 0, 0));
+    }
+  }
+  geom(); layout(); addEventListener('resize', () => { geom(); layout(); });
+
+  let backTimer = 0;
+  function look(on) {
+    if (turned === on) return;
+    turned = on; root.classList.toggle('turned', on);
+    root.style.setProperty('--pan', on ? panPx + 'px' : '0px');
+    if (on) armBack(); else clearTimeout(backTimer);
+  }
+  function armBack() {
+    clearTimeout(backTimer);
+    backTimer = setTimeout(() => { if (!busy && !$('.panel').matches(':hover')) look(false); else armBack(); }, CFG.turnBackAfterMs);
+  }
+  if (CFG.showPanel) {
+    root.addEventListener('pointermove', e => {
+      if (busy || e.pointerType !== 'mouse') return;
+      if (!turned && e.clientX > innerWidth - CFG.revealDistance) look(true);
+      else if (turned) { if (e.clientX < innerWidth * 0.3) look(false); else armBack(); }
+    });
+    wallR.addEventListener('click', e => { if (!turned && !busy) { e.stopPropagation(); look(true); } }); // tap the right-hand wall strip (touch)
+    sc.addEventListener('scroll', () => { if (turned && !busy) look(false); }, { passive: true });
+    root.addEventListener('wheel', () => { if (turned && !busy) look(false); }, { passive: true });
+    addEventListener('keydown', e => { if (e.key === 'Escape') look(false); });
+  }
+
+  /* ===== FILM GRAIN ===== */
+  {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d'), img = g.createImageData(256, 256);
+    for (let i = 0; i < img.data.length; i += 4) { const v = 128 + (Math.random() + Math.random() + Math.random() - 1.5) * 70; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+    g.putImageData(img, 0, 0);
+    const grainEl = $('.grain'); grainEl.style.backgroundImage = `url(${c.toDataURL()})`;
+    root.style.setProperty('--grain', CFG.grain);
+    let gt = 0;
+    const jitter = now => {   // ~24fps, like film
+      if (now - gt > 41 && CFG.grain && !RM) { gt = now; grainEl.style.transform = `translate(${(Math.random() * 256) | 0}px,${(Math.random() * 256) | 0}px)`; }
+      requestAnimationFrame(jitter);
+    };
+    if (!CFG.grain) grainEl.style.display = 'none'; else requestAnimationFrame(jitter);
+  }
+
+  /* ===== IDLE CAMERA SWAY ===== */
+  // slow handheld drift: the cab shifts a touch and the vanishing point wanders, so the recess breathes
+  const lobbyEl = $('.lobby');
+  let lobbyActive = !!CFG.lobby;
+  // travel: 1 during a panel ride; while scrolling, follows how shut the doors are × how fast you're moving
+  // cursor look: the camera leans very slightly towards the pointer (smoothed)
+  let lookX = 0, lookY = 0, tLookX = 0, tLookY = 0;
+  root.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse') return;
+    tLookX = (e.clientX / innerWidth - .5) * 2; tLookY = (e.clientY / innerHeight - .5) * 2;
+  });
+  root.addEventListener('pointerleave', () => { tLookX = 0; tLookY = 0; });
+  const flickEl = $('.flick'); let flk = 0;
+  let travel = 0, scrollVel = 0, lastSc = 0, lastBuzz = 0, shakeX = 0, shakeY = 0, bump = 0;
+  const floorBump = () => { bump = 1; if (CFG.haptics && navigator.vibrate) navigator.vibrate(35); };
+  function sway(now) {
+    // how much the cab is 'moving'
+    const v = Math.abs(sc.scrollTop - lastSc); lastSc = sc.scrollTop;
+    scrollVel += (Math.min(1, v / 18) - scrollVel) * .15;
+    const target = root.classList.contains('moving') ? 1 : Math.min(1, Math.max(0, (cVal - .45) / .45)) * scrollVel;
+    travel += (target - travel) * .12;
+    bump *= .82;
+    // the odd faint dip in the lights while travelling
+    if (!RM && CFG.flicker && travel > .3 && Math.random() < .035 * travel) flk = (.04 + Math.random() * .06) * CFG.flicker;
+    flk *= .78;
+    flickEl.style.opacity = flk.toFixed(3);
+    // vibration: fast jitter + a low rumble, scaled by travel
+    let vx = 0, vy = 0;
+    if (CFG.vibration && !RM && travel > .01) {
+      const a = travel * CFG.vibration, t = now / 1000;
+      shakeX += ((Math.random() - .5) * 2 - shakeX) * .5; shakeY += ((Math.random() - .5) * 2 - shakeY) * .5;
+      vx = shakeX * 2 * a + Math.sin(t * 23) * 1 * a;
+      vy = shakeY * 3 * a + Math.sin(t * 31 + 1) * 1.6 * a + bump * 6;
+      // phone haptics where supported (Android); light ticks while moving
+      if (CFG.haptics && navigator.vibrate && now - lastBuzz > 140 && travel > .35) { navigator.vibrate(Math.round(12 + 18 * travel)); lastBuzz = now; }
+    }
+    // ease towards the pointer; parked while sliding over to the panel
+    const lk = RM || turned ? 0 : CFG.cursorLook;
+    lookX += (tLookX * lk - lookX) * .04; lookY += (tLookY * lk - lookY) * .04;
+    const lx = -lookX * 5, ly = -lookY * 3.5;                     // px the view shifts
+    const lpx = lookX * 1.6, lpy = lookY * 1.2;                    // % the vanishing point shifts (depth parallax)
+    vx += lx; vy += ly;
+    indEl.style.setProperty('--rx', (lookX * 14 + Math.sin(now / 4300) * 3).toFixed(2));
+    if (CFG.sway && !RM) {
+      const t = now / 1000, k = CFG.sway;
+      const x = (Math.sin(t * .23) * .6 + Math.sin(t * .41 + 1.3) * .35) * k;
+      const y = (Math.sin(t * .19 + .7) * .45 + Math.sin(t * .33 + 2.1) * .25) * k;
+      const r = (Math.sin(t * .17 + 2.4) * .06) * k;
+      cab.style.transform = `translate(${x * 2.4 + vx}px,${y * 2.4 + vy}px) rotate(${r}deg) scale(${1 + .012 * k + .008})`;
+      cab.style.perspectiveOrigin = `${50 + x * .5 + lpx}% ${50 + y * .5 + lpy}%`;
+      if (lobbyActive && !lobbyEl.classList.contains('in')) {
+        lobbyEl.style.setProperty('--lsx', (x * 3) + 'px'); lobbyEl.style.setProperty('--lsy', (y * 3) + 'px');
+      }
+    }
+    else cab.style.transform = `translate(${vx}px,${vy}px) scale(1.016)`;
+    requestAnimationFrame(sway);
+  }
+  requestAnimationFrame(sway);
+
+  /* ===== LOBBY START ===== */
+  function openCabDoors() {
+    busy = true; root.classList.add('ride');
+    setTimeout(() => { setC(0); doorSound(); setTimeout(() => { root.classList.remove('ride'); busy = false; }, CFG.doorMs); }, 350);
+  }
+  function setupLobby() {
+    $('.lb-title').textContent = CFG.lobbyTitle || '';
+    $('.lb-sub').textContent = CFG.lobbySub || '';
+    if (CFG.lobbyWallImg) $('.lb-wall').style.background = `url(${CFG.lobbyWallImg}) center/cover`;
+    if (CFG.lobbyDoorImg) root.querySelectorAll('.lb-door').forEach((d, k) => d.style.background = `url(${CFG.lobbyDoorImg}) ${k ? 'left' : 'right'} center/cover`);
+    if (CFG.lobbyCabImg) $('.lb-cab').style.background = `url(${CFG.lobbyCabImg}) center/cover`;
+    const topNo = floorNo(0), lbNum = $('.lb-num'), lbArrow = $('.lb-arrow');
+    lbNum.textContent = '1'; lbArrow.textContent = '';
+    const btn = $('.lb-btn');
+    let called = false;
+    btn.addEventListener('click', async () => {
+      if (called) return; called = true;
+      initAudio(); initAtmos(); soundOn = true; sndBtn.textContent = 'Sound on';
+      click(); btn.classList.add('lit');
+      // the lift comes up to you
+      lbArrow.textContent = '▲'; humOn();
+      for (let n = 2; n <= topNo; n++) { await sleep(T(420)); lbNum.textContent = String(n); }
+      await sleep(T(300)); humOff(); ding(1); lbArrow.textContent = '';
+      await sleep(T(450));
+      lobbyEl.classList.add('open'); doorSound();
+      await sleep(T(CFG.doorMs + 500));
+      // step in
+      lobbyEl.classList.add('in');
+      await sleep(T(1350));
+      lobbyEl.classList.add('gone'); lobbyActive = false;
+      openCabDoors();
+    });
+  }
+
+  /* ===== START ===== */
+  if (CFG.startAtBottom) {
+    sc.scrollTop = sc.scrollHeight; lastTop = sc.scrollTop;
+    cur = floorNow();
+    const hint = $('.hint');
+    setTimeout(() => hint.classList.add('on'), 1800);
+    const hideHint = () => { if (sc.scrollTop < sc.scrollHeight - sc.clientHeight - 20) { hint.classList.remove('on'); sc.removeEventListener('scroll', hideHint); } };
+    sc.addEventListener('scroll', hideHint, { passive: true });
+  }
+  updateVisibility(); setNum(cur); markHere(cur); setC(1);
+  sc.focus({ preventScroll: true });
+  if (CFG.lobby) { busy = true; setupLobby(); }
+  else {
+    lobbyEl.classList.add('gone');
+    if (CFG.startClosed) {
+      // shut on load; a nudge to scroll appears until the visitor moves
+      const hint = $('.hint');
+      if (!CFG.startAtBottom) {
+        setTimeout(() => { if (sc.scrollTop < 5) hint.classList.add('on'); }, 1600);
+        const hideHint = () => { if (sc.scrollTop > 5) { hint.classList.remove('on'); sc.removeEventListener('scroll', hideHint); } };
+        sc.addEventListener('scroll', hideHint, { passive: true });
+      }
+    } else if (CFG.openOnLoad && !RM) {
+      busy = true; root.classList.add('ride');
+      setTimeout(() => { setC(0); setTimeout(() => { root.classList.remove('ride'); busy = false; }, CFG.doorMs); }, 700);
+    } else setC(0);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+
+</body></html>
