@@ -66,6 +66,7 @@ import * as THREE from 'three';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 /* ===== CONFIG ===== */
 const CFG = {
@@ -211,16 +212,16 @@ const CFG = {
   doorMs: 1100, perFloorMs: 750, arriveDwellMs: 300,
   // camera
   fov: 50,                 // vertical field of view (degrees)
-  lookYaw: 5.5, lookPitch: 3, // how far the head turns towards the cursor (degrees)
-  headShift: 0.12,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
+  lookYaw: 1.4, lookPitch: .9, // how far the head turns towards the cursor (degrees)
+  headShift: 0.07,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
   lookEase: 0.12,          // seconds — how quickly the head follows the cursor
   panelTurnMs: 1100,
   vibration: 0.4,
   // build (metres)
   openingH: 2.1,           // doorway height; its width follows the screen shape
   revealDepth: 0.26,       // thickness of the landing wall the doors sit in
-  vistaDistance: 7,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
-  headroom: 0.38,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
+  vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
+  headroom: 0.27,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 1.0,
 };
 
@@ -279,11 +280,17 @@ function normalFromHeight(hf, w, h, strength) {
   }, { srgb: false });
 }
 // brushed stainless: fine directional grain (albedo, roughness, normal) plus faint smudges where hands go
-function brushedSet(w, h, { smudge = 0, hand = false } = {}) {
+function brushedSet(w, h, { smudge = 0, hand = false, wave = 0, grime = 0 } = {}) {
   const col = new Float32Array(w);   // per-column grain (brushing runs vertically)
   let v = 0; for (let x = 0; x < w; x++) { v = v * .25 + (Math.random() - .5) * .8; col[x] = v; }
   const hf = new Float32Array(w * h);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) hf[y * w + x] = col[x] + (Math.random() - .5) * .25;
+  // large soft undulations across the sheet: real door skins are never perfectly flat, so reflections wobble slightly
+  for (let i = 0; i < wave; i++) {
+    const cx = Math.random() * w, cy = Math.random() * h, r = w * (.12 + Math.random() * .2), a = (Math.random() - .5) * w * .09;
+    const x0 = Math.max(0, cx - 3.2 * r | 0), x1 = Math.min(w, cx + 3.2 * r | 0), y0 = Math.max(0, cy - 3.2 * r | 0), y1 = Math.min(h, cy + 3.2 * r | 0);
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const d = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r); hf[y * w + x] += a * Math.exp(-d); }
+  }
   const blobs = []; for (let i = 0; i < smudge; i++) {
     const y = hand ? h * (.35 + Math.random() * .3) : Math.random() * h, x = hand ? (Math.random() < .7 ? w * (.82 + Math.random() * .16) : Math.random() * w) : Math.random() * w;
     blobs.push([x, y, 8 + Math.random() * 22, .04 + Math.random() * .08]);
@@ -291,6 +298,8 @@ function brushedSet(w, h, { smudge = 0, hand = false } = {}) {
   const albedo = canvasTex(w, h, (g) => {
     g.fillStyle = '#c3c5c8'; g.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x++) { const k = col[x]; g.fillStyle = k > 0 ? `rgba(255,255,255,${Math.min(.03, k * .03)})` : `rgba(0,0,0,${Math.min(.03, -k * .03)})`; g.fillRect(x, 0, 1, h); }
+    if (grime) { const gr = g.createLinearGradient(0, h, 0, h * .7); gr.addColorStop(0, `rgba(40,32,24,${grime})`); gr.addColorStop(1, 'rgba(40,32,24,0)'); g.fillStyle = gr; g.fillRect(0, h * .7, w, h * .3);
+      const ge = g.createLinearGradient(w, 0, w * .96, 0); ge.addColorStop(0, `rgba(30,26,22,${grime * .8})`); ge.addColorStop(1, 'rgba(30,26,22,0)'); g.fillStyle = ge; g.fillRect(w * .96, 0, w * .04, h); }
   });
   const rough = canvasTex(w, h, (g) => {
     g.fillStyle = 'rgb(78,78,78)'; g.fillRect(0, 0, w, h);
@@ -301,8 +310,8 @@ function brushedSet(w, h, { smudge = 0, hand = false } = {}) {
   return { albedo, rough, normal };
 }
 const steelSet = brushedSet(256, 256);
-const doorSetL = brushedSet(512, 512, { smudge: 10, hand: true });
-const doorSetR = brushedSet(512, 512, { smudge: 10, hand: true });
+const doorSetL = brushedSet(1024, 1024, { smudge: 12, hand: true, wave: 7, grime: .16 });
+const doorSetR = brushedSet(1024, 1024, { smudge: 12, hand: true, wave: 7, grime: .16 });
 // terrazzo: dark base with chips; normal from chip edges (very subtle)
 const terrazzo = canvasTex(1024, 1024, (g) => {
   g.fillStyle = '#3a3632'; g.fillRect(0, 0, 1024, 1024);
@@ -337,11 +346,16 @@ function deriveNormal(img) {
 /* ===== MATERIALS ===== */
 const steelMat = (set, o = {}) => new THREE.MeshPhysicalMaterial({ map: set.albedo, roughnessMap: set.rough, normalMap: set.normal, normalScale: new THREE.Vector2(.12, .12),
   color: 0xffffff, metalness: 1, roughness: 1, anisotropy: .75, anisotropyRotation: Math.PI / 2, envMapIntensity: 1, ...o });
+const lightCurtainTex = canvasTex(32, 1024, (g, w, h) => { g.fillStyle = '#1b1c1e'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#26282b'; g.fillRect(w * .3, 0, w * .4, h);
+  for (let y = 14; y < h; y += 22) { g.fillStyle = '#0a0a0b'; g.beginPath(); g.arc(w / 2, y, 4.2, 0, 7); g.fill(); g.fillStyle = 'rgba(120,20,20,.55)'; g.beginPath(); g.arc(w / 2, y, 2, 0, 7); g.fill(); } }, { repeat: false });
 const M = {
   doorL: steelMat(doorSetL), doorR: steelMat(doorSetR),
   steel: steelMat(steelSet),
   steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xdadcdf, metalness: 1, roughness: .14 }),
   steelDark: new THREE.MeshPhysicalMaterial({ color: 0x8a8d91, metalness: 1, roughness: .4 }),
+  slot: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .85 }),
+  curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
   edge: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: .75 }),
   wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, normalScale: new THREE.Vector2(.35, .35), roughness: .55, clearcoat: .55, clearcoatRoughness: .2 }),
   ceil: new THREE.MeshStandardMaterial({ color: 0xd8d4cd, roughness: .85 }),
@@ -511,13 +525,14 @@ function build() {
   box(ow, cabH - oh, .05, woodAt(-ow / 2, ow / 2, oh, cabH), 0, oh + (cabH - oh) / 2, .025);
   // polished steel architrave around the doorway, with a bevel catch-light
   const t = .05;
-  box(t, oh + t, .075, M.steelPolished, -ow / 2 - t / 2, (oh + t) / 2, .037);
-  box(t, oh + t, .075, M.steelPolished, ow / 2 + t / 2, (oh + t) / 2, .037);
-  box(ow + 2 * t, t, .075, M.steelPolished, 0, oh + t / 2, .037);
+  const ins = .003;   // inset so no trim face sits exactly on a wall face (that caused flicker)
+  box(t, oh - ins, .075, M.steelPolished, -ow / 2 - t / 2 + ins, (oh - ins) / 2, .037);
+  box(t, oh - ins, .075, M.steelPolished, ow / 2 + t / 2 - ins, (oh - ins) / 2, .037);
+  box(ow + 2 * t - 2 * ins, t, .075, M.steelPolished, 0, oh + t / 2 - ins, .037);
   // jambs lining the opening; cab sill with grooves
-  box(.01, oh, .12, M.steelDark, -ow / 2 + .005, oh / 2, -.06);
-  box(.01, oh, .12, M.steelDark, ow / 2 - .005, oh / 2, -.06);
-  box(ow, .01, .12, M.steelDark, 0, oh - .005, -.06);
+  box(.012, oh, .12, M.slot, -ow / 2 + .006, oh / 2, -.06);
+  box(.012, oh, .12, M.slot, ow / 2 - .006, oh / 2, -.06);
+  box(ow, .014, .12, M.slot, 0, oh - .007, -.06);   // the head slot the door hangers run in
   box(ow + .1, .014, .15, M.steelDark, 0, .007, -.06);
   for (let k = 0; k < 4; k++) box(ow + .1, .003, .006, M.black, 0, .0145, -.11 + k * .025);
 
@@ -527,10 +542,14 @@ function build() {
   for (const side of ['l', 'r']) {
     const g = new THREE.Group(); cab.add(g);
     const s = side === 'l' ? -1 : 1;
-    const leaf = new THREE.Mesh(new THREE.BoxGeometry(dw, oh, dt), leafMat(side)); leaf.position.set(s * dw / 2, oh / 2, 0);
+    const lh = oh - .012;   // leaves stop just short of the head, leaving a dark running gap
+    const leaf = new THREE.Mesh(new RoundedBoxGeometry(dw - .02, lh, dt, 4, .006), leafMat(side)); leaf.position.set(s * (dw / 2 + .01), lh / 2, 0);
     if (side === 'r') { const uv = leaf.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i)); }
     g.add(leaf);
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(.014, oh, dt + .006), M.edge); edge.position.set(s * .005, oh / 2, 0); g.add(edge);
+    // light-curtain safety edge: dark anodised channel with a column of sensor lenses, and a rubber nosing where the doors meet
+    const cur = new THREE.Mesh(new RoundedBoxGeometry(.02, lh - .02, dt + .012, 3, .004), [M.edge, M.edge, M.edge, M.edge, M.curtain, M.edge]);
+    cur.position.set(s * .01, lh / 2, .002); g.add(cur);
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(.004, lh - .03, dt * .6), M.edge); nose.position.set(s * .0005, lh / 2, 0); g.add(nose);
     g.position.z = -.075; doors[side] = g;
   }
 
@@ -568,10 +587,10 @@ function build() {
   }
 
   /* --- indicator above the doors: LED matrix behind glass in a steel bezel --- */
-  const iw = Math.min(1.0, ow * .44), ih = iw * IND.rows / IND.cols;
-  box(iw + .07, ih + .07, .03, M.steel, 0, oh + .22, .055);
-  plane(iw, ih, screenMat(IND), 0, oh + .22, .0705);
-  plane(iw * 1.6, ih * 3, new THREE.MeshBasicMaterial({ map: glowTex('255,70,30'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .14 }), 0, oh + .22, .073);
+  const iw = Math.min(.8, ow * .34), ih = iw * IND.rows / IND.cols, iy = oh + .05 + .03 + ih / 2 + .015;
+  box(iw + .07, ih + .07, .03, M.steel, 0, iy, .055);
+  plane(iw, ih, screenMat(IND), 0, iy, .0705);
+  plane(iw * 1.6, ih * 3, new THREE.MeshBasicMaterial({ map: glowTex('255,70,30'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .14 }), 0, iy, .073);
 
   /* --- button panel: brushed plate, LED display, engraved buttons with halo rings --- */
   const cols = 3, rows = Math.ceil(F.length / cols), pw = .6, top = .2, ph = top + .1 + rows * .185;
@@ -594,7 +613,7 @@ function build() {
   /* --- lights --- */
   const spot = new THREE.SpotLight(0xffe4c4, 9, 0, 1.2, 1, 2); spot.position.set(0, cabH - .05, lz);
   spot.target.position.set(0, 0, lz * .8); cab.add(spot, spot.target);
-  spot.castShadow = SHADOWS; spot.shadow.mapSize.set(2048, 2048); spot.shadow.bias = -.0003; spot.shadow.normalBias = .02; spot.shadow.radius = 8; spot.shadow.camera.near = .2;
+  spot.castShadow = SHADOWS; spot.shadow.mapSize.set(2048, 2048); spot.shadow.bias = -.0008; spot.shadow.normalBias = .04; spot.shadow.radius = 8; spot.shadow.camera.near = .2;
   cab.add(new THREE.HemisphereLight(0xfff3e0, 0x2a2420, .18));
   // light from the room spilling into the cab through the open doors
   G.landing = new THREE.PointLight(0xfff0dc, 0, 0, 2); G.landing.position.set(0, oh * .8, z1 - .3); cab.add(G.landing);
@@ -755,7 +774,7 @@ async function go(t) {
   btnRings[t].userData.lit = true; btnRings[t].material.emissive.setHex(0xff6a2a); btnRings[t].material.emissiveIntensity = 1.6; btnRings[t].material.color.setHex(0xff8a4a);
   await sleep(500);
   lookAtPanel(false);
-  doorSound(); await animateDoors(1, CFG.doorMs);
+  doorSound(); await animateDoors(1, CFG.doorMs); bump = .35;
   moving = true; rideDir = dir; indDir = -dir; drawIndicator(); humOn();
   let i = cur;
   while (i !== t) { await sleep(CFG.perFloorMs); i += dir; setIndicator(i); bump = 1; }
