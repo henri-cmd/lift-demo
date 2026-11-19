@@ -13,9 +13,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 
 /* the floors: one continuous page seen through the doorway (a real DOM page placed in the 3D scene) */
 #lift3d .wall{position:relative; overflow:hidden; background:#111}
-#lift3d .wlight{position:absolute; inset:0; pointer-events:none; mix-blend-mode:multiply;
+#lift3d .wlight{display:none; position:absolute; inset:0; pointer-events:none; mix-blend-mode:multiply;
   background:radial-gradient(ellipse 75% 85% at 50% -5%,#fffaf2 0%,#efe8dd 38%,#b9b2a8 78%,#8f8981 100%),linear-gradient(0deg,rgba(60,55,50,.35),transparent 9%)}
-#lift3d .page{position:absolute; inset:0; overflow:hidden; background:#111; container-type:size; color:#f2efe9; -webkit-font-smoothing:antialiased}
+#lift3d .page{position:absolute; inset:0; box-sizing:border-box; padding:0 var(--mx,0); overflow:hidden; background:#111; container-type:size; color:#f2efe9; -webkit-font-smoothing:antialiased}
 #lift3d .stop{position:relative}
 #lift3d .hold{position:sticky}
 #lift3d .floor{position:sticky; top:0; background-size:cover; background-position:center}
@@ -211,15 +211,16 @@ const CFG = {
   doorMs: 1100, perFloorMs: 750, arriveDwellMs: 300,
   // camera
   fov: 50,                 // vertical field of view (degrees)
-  lookYaw: 9, lookPitch: 6, // how far the head turns towards the cursor (degrees)
-  headShift: 0.06,         // metres the head moves with the look (gives real parallax into the room)
+  lookYaw: 5.5, lookPitch: 3, // how far the head turns towards the cursor (degrees)
+  headShift: 0.12,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
   lookEase: 0.12,          // seconds — how quickly the head follows the cursor
   panelTurnMs: 1100,
   vibration: 0.4,
   // build (metres)
   openingH: 2.1,           // doorway height; its width follows the screen shape
   revealDepth: 0.26,       // thickness of the landing wall the doors sit in
-  room: { depth: 2.9, sideW: 0.35, extraH: 0.3 },   // the room beyond the doors; its back wall is the page
+  vistaDistance: 7,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
+  headroom: 0.38,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 1.0,
 };
 
@@ -486,10 +487,14 @@ function build() {
   cab.clear(); btnMeshes.length = 0; btnRings.length = 0;
   const aspect = innerWidth / innerHeight;
   // doorway shape follows the screen: wide on desktop, tall like a real lift on a phone
-  const oh = CFG.openingH, ow = oh * clamp(aspect * 1.05, 0.55, 1.9);
   const vfov = CFG.fov * Math.PI / 180, hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
-  const eye = oh * (aspect < 1 ? .5 : .55);
-  const D = Math.max((ow * 1.08 / 2) / Math.tan(hfov / 2), (oh - eye + .48) / Math.tan(vfov / 2), (eye + .02) / Math.tan(vfov / 2) * (aspect < 1 ? 1 : 0));
+  // framing matches the 2D version: the doorway fills the screen width, a strip of wall with the indicator sits on top,
+  // and the doors run off the bottom of the screen (no floor in view, with some margin for looking down)
+  const oh = CFG.openingH, viewTop = oh + CFG.headroom, floorMargin = .45;
+  const Hvis = viewTop - floorMargin;                       // wall height in view at the doors
+  const ow = Hvis * aspect / 1.04;                      // doorway width that fills the screen with thin wall either side
+  const D = (Hvis / 2) / Math.tan(vfov / 2);
+  const eye = viewTop - Hvis / 2;
   const cabH = oh + 0.62, pocket = ow / 2 + 0.25;
   const panelSide = 1.25;
   const xl = -ow / 2 - pocket, xr = ow / 2 + pocket + panelSide;
@@ -540,33 +545,6 @@ function build() {
     const leaf = new THREE.Mesh(new THREE.BoxGeometry(dw, oh, .03), M.steel); leaf.position.set(s * dw / 2, oh / 2, 0); g.add(leaf);
     g.position.z = z0 - .07; ldoors[side] = g;
   }
-
-  /* --- the room beyond: plaster walls, polished concrete, a ceiling light; its back wall is the page --- */
-  const R = CFG.room, RW = ow + 2 * R.sideW, RH = oh + R.extraH, z2 = z1 - R.depth, rc = (z1 + z2) / 2;
-  plane(R.depth, RH, withMap(M.plaster, 'map', repeatTex(plaster, R.depth / 1.5, RH / 1.5)), -RW / 2, RH / 2, rc, Math.PI / 2);
-  plane(R.depth, RH, withMap(M.plaster, 'map', repeatTex(plaster, R.depth / 1.5, RH / 1.5)), RW / 2, RH / 2, rc, -Math.PI / 2);
-  plane(RW, R.depth, M.lceil, 0, RH, rc, 0, Math.PI / 2);
-  plane(RW, R.depth, withMap(M.concrete, 'map', repeatTex(concrete, RW / 2.5, R.depth / 2.5)), 0, 0, rc, 0, -Math.PI / 2);
-  // the landing wall's room side, either side of / above the doorway (seen when looking in at an angle)
-  for (const [w, x] of [[RW / 2 - ow / 2, -(RW / 2 + ow / 2) / 2], [RW / 2 - ow / 2, (RW / 2 + ow / 2) / 2]]) plane(w, RH, M.plaster, x, RH / 2, z1, Math.PI);
-  plane(ow, RH - oh, M.plaster, 0, oh + (RH - oh) / 2, z1, Math.PI);
-  // skirting along the room's walls
-  box(.012, .1, R.depth, M.skirting, -RW / 2 + .006, .05, rc); box(.012, .1, R.depth, M.skirting, RW / 2 - .006, .05, rc);
-  // room light: a recessed panel near the back, so the page wall is washed from above
-  plane(Math.min(1.4, RW * .4), .45, M.diffuserL, 0, RH - .003, z2 + R.depth * .45, 0, Math.PI / 2);
-  rectLight(0xfff4e6, 6, Math.min(1.4, RW * .4), .45, 0, RH - .01, z2 + R.depth * .45);
-  G.roomFill = new THREE.PointLight(0xfff1e0, 0, 0, 2); G.roomFill.position.set(0, RH - .25, z1 - .4); cab.add(G.roomFill);
-  // contact shading in the room's corners
-  const aoR = (w, x, y, z, ry, flip, s) => { plane(w, .4, aoMat(flip, s), x, y, z, ry); };
-  aoR(R.depth, -RW / 2 + .002, .2, rc, Math.PI / 2, false, .45); aoR(R.depth, RW / 2 - .002, .2, rc, -Math.PI / 2, false, .45);
-  aoR(R.depth, -RW / 2 + .002, RH - .2, rc, Math.PI / 2, true, .35); aoR(R.depth, RW / 2 - .002, RH - .2, rc, -Math.PI / 2, true, .35);
-  // ...and over the page itself where the back wall meets floor, walls and ceiling (drawn on top of the DOM)
-  const zb = z2 + .003;
-  plane(RW, .45, aoMat(false, .55), 0, .225, zb);
-  plane(RW, .35, aoMat(true, .4), 0, RH - .175, zb);
-  { const m = plane(RH, .4, aoMat(false, .45), -RW / 2 + .2, RH / 2, zb); m.rotation.z = -Math.PI / 2; }
-  { const m = plane(RH, .4, aoMat(false, .45), RW / 2 - .2, RH / 2, zb); m.rotation.z = Math.PI / 2; }
-  plane(RW, .5, aoMat(true, .45), 0, .003, z2 + .25, 0, -Math.PI / 2);
 
   /* --- cab interior: walls, luminous ceiling, terrazzo floor, handrails --- */
   const sideWood = (len) => { const m = M.wood.clone(); for (const k of ['map', 'normalMap']) { m[k] = M.wood[k].clone(); m[k].repeat.set(len / 1.2, 1); m[k].needsUpdate = true; } return m; };
@@ -630,13 +608,18 @@ function build() {
   G.envPos = new THREE.Vector3(0, eye, D * .6);
   captureEnv();
 
-  /* --- the page: real DOM, standing as the room's back wall --- */
-  const dist = D - z2;
-  const pxW = Math.round(clamp(RW / (2 * dist * Math.tan(hfov / 2)) * innerWidth, 320, 1800));
+  /* --- the page: real DOM, set far beyond the doors so it reads as open space, with true parallax as the head moves --- */
+  // (what you can see through is limited by the far edge of the doorway's depth, z1)
+  const zP = z1 - CFG.vistaDistance, dist = D - zP, k = dist / (D - z1);
+  // size: whatever the doorway can reveal at that distance (from the bottom of the view up to the door head), plus margin for looking around
+  const yLo = eye + (floorMargin - .2 - eye) * k, yHi = eye + (oh - eye) * k, mg = 1.14;
+  const RW = ow * k * mg, RH = (yHi - yLo) * mg, yc = (yLo + yHi) / 2;
+  const pxW = Math.round(clamp(RW / (2 * dist * Math.tan(hfov / 2)) * innerWidth, 320, 2400));
   const pxH = Math.round(pxW * RH / RW);
   wallEl.style.width = pxW + 'px'; wallEl.style.height = pxH + 'px';
+  wallEl.style.setProperty('--mx', Math.round(pxW * (mg - 1) / mg / 2) + 'px');
   if (!pageObj) { pageObj = new CSS3DObject(wallEl); cssScene.add(pageObj); }
-  pageObj.position.set(0, RH / 2, z2);
+  pageObj.position.set(0, yc, zP);
   pageObj.scale.setScalar(RW / pxW);
 
   camera.aspect = aspect; camera.updateProjectionMatrix();
@@ -788,6 +771,8 @@ async function go(t) {
 function flashButton(k) { const m = btnRings[k].material; m.emissive.setHex(0xff6a2a); m.emissiveIntensity = 1.6; setTimeout(() => markHere(curShown), 300); }
 
 /* ===== FRAME LOOP ===== */
+// ?test keeps rendering when the tab is in the background (for automated checks only)
+const nextFrame = /[?&]test\b/.test(location.search) ? f => setTimeout(f, 33) : f => requestAnimationFrame(f);
 const clock = new THREE.Clock();
 let shakeX = 0, shakeY = 0, lastScroll = 0, scrollVel = 0, travel = 0;
 function frame() {
@@ -809,7 +794,7 @@ function frame() {
   }
   const open = (1 - cVal) * (G.ow / 2 + .02);
   if (doors.l) { doors.l.position.x = -open; doors.r.position.x = open; ldoors.l.position.x = -open; ldoors.r.position.x = open; }
-  if (G.landing) { G.landing.intensity = (1 - cVal) * 1.4; G.roomFill.intensity = (1 - cVal) * .6; }
+  if (G.landing) G.landing.intensity = (1 - cVal) * 1.4;
 
   // travel feel: a ride, or scrolling fast through the shut zone
   const v = Math.abs(pageEl.scrollTop - lastScroll); lastScroll = pageEl.scrollTop;
@@ -844,7 +829,7 @@ function frame() {
   renderer.render(scene, camera);
   cssRenderer.render(cssScene, camera);
   if (grainEl) grainEl.style.transform = `translate(${(Math.random() * 64) | 0}px,${(Math.random() * 64) | 0}px)`;
-  requestAnimationFrame(frame);
+  nextFrame(frame);
 }
 
 /* ===== FILM GRAIN ===== */
@@ -859,7 +844,7 @@ setIndicator(0);
 addEventListener('resize', () => { build(); });
 if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout()); floorEls.forEach(f => ro.observe(f.querySelector('.copy'))); }
 document.fonts && document.fonts.load('900 60px Doto').then(() => drawIndicator());
-requestAnimationFrame(frame);
+nextFrame(frame);
 setTimeout(() => root.querySelector('.loading').classList.add('done'), 600);
 </script>
 </body></html>
