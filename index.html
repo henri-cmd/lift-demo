@@ -45,6 +45,7 @@
   <div class="grain"></div>
   <div class="alarmfx"></div>
   <button class="snd" type="button">Sound off</button>
+  <button class="ftab" type="button" aria-label="Show the floor buttons"><span class="ftab-l"></span><span class="ftab-a">→</span></button>
   <!-- LOBBY: the site opens outside the lift -->
   <div class="lobby">
     <div class="lb-wall"></div>
@@ -367,6 +368,18 @@
 #lift .hint.on{opacity:1}
 #lift .hint span{display:inline-block; animation:liftHint 1.4s ease-in-out infinite}
 @keyframes liftHint{50%{transform:translateY(-4px)}}
+/* "Floors →" tab: tucked against the right edge, opens the button panel; hidden while the camera is turned */
+#lift .ftab{position:absolute; right:0; top:50%; z-index:12; display:flex; align-items:center; gap:7px; cursor:pointer;
+  background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.25); border-right:0; color:rgba(255,255,255,.8);
+  font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase;
+  padding:9px 12px 9px 14px; border-radius:20px 0 0 20px; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+  opacity:0; pointer-events:none; transform:translate(0,-50%) scaleX(.6); transform-origin:right center; transition:opacity .5s, transform .5s cubic-bezier(.2,.8,.2,1), background .2s}
+#lift .ftab.on{opacity:1; pointer-events:auto; transform:translate(0,-50%)}
+#lift .ftab:hover{background:rgba(0,0,0,.45); color:#fff}
+#lift .ftab-a{display:inline-block; animation:liftTab 1.4s ease-in-out infinite}
+@keyframes liftTab{50%{transform:translateX(3px)}}
+#lift.turned .ftab,#lift.ride .ftab,#lift.glancing .ftab{opacity:0; pointer-events:none}
+#lift.rm .ftab-a{animation:none}
 #lift .snd{position:absolute; left:2vw; bottom:2vh; z-index:12; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.75);
   font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase; padding:8px 12px; border-radius:20px; cursor:pointer}
 
@@ -627,6 +640,13 @@
     panelWallExt: 1,       // how far the front wall carries on past the screen edge before the cab corner
     revealDistance: 90,    // px — mouse this close to the right edge turns the camera to the panel
     turnBackAfterMs: 4000, // turn back to the doors after this long idle on the panel
+    // panel discovery hints (once per visit; both stop once the visitor has opened the panel)
+    panelGlance: true,     // the camera glances part-way towards the panel, then eases back
+    glanceAfterMs: 2500,   // …after the doors are open and the visitor has stopped scrolling this long
+    glanceAmount: 0.4,     // how far it glances (fraction of the full turn)
+    glanceHoldMs: 700,     // how long it holds before easing back
+    panelTab: true,        // small "Floors →" tab on the right edge that opens the panel
+    panelTabLabel: 'Floors',
     wallImg: '',           // side-wall texture (optional)
     ceilImg: 'assets/lift-ceiling.webp',
     startClosed: true,         // doors start shut on load; the first scroll opens them onto Intro
@@ -1277,6 +1297,52 @@
     sc.addEventListener('scroll', () => { if (turned && !busy) look(false); }, { passive: true });
     root.addEventListener('wheel', () => { if (turned && !busy) look(false); }, { passive: true });
     addEventListener('keydown', e => { if (e.key === 'Escape') look(false); });
+  }
+
+  /* ===== PANEL DISCOVERY: one glance + edge tab ===== */
+  {
+    const tab = $('.ftab');
+    // the panel sits off-screen to the right, so focus/scrollIntoView could slide the whole scene sideways — pin it
+    root.addEventListener('scroll', () => { if (root.scrollLeft || root.scrollTop) root.scrollLeft = root.scrollTop = 0; });
+    const KEY = 'lift-panel-seen';
+    let seen = false;
+    try { seen = sessionStorage.getItem(KEY) === '1'; } catch (e) {}
+    let glanced = false, glancing = false, glanceTimer = 0, settleTimer = 0;
+    $('.ftab-l').textContent = CFG.panelTabLabel || 'Floors';
+    const markSeen = () => {
+      if (seen) return;
+      seen = true; clearTimeout(glanceTimer); tab.classList.remove('on');
+      try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    };
+    // the visitor found the panel by any route (edge hover, wall tap, tab) → retire the hints
+    new MutationObserver(() => { if (turned) markSeen(); }).observe(root, { attributes: true, attributeFilter: ['class'] });
+    tab.addEventListener('click', e => { e.stopPropagation(); if (!busy) look(true); });
+
+    const doorsOpen = () => cVal < 0.35;   // mostly open: scroll-scrubbed doors can rest part-way
+    const glance = async () => {
+      if (seen || glanced || busy || turned || !doorsOpen()) return;
+      glanced = glancing = true; root.classList.add('glancing');
+      root.style.setProperty('--pan', (panPx * CFG.glanceAmount) + 'px');
+      await sleep(CFG.turnMs + CFG.glanceHoldMs);
+      if (glancing && !turned) root.style.setProperty('--pan', '0px');
+      glancing = false;
+      await sleep(CFG.turnMs * 0.6); root.classList.remove('glancing');
+    };
+    const cancelGlance = () => { if (glancing && !turned) { root.style.setProperty('--pan', '0px'); glancing = false; root.classList.remove('glancing'); } };
+    // once scrolling settles (the doors ease open just after): show the tab if the doors are open, and arm the glance
+    const settled = () => {
+      if (seen || !CFG.showPanel || busy) return;
+      if (!doorsOpen()) return;
+      if (CFG.panelTab) tab.classList.add('on');
+      if (!glanced && CFG.panelGlance && !RM) glanceTimer = setTimeout(glance, Math.max(0, CFG.glanceAfterMs - 900));
+    };
+    const onScroll = () => {
+      cancelGlance(); clearTimeout(glanceTimer); clearTimeout(settleTimer);
+      settleTimer = setTimeout(settled, 900);
+    };
+    sc.addEventListener('scroll', onScroll, { passive: true });
+    root.addEventListener('wheel', cancelGlance, { passive: true });
+    if (!CFG.startClosed && !CFG.lobby) setTimeout(settled, 1500);
   }
 
   /* ===== FILM GRAIN ===== */
