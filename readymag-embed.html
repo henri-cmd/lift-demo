@@ -145,7 +145,7 @@
 #lift.jolt .shake{animation:liftJolt .38s ease-out}
 
 @keyframes liftShake{0%,100%{transform:translate(0,0)}25%{transform:translate(0,.07vh)}50%{transform:translate(.04vh,-.06vh)}75%{transform:translate(-.04vh,.05vh)}}
-@keyframes liftJolt{0%{transform:none}30%{transform:translateY(.45vh)}65%{transform:translateY(-.12vh)}100%{transform:none}}
+@keyframes liftJolt{0%{transform:none}30%{transform:translateY(.22vh)}65%{transform:translateY(-.06vh)}100%{transform:none}}
 
 /* one continuous scrolling page behind the doors */
 #lift .scroller{position:absolute; inset:0; z-index:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain;
@@ -729,7 +729,7 @@
     grain: 0.035,              // film grain strength (0 = off)
     flicker: 1,                // faint light flicker while the lift is moving (0 = off)
     cursorLook: 1,             // camera leans slightly towards the mouse (0 = off)
-    vibration: 1,              // cab shake while travelling (0 = off, 2 = rough old lift)
+    vibration: 0.4,            // cab shake while travelling (0 = off, 0.4 = smooth modern lift, 1 = noticeable, 2 = rough old lift)
     haptics: true,             // also buzz phones that support it (Android) while travelling
 
     // button jobs
@@ -1459,9 +1459,10 @@
     let vx = 0, vy = 0;
     if (CFG.vibration && !RM && travel > .01) {
       const a = travel * CFG.vibration, t = now / 1000;
-      shakeX += ((Math.random() - .5) * 2 - shakeX) * .5; shakeY += ((Math.random() - .5) * 2 - shakeY) * .5;
+      // smoothed noise: a soft rumble rather than a frame-by-frame buzz
+      shakeX += ((Math.random() - .5) * 2 - shakeX) * .15; shakeY += ((Math.random() - .5) * 2 - shakeY) * .15;
       vx = shakeX * 2 * a + Math.sin(t * 23) * 1 * a;
-      vy = shakeY * 3 * a + Math.sin(t * 31 + 1) * 1.6 * a + bump * 6;
+      vy = shakeY * 3 * a + Math.sin(t * 31 + 1) * 1.6 * a + bump * 4 * CFG.vibration;   // small bump as each floor passes
       // phone haptics where supported (Android); light ticks while moving
       if (CFG.haptics && navigator.vibrate && now - lastBuzz > 140 && travel > .35) { navigator.vibrate(Math.round(12 + 18 * travel)); lastBuzz = now; }
     }
