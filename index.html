@@ -13,7 +13,7 @@
       <div class="front">
         <div class="shake">
           <div class="scroller" tabindex="-1"></div>
-          <div class="landing"><i class="sills"></i></div>
+          <div class="landing"></div>
           <div class="door l"><i class="dsk"><i></i></i></div>
           <div class="door r"><i class="dsk"><i></i></i></div>
           <div class="frame"></div>
@@ -201,23 +201,13 @@
 #lift .door.l .dsk > i{left:0; transform:translateX(calc((1 - var(--c)) * 50.9%))}
 #lift .door.r .dsk > i{right:0; transform:translateX(calc((var(--c) - 1) * 50.9%))}
 /* the landing seen through the doorway: its entrance frame in shadow around the edges, the landing header
-   darkening the top, and at the bottom the cab sill, the running gap, then the landing sill — so the floor
+   darkening the top — so the floor
    reads as a room beyond the doors instead of a picture stuck behind them */
 #lift .landing{position:absolute; inset:0; z-index:1; pointer-events:none;
   background:
     linear-gradient(90deg,#0c0c0d 0,#1d1e20 1.6%,rgba(220,214,204,.5) 1.8%,rgba(0,0,0,.35) 2.05%,transparent 5%),
     linear-gradient(270deg,#0c0c0d 0,#1d1e20 1.6%,rgba(220,214,204,.4) 1.8%,rgba(0,0,0,.35) 2.05%,transparent 5%),
     linear-gradient(180deg,#0a0a0b 0,#18191b 2.4vh,rgba(200,194,186,.45) 2.65vh,rgba(0,0,0,.45) 2.95vh,transparent 11vh)}
-#lift .landing .sills{position:absolute; left:0; right:0; bottom:0; height:6.2vh;
-  background:
-    linear-gradient(180deg,transparent 0,rgba(0,0,0,.35) .6vh,transparent 1.2vh),
-    linear-gradient(180deg,
-      #6f7175 1.2vh,#a7a9ac 1.35vh,#7d7f83 1.6vh,                       /* landing sill nose */
-      #585a5e 1.6vh,#808286 2.6vh,#5c5e62 3.1vh,                       /* landing sill (further away, darker) */
-      #050505 3.1vh,#000 3.85vh,                                        /* running gap */
-      #8d9094 3.85vh,#cfd1d3 4.05vh,#9a9da1 4.4vh,#7a7d81 6.2vh)}      /* cab sill */
-#lift .landing .sills::after{content:""; position:absolute; left:0; right:0; bottom:0; height:2.35vh;
-  background:repeating-linear-gradient(180deg,rgba(0,0,0,.35) 0 .12vh,rgba(255,255,255,.12) .12vh .2vh,transparent .2vh .5vh)}
 #lift.rm .door{transition:none}
 
 #lift .frame{position:absolute; inset:0; z-index:2; background-size:cover; background-position:center; pointer-events:none}
