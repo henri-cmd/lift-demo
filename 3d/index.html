@@ -15,12 +15,12 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .wall{position:relative; overflow:hidden; background:#111}
 #lift3d .wlight{display:none; position:absolute; inset:0; pointer-events:none; mix-blend-mode:multiply;
   background:radial-gradient(ellipse 75% 85% at 50% -5%,#fffaf2 0%,#efe8dd 38%,#b9b2a8 78%,#8f8981 100%),linear-gradient(0deg,rgba(60,55,50,.35),transparent 9%)}
-#lift3d .page{position:absolute; inset:0; box-sizing:border-box; padding:0 var(--mx,0); overflow:hidden; background:#111; container-type:size; color:#f2efe9; -webkit-font-smoothing:antialiased}
+#lift3d .page{position:absolute; inset:0; box-sizing:border-box; overflow:hidden; background:#111; container-type:size; color:#f2efe9; -webkit-font-smoothing:antialiased}
 #lift3d .stop{position:relative}
 #lift3d .hold{position:sticky}
 #lift3d .floor{position:sticky; top:0; background-size:cover; background-position:center}
 #lift3d .stop.gone{visibility:hidden}
-#lift3d .copy{max-width:960px; margin:0 auto; padding:14cqh 6cqw 22cqh}
+#lift3d .copy{max-width:960px; margin:0 auto; padding:14cqh calc(var(--mx,0px) + 5cqw) 22cqh; box-sizing:content-box}
 #lift3d .copy h1{font-size:clamp(34px,7cqw,96px); font-weight:600; letter-spacing:-.03em; line-height:1; margin:0 0 4cqh}
 #lift3d .copy h2{font-size:clamp(19px,2.3cqw,30px); font-weight:500; margin:10cqh 0 2cqh}
 #lift3d .copy p{font-size:clamp(15px,1.3cqw,19px); line-height:1.6; max-width:52ch; margin:0 0 2cqh; opacity:.8}
@@ -212,8 +212,8 @@ const CFG = {
   doorMs: 1100, perFloorMs: 750, arriveDwellMs: 300,
   // camera
   fov: 50,                 // vertical field of view (degrees)
-  lookYaw: 1.4, lookPitch: .9, // how far the head turns towards the cursor (degrees)
-  headShift: 0.07,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
+  lookYaw: .7, lookPitch: .45, // how far the head turns towards the cursor (degrees)
+  headShift: 0.035,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
   lookEase: 0.12,          // seconds — how quickly the head follows the cursor
   panelTurnMs: 1100,
   vibration: 0.4,
@@ -631,7 +631,7 @@ function build() {
   // (what you can see through is limited by the far edge of the doorway's depth, z1)
   const zP = z1 - CFG.vistaDistance, dist = D - zP, k = dist / (D - z1);
   // size: whatever the doorway can reveal at that distance (from the bottom of the view up to the door head), plus margin for looking around
-  const yLo = eye + (floorMargin - .2 - eye) * k, yHi = eye + (oh - eye) * k, mg = 1.14;
+  const yLo = eye + (floorMargin - .2 - eye) * k, yHi = eye + (oh - eye) * k, mg = 1.2;
   const RW = ow * k * mg, RH = (yHi - yLo) * mg, yc = (yLo + yHi) / 2;
   const pxW = Math.round(clamp(RW / (2 * dist * Math.tan(hfov / 2)) * innerWidth / CFG.pageZoom, 320, 3000));
   const pxH = Math.round(pxW * RH / RW);
