@@ -353,6 +353,23 @@ const woodMap = loadTex(CFG.tex + 'sapele-diff.webp', true), woodNormal = loadTe
 { const im = new Image(); im.onload = () => { for (const set of [steelSet, doorSetL, doorSetR]) { const c = set.rough.image, g = c.getContext('2d');
     g.globalAlpha = .1; g.globalCompositeOperation = 'screen'; g.drawImage(im, 0, 0, c.width, c.height); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; set.rough.needsUpdate = true; } captureEnv(); };
   im.src = CFG.tex + 'steel-patina.webp'; }
+const polishedRough = canvasTex(512, 512, (g) => { g.fillStyle = 'rgb(44,44,44)'; g.fillRect(0, 0, 512, 512); }, { srgb: false });
+{ const load = src => new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = CFG.tex + src; });
+  Promise.all(['smear.webp', 'scratches.webp', 'handprint.webp'].map(load)).then(([smear, scratches, hand]) => {
+    const layer = (set, im, alpha, tile = 1) => { if (!im) return; const c = set.image, g = c.getContext('2d'); g.globalCompositeOperation = 'screen'; g.globalAlpha = alpha;
+      for (let y = 0; y < tile; y++) for (let x = 0; x < tile; x++) g.drawImage(im, x * c.width / tile, y * c.height / tile, c.width / tile, c.height / tile); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; };
+    [doorSetL, doorSetR].forEach((set, n) => {
+      layer(set.rough, smear, .1);            // vertical wipe marks from cleaning
+      layer(set.rough, scratches, .07, 2);    // fine random scratches
+      if (hand) { const c = set.rough.image, g = c.getContext('2d'); g.globalCompositeOperation = 'screen';   // palm prints where people push the door, near its leading edge
+        for (const [u, v, rot, a] of n ? [[.87, .45, -.25, .1]] : [[.9, .48, .2, .08]]) { g.save(); g.globalAlpha = a; g.translate(u * c.width, v * c.height); g.rotate(rot); g.drawImage(hand, -60, -42, 120, 84); g.restore(); }
+        g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
+      set.rough.needsUpdate = true; });
+    layer(steelSet.rough, scratches, .08); steelSet.rough.needsUpdate = true;
+    layer(polishedRough, scratches, .28, 2); layer(polishedRough, smear, .12); polishedRough.needsUpdate = true;   // polished trim: hairline scratches in the highlights
+    captureEnv();
+  }); }
+const leatherNormal = loadTex(CFG.tex + 'leather-normal.webp');
 
 // fine pebbled grain for the dark lower panels
 const grainNormal = (() => { const w = 256, hf = new Float32Array(w * w); for (let i = 0; i < hf.length; i++) hf[i] = Math.random();
@@ -369,13 +386,13 @@ const M = {
   doorL: steelMat(doorSetL, { color: 0xcdc6ba }), doorR: steelMat(doorSetR, { color: 0xcdc6ba }),
   steel: steelMat(steelSet),
   steelH: (() => { const m = steelMat(steelSet, { anisotropyRotation: 0 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].center.set(.5, .5); m[k].rotation = Math.PI / 2; m[k].repeat.set(1, 6); m[k].needsUpdate = true; } return m; })(),
-  steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xe6dfd3, metalness: 1, roughness: .18 }),
+  steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xe6dfd3, metalness: 1, roughness: 1, roughnessMap: polishedRough }),
   steelDark: new THREE.MeshPhysicalMaterial({ color: 0x8f8b84, metalness: 1, roughness: .4 }),
   slot: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .85 }),
   curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
   edge: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: .75 }),
   wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(.75, .75), roughness: .9, clearcoat: .5, clearcoatRoughness: .24 }),
-  lower: new THREE.MeshPhysicalMaterial({ color: CFG.lowerPanel, roughness: .55, clearcoat: .22, clearcoatRoughness: .4, normalMap: grainNormal, normalScale: new THREE.Vector2(.22, .22) }),   // dark satin panel below the rail
+  lower: new THREE.MeshPhysicalMaterial({ color: CFG.lowerPanel, roughness: .62, clearcoat: .18, clearcoatRoughness: .45, normalMap: leatherNormal, normalScale: new THREE.Vector2(.85, .85) }),   // dark satin panel below the rail
   ceilGlow: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.55, 1.48, 1.34) }),   // luminous ceiling panels
   floor: new THREE.MeshPhysicalMaterial({ map: terrazzo, roughnessMap: terrazzoRough, roughness: 1, clearcoat: .9, clearcoatRoughness: .12 }),
   reveal: new THREE.MeshPhysicalMaterial({ color: 0xa6a8ab, metalness: 1, roughness: .45 }),
@@ -445,7 +462,9 @@ function drawIndicator(now = performance.now()) {
   if (roll && kRoll >= 1) roll = null;
 }
 const setIndicator = i => { curShown = i; indText = `${i + 1} ${F[i].n.toUpperCase()}`; drawIndicator(); markHere(i); };
-function markHere(i) { btnRings.forEach((r, k) => { if (r.userData.lit) return; r.material.emissive.setHex(k === i ? 0xb8b2a6 : 0); r.material.emissiveIntensity = k === i ? .6 : 0; }); }
+function markHere(i) { btnRings.forEach((r, k) => { const here = k === i, cap = btnMeshes[k] && btnMeshes[k].userData.cap;
+  if (cap) { cap.material.emissive.setHex(here ? 0x8fd0f5 : 0); cap.material.emissiveIntensity = here ? .85 : 0; }
+  if (r.userData.lit) return; r.material.emissive.setHex(here ? 0x35b4f2 : 0); r.material.emissiveIntensity = here ? 2.4 : 0; r.material.color.setHex(here ? 0x2aa4e0 : 0x2a2a2a); }); }
 // the screen surface: LEDs glowing from behind smoked glass that still catches the room's reflection
 const screenMat = scr => new THREE.MeshPhysicalMaterial({ color: 0x020202, emissive: 0xffffff, emissiveMap: scr.tex, emissiveIntensity: 3.2, roughness: .4, metalness: 0, specularIntensity: .12, clearcoat: .22, clearcoatRoughness: .06, envMapIntensity: .06 });
 
@@ -586,7 +605,7 @@ const shadowLine = new THREE.MeshBasicMaterial({ map: glowTexDark(), transparent
 const RAIL_Y = .84, RAIL_H = .04, KICK = .1, BAY = .62;
 function wallRun(u0, u1, yTop, seed = 0) {
   const g = new THREE.Group(), w = u1 - u0, uc = (u0 + u1) / 2; cab.add(g);
-  plane(w, RAIL_Y - KICK, M.lower, uc, (RAIL_Y + KICK) / 2, 0, 0, 0, g);
+  { const m = M.lower.clone(); m.normalMap = M.lower.normalMap.clone(); m.normalMap.repeat.set(w / .7, (RAIL_Y - KICK) / .7); m.normalMap.offset.set(u0 / .7, 0); m.normalMap.needsUpdate = true; plane(w, RAIL_Y - KICK, m, uc, (RAIL_Y + KICK) / 2, 0, 0, 0, g); }
   box(w, KICK, .012, M.steelDark, uc, KICK / 2, .006, g);
   { const r = new THREE.Mesh(new RoundedBoxGeometry(w, RAIL_H, .02, 3, .006), M.steelH); r.position.set(uc, RAIL_Y + RAIL_H / 2, .008); g.add(r); }
   const cuts = [u0]; for (let u = Math.ceil((u0 + .08) / BAY) * BAY; u < u1 - .08; u += BAY) cuts.push(u); cuts.push(u1);
@@ -706,6 +725,7 @@ function build() {
     const b = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius + .002, .016, 48), M.steelPolished); b.rotation.x = Math.PI / 2; b.position.set(x, y, FZ + .019); cab.add(b);
     const cap = new THREE.Mesh(new THREE.CircleGeometry(radius - .0015, 48), new THREE.MeshPhysicalMaterial({ map: capTex, metalness: .85, roughness: .3, clearcoat: .3 }));
     cap.rotation.x = -Math.PI / 2; cap.position.y = .0083; b.add(cap);   // child of the body: faces the cab, number the right way up
+    cap.material.emissiveMap = capTex; b.userData.cap = cap;   // the face can light up (its engraving stays dark)
     return { ring, b };
   };
   F.forEach((f, k) => { const { ring, b } = addButton(px + bxs(k % cols), py + bys(Math.floor(k / cols)), numberCap(k + 1), .031, 0x2a2a2a); b.userData.floor = k; btnRings.push(ring); btnMeshes.push(b); });

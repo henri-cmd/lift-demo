@@ -1,3 +1,7 @@
 Textures in this folder are CC0 (public domain):
 - sapele-*.webp: "Sapele Veneer" from Poly Haven (polyhaven.com/a/sapele_veneer)
 - steel-patina.webp: roughness map of "Metal 012" from ambientCG (ambientcg.com/a/Metal012)
+- handprint.webp: "Fingerprints 004" from ambientCG (ambientcg.com/a/Fingerprints004)
+- smear.webp: "Surface Imperfections 003" from ambientCG (ambientcg.com/a/SurfaceImperfections003)
+- scratches.webp: "Scratches 003" from ambientCG (ambientcg.com/a/Scratches003)
+- leather-normal.webp: "Leather White" normal map from Poly Haven (polyhaven.com/a/leather_white)
