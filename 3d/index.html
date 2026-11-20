@@ -9,7 +9,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
   touch-action:none; user-select:none; -webkit-user-select:none}
 #lift3d .css3d,#lift3d canvas.gl{position:absolute; inset:0}
 #lift3d canvas.gl{z-index:1; pointer-events:none; filter:sepia(.1) saturate(1.04)}
-#lift3d .css3d{z-index:0}
+#lift3d .css3d{z-index:0; transition:background-color .5s}
 
 /* the floors: one continuous page seen through the doorway (a real DOM page placed in the 3D scene) */
 #lift3d .wall{position:relative; overflow:hidden; background:#111}
@@ -355,15 +355,12 @@ const woodMap = loadTex(CFG.tex + 'sapele-diff.webp', true), woodNormal = loadTe
   im.src = CFG.tex + 'steel-patina.webp'; }
 const polishedRough = canvasTex(512, 512, (g) => { g.fillStyle = 'rgb(44,44,44)'; g.fillRect(0, 0, 512, 512); }, { srgb: false });
 { const load = src => new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = CFG.tex + src; });
-  Promise.all(['smear.webp', 'scratches.webp', 'handprint.webp'].map(load)).then(([smear, scratches, hand]) => {
+  Promise.all(['smear.webp', 'scratches.webp'].map(load)).then(([smear, scratches]) => {
     const layer = (set, im, alpha, tile = 1) => { if (!im) return; const c = set.image, g = c.getContext('2d'); g.globalCompositeOperation = 'screen'; g.globalAlpha = alpha;
       for (let y = 0; y < tile; y++) for (let x = 0; x < tile; x++) g.drawImage(im, x * c.width / tile, y * c.height / tile, c.width / tile, c.height / tile); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; };
     [doorSetL, doorSetR].forEach((set, n) => {
       layer(set.rough, smear, .1);            // vertical wipe marks from cleaning
       layer(set.rough, scratches, .07, 2);    // fine random scratches
-      if (hand) { const c = set.rough.image, g = c.getContext('2d'); g.globalCompositeOperation = 'screen';   // palm prints where people push the door, near its leading edge
-        for (const [u, v, rot, a] of n ? [[.87, .45, -.25, .1]] : [[.9, .48, .2, .08]]) { g.save(); g.globalAlpha = a; g.translate(u * c.width, v * c.height); g.rotate(rot); g.drawImage(hand, -60, -42, 120, 84); g.restore(); }
-        g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
       set.rough.needsUpdate = true; });
     layer(steelSet.rough, scratches, .08); steelSet.rough.needsUpdate = true;
     layer(polishedRough, scratches, .28, 2); layer(polishedRough, smear, .12); polishedRough.needsUpdate = true;   // polished trim: hairline scratches in the highlights
@@ -1052,14 +1049,14 @@ F.forEach((f, i) => { if (!f.hero) return; const im = new Image(); im.onload = (
   const c = document.createElement('canvas'); c.width = c.height = 8; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 8, 8);
   const d = g.getImageData(0, 0, 8, 8).data; let r = 0, gg = 0, b = 0; for (let k = 0; k < d.length; k += 4) { r += d[k]; gg += d[k + 1]; b += d[k + 2]; }
   const col = new THREE.Color().setRGB(r / 64 / 255, gg / 64 / 255, b / 64 / 255, THREE.SRGBColorSpace);
-  tints[i] = { c: col, lum: clamp((r * .3 + gg * .59 + b * .11) / 64 / 255 * 1.6, .12, 1) }; }; im.src = f.hero; });
+  tints[i] = { hero: true, c: col, lum: clamp((r * .3 + gg * .59 + b * .11) / 64 / 255 * 1.6, .12, 1) }; }; im.src = f.hero; });
 const tintNow = new THREE.Color(0x222222); let lumNow = .12;
 
 /* ===== FRAME LOOP ===== */
 // ?test keeps rendering when the tab is in the background (for automated checks only)
 const nextFrame = /[?&]test\b/.test(location.search) ? f => setTimeout(f, 33) : f => requestAnimationFrame(f);
 const clock = new THREE.Clock();
-let shakeX = 0, shakeY = 0, lastScroll = 0, scrollVel = 0, travel = 0, blinkOn = true;
+let shakeX = 0, shakeY = 0, lastScroll = 0, scrollVel = 0, travel = 0, blinkOn = true, backdropFor = -1;
 function frame() {
   const dt = Math.min(.05, clock.getDelta()), now = performance.now();
   // scroll: apply drag momentum, then move the page
@@ -1084,6 +1081,9 @@ function frame() {
   const blink = true;   // direction arrows stay steadily lit while moving (no blinking)
   if (roll || blink !== blinkOn) { blinkOn = blink; drawIndicator(now); }
 
+  { // beyond the page's edges you see the floor's own colour — or, while its opening photo is on screen, that photo's overall colour
+    const heroOn = F[cur] && F[cur].hero && tints[cur].hero && pageEl.scrollTop - (starts[cur] || 0) < pageEl.clientHeight * .7, key = cur + (heroOn ? 'h' : '');
+    if (backdropFor !== key) { backdropFor = key; const bg = heroOn ? '#' + tints[cur].c.clone().multiplyScalar(.8).getHexString() : (F[cur] && F[cur].bg) || '#111'; cssRenderer.domElement.style.background = bg; wallEl.style.background = bg; root.style.background = bg; } }
   // the floor's own light: colour and brightness of what's beyond the doors, eased in as they open
   const tn = tints[cur] || tints[0]; tintNow.lerp(tn.c, 1 - Math.exp(-dt / .25)); lumNow += (tn.lum - lumNow) * (1 - Math.exp(-dt / .25));
   const openK = 1 - cVal;
