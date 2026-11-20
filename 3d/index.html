@@ -217,9 +217,9 @@ const CFG = {
   fov: 54,                 // vertical field of view (degrees)
   panelScale: 0.52,        // button panel size (1 = the original oversized panel; ~0.5 is a real car panel, about 31 cm wide)
   doorFill: 0.76,          // share of the screen width the doorway takes on landscape screens (the rest is cab wall)
-  lookYaw: .7, lookPitch: .45, // how far the head turns towards the cursor (degrees)
-  headShift: 0.035,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
-  lookEase: 0.12,          // seconds — how quickly the head follows the cursor
+  lookYaw: .3, lookPitch: .2, // how far the head turns towards the cursor (degrees)
+  headShift: 0.012,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
+  lookEase: 0.32,          // seconds — how quickly the head follows the cursor
   panelTurnMs: 1100,
   vibration: 0.4,
   // build (metres)
@@ -1079,12 +1079,12 @@ function frame() {
   lookX += (tLookX * lk * (turned ? .35 : 1) - lookX) * le; lookY += (tLookY * lk * (turned ? .35 : 1) - lookY) * le;
   turnT += ((turned ? 1 : 0) - turnT) * (1 - Math.exp(-dt / (CFG.panelTurnMs / 4000)));
   const sw = now / 1000;
-  const idleYaw = Math.sin(sw * .23) * .25 + Math.sin(sw * .41 + 1.3) * .15, idlePitch = Math.sin(sw * .19 + .7) * .18;
+  const idleYaw = (Math.sin(sw * .23) * .25 + Math.sin(sw * .41 + 1.3) * .15) * .35, idlePitch = Math.sin(sw * .19 + .7) * .18 * .35;
   // facing the doors vs facing the panel (step closer and to the right, then turn towards it)
   const p = smooth(clamp(turnT, 0, 1));
   const pcx = G.panel.x - .1, panelYaw = Math.atan2(G.panel.x - pcx, G.pd) * 180 / Math.PI;
   const hs = RM ? 0 : CFG.headShift;
-  camera.position.set(pcx * p + vx + lookX * hs + Math.sin(sw * .21) * .006, G.eye + (G.panel.y - G.eye) * .7 * p + vy - lookY * hs * .5 + Math.sin(sw * .27 + 1) * .004, G.D + (G.pd - G.D) * p);
+  camera.position.set(pcx * p + vx + lookX * hs + Math.sin(sw * .21) * .002, G.eye + (G.panel.y - G.eye) * .7 * p + vy - lookY * hs * .5 + Math.sin(sw * .27 + 1) * .0015, G.D + (G.pd - G.D) * p);
   const pitchToPanel = Math.atan2((G.panel.y - G.eye) * .3, G.pd) * 180 / Math.PI;
   const yaw = -(panelYaw * p) - lookX * CFG.lookYaw - idleYaw, pitch = pitchToPanel * p - lookY * CFG.lookPitch + idlePitch;
   camera.rotation.set(pitch * Math.PI / 180, yaw * Math.PI / 180, Math.sin(sw * .17) * .0015);
