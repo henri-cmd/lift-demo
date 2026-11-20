@@ -622,6 +622,43 @@
 @keyframes liftRing{50%{box-shadow:0 0 2.4cqw rgba(30,160,235,1),0 0 7cqw rgba(0,125,186,.8)}}
 #lift .panel .btn[aria-label="alarm"].on .cap::before{background:radial-gradient(circle,#ffe3de 0 58%,#ff6a55 70%,#e52a14 100%); box-shadow:0 0 1.6cqw rgba(255,60,35,.95),0 0 4.5cqw rgba(230,40,20,.6)}
 #lift .panel .btn:focus-visible .cap{outline:.5cqw solid #fff; outline-offset:.8cqw}
+/* --- richer buttons: spun-metal caps whose highlight swings round on hover, ring wakes up, cap lifts --- */
+@property --sheen{syntax:'<angle>'; inherits:true; initial-value:0deg}
+@property --ring{syntax:'<number>'; inherits:true; initial-value:0}
+#lift .panel .btn{--sheen:0deg; --ring:0; transition:--sheen .7s cubic-bezier(.2,.8,.2,1), --ring .35s ease}
+#lift .panel .btn:hover{--sheen:55deg; --ring:1}
+#lift .panel .btn .cap{background:conic-gradient(from var(--sheen),#fbf7ee,#a39988 11%,#ece5d6 25%,#857c6d 38%,#ddd5c5 50%,#857c6d 62%,#ece5d6 75%,#a39988 89%,#fbf7ee) !important}
+#lift .panel .btn .cap::after{content:""; position:absolute; inset:8.5%; border-radius:50%; box-shadow:inset 0 0 0 .18cqw rgba(40,30,15,.55),inset 0 .5cqw .6cqw rgba(0,0,0,.45); pointer-events:none}
+#lift .panel .btn .ico{isolation:isolate; transition:transform .28s cubic-bezier(.3,1.6,.5,1), box-shadow .28s, background .25s !important}
+#lift .panel .btn .ico::after{content:""; position:absolute; inset:0; border-radius:50%; z-index:-1; pointer-events:none;
+  background:conic-gradient(from calc(var(--sheen) - 20deg),rgba(255,255,255,.75),rgba(255,255,255,0) 13%,rgba(60,45,20,.12) 25%,rgba(255,255,255,0) 37%,rgba(255,255,255,.55) 50%,rgba(255,255,255,0) 63%,rgba(60,45,20,.12) 75%,rgba(255,255,255,0) 87%,rgba(255,255,255,.75)),
+             repeating-radial-gradient(circle,rgba(60,45,20,.07) 0 .12cqw,rgba(255,255,255,.05) .12cqw .28cqw);
+  box-shadow:inset 0 0 0 .14cqw rgba(255,255,255,.5),inset 0 0 0 .3cqw rgba(60,45,20,.14)}
+#lift .panel .btn .num-cap{font-size:5.7cqw !important}
+#lift .panel .btn:hover .ico{transform:translateY(-.25cqw) scale(1.05); box-shadow:inset 0 .3cqw .25cqw rgba(255,255,255,.95),inset 0 -.6cqw .9cqw rgba(60,45,20,.24),0 .7cqw 1cqw rgba(0,0,0,.6)}
+#lift .panel .btn:active .ico{transform:translateY(.1cqw) scale(.95) !important; transition-duration:.06s !important}
+#lift .panel .btn:not(.here):not(.lit):not(.on):hover .cap::before{background:radial-gradient(circle,#0e2a3a 0 60%,#2f9fda 78%,#0b6ea6 100%); box-shadow:0 0 calc(var(--ring) * 1.4cqw) rgba(40,165,235,.75),inset 0 .3cqw .4cqw rgba(0,0,0,.6)}
+#lift .panel .btn .lbl{transition:color .25s, letter-spacing .35s cubic-bezier(.2,.8,.2,1), text-indent .35s}
+#lift .panel .btn:hover .lbl{color:#0b5d8c; letter-spacing:.2em; text-indent:.2em}
+#lift .panel .btn.ph:hover .lbl{color:#6f6453}
+@media (prefers-reduced-motion:reduce){#lift .panel .btn,#lift .panel .btn .ico,#lift .panel .btn .lbl{transition:none !important}}
+/* --- door frame: satin stainless header and jambs with a bright chamfer and a dark return --- */
+#lift .trim{filter:none !important}
+#lift{--tw:max(1.15vh,7px)}
+#lift .trim.l{left:calc(var(--s,5%) - var(--tw)) !important; width:var(--tw) !important}
+#lift .trim.r{width:var(--tw) !important}
+#lift .trim.t{left:calc(var(--s,5%) - var(--tw)) !important; width:calc(100% - 2 * var(--s,5%) + 2 * var(--tw)) !important}
+#lift .jamb{filter:none !important}
+#lift .jamb.l{background:linear-gradient(90deg,#7b7e81,#4f5254 45%,#232426 80%,#0d0d0e) !important}
+#lift .jamb.r{background:linear-gradient(270deg,#7b7e81,#4f5254 45%,#232426 80%,#0d0d0e) !important}
+#lift .trim.l{background:linear-gradient(90deg,#55585b 0,#c9cccd 16%,#e9ebeb 30%,#aeb1b3 58%,#6c6f72 80%,#1a1b1d 92%,#060606) !important; box-shadow:.3vh 0 .8vh rgba(0,0,0,.35)}
+#lift .trim.r{background:linear-gradient(270deg,#55585b 0,#c9cccd 16%,#e9ebeb 30%,#aeb1b3 58%,#6c6f72 80%,#1a1b1d 92%,#060606) !important; box-shadow:-.3vh 0 .8vh rgba(0,0,0,.35)}
+#lift .trim.t{background:
+    linear-gradient(180deg,rgba(255,255,255,.75) 0,rgba(255,255,255,0) 7%,rgba(255,255,255,0) 62%,rgba(0,0,0,.2) 84%,#17181a 86%,#050505 100%),
+    linear-gradient(90deg,rgba(0,0,0,.2),rgba(255,255,255,.14) 22%,rgba(0,0,0,.05) 48%,rgba(255,255,255,.16) 74%,rgba(0,0,0,.22)),
+    repeating-linear-gradient(180deg,rgba(255,255,255,.05) 0 1px,rgba(0,0,0,.035) 1px 2px),
+    linear-gradient(180deg,#dcdedf,#c2c5c7 45%,#9da0a3) !important;
+  box-shadow:0 .9vh 1.6vh rgba(0,0,0,.5),0 -.1vh 0 rgba(0,0,0,.35) !important}
 #lift .panel .pscr{position:absolute; left:29%; width:42.6%; top:3.5%; height:10.1%; border-radius:.15vh; pointer-events:none}
 </style>
 
