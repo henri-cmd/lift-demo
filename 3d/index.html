@@ -207,7 +207,7 @@ const CFG = {
   tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
   lowerPanel: 0x263645,    // the panel below the rail: a muted, slightly grey blue
   indicatorDepth: 0.01,    // how far the indicator's metal body stands off the wall (metres)
-  trimMetal: 0x74767a,     // header, rail, indicator housing and door frame: a darker gunmetal, for contrast against the pale wood
+  trimMetal: 0x8a8c90,     // header, rail, indicator housing and door frame: a darker gunmetal, for contrast against the pale wood
   woodTint: 0xfdf3e3,      // a touch of warmth on the pale maple scan, for a Scandinavian birch look
   functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
   contactEmail: '',        // Call button opens an email to this address (blank = just rings)
@@ -303,15 +303,15 @@ function normalFromHeight(hf, w, h, strength) {
   }, { srgb: false });
 }
 // brushed stainless: fine directional grain (albedo, roughness, normal) plus faint smudges where hands go
-function brushedSet(w, h, { smudge = 0, hand = false, wave = 0, grime = 0 } = {}) {
+function brushedSet(w, h, { smudge = 0, hand = false, wave = 0, grime = 0, strokes: useStrokes = true } = {}) {
   const col = new Float32Array(w);   // per-column grain (brushing runs vertically)
   let v = 0; for (let x = 0; x < w; x++) { v = v * .25 + (Math.random() - .5) * .8; col[x] = v; }
   const hf = new Float32Array(w * h);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) hf[y * w + x] = col[x] * .35 + (Math.random() - .5) * .2;
-  const strokes = []; for (let i = 0, n = Math.round(w * h / 55); i < n; i++) strokes.push([Math.random() * w, Math.random() * h, h * (.02 + Math.pow(Math.random(), 2.2) * .55), .45 + Math.random() * 1.1, Math.random() < .5, .25 + Math.random() * .75]);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) hf[y * w + x] = useStrokes ? col[x] * .35 + (Math.random() - .5) * .2 : col[x] + (Math.random() - .5) * .25;
+  const strokes = []; for (let i = 0, n = useStrokes ? Math.round(w * h / 55) : 0; i < n; i++) strokes.push([Math.random() * w, Math.random() * h, h * (.02 + Math.pow(Math.random(), 2.2) * .55), .45 + Math.random() * 1.1, Math.random() < .5, .25 + Math.random() * .75]);
   const drawStrokes = (g, amt) => { g.lineCap = 'round'; for (const [x, y, len, lw, light, a] of strokes) { g.strokeStyle = light ? `rgba(255,255,255,${a * amt})` : `rgba(0,0,0,${a * amt})`; g.lineWidth = lw;
     g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + len); g.stroke(); if (y + len > h) { g.beginPath(); g.moveTo(x, y - h); g.lineTo(x, y + len - h); g.stroke(); } } };
-  { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.fillStyle = 'rgb(128,128,128)'; g.fillRect(0, 0, w, h); drawStrokes(g, .5);
+  if (useStrokes) { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.fillStyle = 'rgb(128,128,128)'; g.fillRect(0, 0, w, h); drawStrokes(g, .5);
     const d = g.getImageData(0, 0, w, h).data; for (let i = 0; i < w * h; i++) hf[i] += (d[i * 4] - 128) / 128 * .9; }
   // large soft undulations across the sheet: real door skins are never perfectly flat, so reflections wobble slightly
   for (let i = 0; i < wave; i++) {
@@ -325,14 +325,14 @@ function brushedSet(w, h, { smudge = 0, hand = false, wave = 0, grime = 0 } = {}
   }
   const albedo = canvasTex(w, h, (g) => {
     g.fillStyle = '#c3c5c8'; g.fillRect(0, 0, w, h);
-    for (let x = 0; x < w; x++) { const k = col[x]; g.fillStyle = k > 0 ? `rgba(255,255,255,${Math.min(.015, k * .015)})` : `rgba(0,0,0,${Math.min(.015, -k * .015)})`; g.fillRect(x, 0, 1, h); }
+    for (let x = 0; x < w; x++) { const k = col[x]; const m = useStrokes ? .015 : .03; g.fillStyle = k > 0 ? `rgba(255,255,255,${Math.min(m, k * m)})` : `rgba(0,0,0,${Math.min(m, -k * m)})`; g.fillRect(x, 0, 1, h); }
     drawStrokes(g, .03);
     if (grime) { const gr = g.createLinearGradient(0, h, 0, h * .7); gr.addColorStop(0, `rgba(40,32,24,${grime})`); gr.addColorStop(1, 'rgba(40,32,24,0)'); g.fillStyle = gr; g.fillRect(0, h * .7, w, h * .3);
       const ge = g.createLinearGradient(w, 0, w * .96, 0); ge.addColorStop(0, `rgba(30,26,22,${grime * .8})`); ge.addColorStop(1, 'rgba(30,26,22,0)'); g.fillStyle = ge; g.fillRect(w * .96, 0, w * .04, h); }
   });
   const rough = canvasTex(w, h, (g) => {
     g.fillStyle = 'rgb(78,78,78)'; g.fillRect(0, 0, w, h);
-    for (let x = 0; x < w; x++) { const k = col[x]; g.fillStyle = k > 0 ? `rgba(255,255,255,${Math.min(.025, k * .025)})` : `rgba(0,0,0,${Math.min(.025, -k * .025)})`; g.fillRect(x, 0, 1, h); }
+    for (let x = 0; x < w; x++) { const k = col[x]; const m = useStrokes ? .025 : .05; g.fillStyle = k > 0 ? `rgba(255,255,255,${Math.min(m, k * m)})` : `rgba(0,0,0,${Math.min(m, -k * m)})`; g.fillRect(x, 0, 1, h); }
     drawStrokes(g, .05);
     for (const [x, y, r, a] of blobs) { const rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, `rgba(170,170,170,${a})`); rg.addColorStop(1, 'rgba(170,170,170,0)'); g.fillStyle = rg; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
   }, { srgb: false });
@@ -340,8 +340,8 @@ function brushedSet(w, h, { smudge = 0, hand = false, wave = 0, grime = 0 } = {}
   return { albedo, rough, normal };
 }
 const steelSet = brushedSet(512, 512);
-const doorSetL = brushedSet(1024, 1024, { smudge: 12, hand: true, wave: 5, grime: .16 });
-const doorSetR = brushedSet(1024, 1024, { smudge: 12, hand: true, wave: 5, grime: .16 });
+const doorSetL = brushedSet(1024, 1024, { smudge: 12, hand: true, wave: 5, grime: .16, strokes: false });
+const doorSetR = brushedSet(1024, 1024, { smudge: 12, hand: true, wave: 5, grime: .16, strokes: false });
 // terrazzo: dark base with chips; normal from chip edges (very subtle)
 const terrazzo = canvasTex(1024, 1024, (g) => {
   g.fillStyle = '#3a3632'; g.fillRect(0, 0, 1024, 1024);
@@ -378,7 +378,7 @@ const polishedRough = canvasTex(512, 512, (g) => { g.fillStyle = 'rgb(44,44,44)'
       layer(set.rough, scratches, .07, 2);    // fine random scratches
       set.rough.needsUpdate = true; });
     layer(steelSet.rough, scratches, .08); steelSet.rough.needsUpdate = true;
-    load('steel-sheen.webp').then(sheen => { if (!sheen) return; for (const t of [doorSetL.rough, doorSetR.rough, steelSet.rough, polishedRough]) { layer(t, sheen, .55); t.needsUpdate = true; } captureEnv(); });
+    load('steel-sheen.webp').then(sheen => { if (!sheen) return; for (const t of [steelSet.rough, polishedRough]) { layer(t, sheen, .28); t.needsUpdate = true; } captureEnv(); });
     layer(polishedRough, scratches, .28, 2); layer(polishedRough, smear, .12); polishedRough.needsUpdate = true;   // polished trim: hairline scratches in the highlights
     captureEnv();
   }); }
@@ -398,9 +398,9 @@ const lightCurtainTex = canvasTex(32, 1024, (g, w, h) => { g.fillStyle = '#1b1c1
 const M = {
   doorL: steelMat(doorSetL, { color: 0xb4b2ae }), doorR: steelMat(doorSetR, { color: 0xb4b2ae }),
   steel: steelMat(steelSet),
-  steelH: (() => { const m = steelMat(steelSet, { anisotropyRotation: 0, color: CFG.trimMetal }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].center.set(.5, .5); m[k].rotation = Math.PI / 2; m[k].repeat.set(1, 6); m[k].needsUpdate = true; } return m; })(),
+  steelH: (() => { const m = steelMat(steelSet, { anisotropyRotation: 0, color: CFG.trimMetal, roughness: .78, anisotropy: .85 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].center.set(.5, .5); m[k].rotation = Math.PI / 2; m[k].repeat.set(1, 6); m[k].needsUpdate = true; } return m; })(),
   steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xe6dfd3, metalness: 1, roughness: 1, roughnessMap: polishedRough }),
-  frame: steelMat(steelSet, { color: CFG.trimMetal }),   // door frame: the same hairline finish as the header, brushed along its length
+  frame: (() => { const m = steelMat(steelSet, { color: CFG.trimMetal, roughness: .78, anisotropy: .85 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].repeat.set(.12, 4); m[k].needsUpdate = true; } return m; })(),   // door frame: the same hairline finish as the header, brushed along its length
   steelDark: steelMat(steelSet, { color: 0x8f8b84, roughness: 1.25 }),   // sills, kick plates: a duller brushed finish
   slot: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .85 }),
   curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
