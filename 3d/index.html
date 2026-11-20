@@ -207,6 +207,7 @@ const CFG = {
   tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
   lowerPanel: 0x263645,    // the panel below the rail: a muted, slightly grey blue
   indicatorDepth: 0.01,    // how far the indicator's metal body stands off the wall (metres)
+  wallSheen: 0.1,          // how strongly the ceiling light glances off the wood and the blue panels (0 = none)
   trimMetal: 0x8a8c90,     // header, rail, indicator housing and door frame: a darker gunmetal, for contrast against the pale wood
   woodTint: 0xfdf3e3,      // a touch of warmth on the pale maple scan, for a Scandinavian birch look
   functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
@@ -232,7 +233,7 @@ const CFG = {
   pageZoom: 0.8,           // page content scale through the doorway (1 = normal web size; lower shows more content)
   pagePush: 5,             // metres the page comes towards you as the camera pushes in to the panel (0 = none)
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
-  headroom: 0.3,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
+  headroom: 0.255,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 0.9,
   shaftLight: 0.5,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
@@ -398,15 +399,15 @@ const lightCurtainTex = canvasTex(32, 1024, (g, w, h) => { g.fillStyle = '#1b1c1
 const M = {
   doorL: steelMat(doorSetL, { color: 0xb4b2ae }), doorR: steelMat(doorSetR, { color: 0xb4b2ae }),
   steel: steelMat(steelSet),
-  steelH: (() => { const m = steelMat(steelSet, { anisotropyRotation: 0, color: CFG.trimMetal, roughness: .78, anisotropy: .85 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].center.set(.5, .5); m[k].rotation = Math.PI / 2; m[k].repeat.set(1, 6); m[k].needsUpdate = true; } return m; })(),
-  steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xe6dfd3, metalness: 1, roughness: 1, roughnessMap: polishedRough }),
-  frame: (() => { const m = steelMat(steelSet, { color: CFG.trimMetal, roughness: .78, anisotropy: .85 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].repeat.set(.12, 4); m[k].needsUpdate = true; } return m; })(),   // door frame: the same hairline finish as the header, brushed along its length
+  steelH: (() => { const m = steelMat(steelSet, { anisotropyRotation: 0, color: CFG.trimMetal, roughness: .62, anisotropy: .85, envMapIntensity: 1.2 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].center.set(.5, .5); m[k].rotation = Math.PI / 2; m[k].repeat.set(1, 6); m[k].needsUpdate = true; } return m; })(),
+  steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xe6dfd3, metalness: 1, roughness: .85, roughnessMap: polishedRough, envMapIntensity: 1.15 }),
+  frame: (() => { const m = steelMat(steelSet, { color: CFG.trimMetal, roughness: .62, anisotropy: .85, envMapIntensity: 1.2 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].repeat.set(.12, 4); m[k].needsUpdate = true; } return m; })(),   // door frame: the same hairline finish as the header, brushed along its length
   steelDark: steelMat(steelSet, { color: 0x8f8b84, roughness: 1.25 }),   // sills, kick plates: a duller brushed finish
   slot: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .85 }),
   curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
   edge: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: .75 }),
-  wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(.75, .75), roughness: .9, clearcoat: .5, clearcoatRoughness: .24 }),
-  lower: new THREE.MeshPhysicalMaterial({ color: CFG.lowerPanel, roughness: .62, clearcoat: .18, clearcoatRoughness: .45, normalMap: leatherNormal, normalScale: new THREE.Vector2(.85, .85) }),   // dark satin panel below the rail
+  wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(.75, .75), roughness: .9, clearcoat: .62, clearcoatRoughness: .17, envMapIntensity: 1.15 }),
+  lower: new THREE.MeshPhysicalMaterial({ color: CFG.lowerPanel, roughness: .58, clearcoat: .45, clearcoatRoughness: .26, envMapIntensity: 1.2, normalMap: leatherNormal, normalScale: new THREE.Vector2(.85, .85) }),   // dark satin panel below the rail
   ceilGlow: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.55, 1.48, 1.34) }),
   ceilStrip: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 1.05, .95) }),   // luminous ceiling panels
   floor: new THREE.MeshPhysicalMaterial({ map: terrazzo, roughnessMap: terrazzoRough, roughness: 1, clearcoat: .9, clearcoatRoughness: .12 }),
@@ -508,7 +509,7 @@ function plateBase(g, w, h) {
     g.strokeStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${.02 + Math.random() * .05})`; g.lineWidth = .5 + Math.random(); g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + len); g.stroke(); }
   const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, 'rgba(255,255,255,.14)'); lg.addColorStop(.35, 'rgba(255,255,255,0)'); lg.addColorStop(1, 'rgba(0,0,0,.2)'); g.fillStyle = lg; g.fillRect(0, 0, w, h);   // lit from above
 }
-const plateMat = map => new THREE.MeshPhysicalMaterial({ map, color: 0xf3ece0, normalMap: steelSet.normal, normalScale: new THREE.Vector2(.1, .1), roughnessMap: steelSet.rough, metalness: .45, roughness: 1.7, anisotropy: .25, anisotropyRotation: Math.PI / 2 });
+const plateMat = map => new THREE.MeshPhysicalMaterial({ map, color: 0xf3ece0, normalMap: steelSet.normal, normalScale: new THREE.Vector2(.1, .1), roughnessMap: steelSet.rough, metalness: .72, roughness: 1.15, envMapIntensity: 1.15, anisotropy: .35, anisotropyRotation: Math.PI / 2 });
 function plateTexture(pw, ph, labels) {
   const s = 1024 / pw;
   return canvasTex(1024, Math.round(ph * s), (g, w, h) => {
@@ -522,6 +523,8 @@ function plateTexture(pw, ph, labels) {
 function glowTex(rgb) {
   return canvasTex(256, 256, (g) => { const r = g.createRadialGradient(128, 128, 0, 128, 128, 128); r.addColorStop(0, `rgba(${rgb},1)`); r.addColorStop(.35, `rgba(${rgb},.3)`); r.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = r; g.fillRect(0, 0, 256, 256); }, { repeat: false });
 }
+const sheenTex = canvasTex(4, 256, (g) => { const r = g.createLinearGradient(0, 0, 0, 256); [[0, 0], [.06, .5], [.14, 1], [.3, .55], [.6, .12], [1, 0]].forEach(([p, a]) => r.addColorStop(p, `rgba(255,255,255,${a})`)); g.fillStyle = r; g.fillRect(0, 0, 4, 256); }, { repeat: false });
+const sheenMat = (color, opacity) => new THREE.MeshBasicMaterial({ map: sheenTex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
 function glowTexDark() { return canvasTex(64, 4, (g) => { const r = g.createLinearGradient(0, 0, 64, 0); r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(.5, 'rgba(0,0,0,1)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 4); }, { repeat: false }); }
 function blobTex() { return canvasTex(128, 128, (g) => { const r = g.createRadialGradient(64, 64, 20, 64, 64, 64); r.addColorStop(0, 'rgba(0,0,0,1)'); r.addColorStop(.55, 'rgba(0,0,0,.55)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); }, { repeat: false }); }
 const shaftTex = canvasTex(4, 512, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 4, 512); const r = g.createLinearGradient(0, 0, 0, 512); [[0, .22], [.2, .3], [.38, .62], [.5, 1], [.62, .62], [.8, .3], [1, .22]].forEach(([p, a]) => r.addColorStop(p, `rgba(255,255,255,${a})`)); g.fillStyle = r; g.fillRect(0, 0, 4, 512); });
@@ -665,6 +668,9 @@ function wallRun(u0, u1, yTop, seed = 0) {
   plane(w, .1, aoMat(true, .5), uc, yTop - .05, .0013, 0, 0, g);
   // the rail throws a soft shadow onto the dark panel below it
   plane(w, .09, aoMat(true, .5), uc, RAIL_Y - .045, .001, 0, 0, g);
+  // the ceiling light glancing off the lacquered veneer and the satin panel below the rail
+  plane(w, yTop - RAIL_Y - RAIL_H, sheenMat(0xfff0d8, CFG.wallSheen), uc, (yTop + RAIL_Y + RAIL_H) / 2, .0016, 0, 0, g);
+  plane(w, RAIL_Y - KICK - .06, sheenMat(0xc9dcf2, CFG.wallSheen * .8), uc, (RAIL_Y + KICK) / 2 - .03, .0016, 0, 0, g);
   return g;
 }
 
@@ -681,7 +687,7 @@ function build() {
   const D = (Hvis / 2) / Math.tan(vfov / 2);
   const eye = viewTop - Hvis / 2;
   // header above the doors, as in the references: steel transom, a band of veneer carrying the indicator, steel band, luminous ceiling
-  const TRANSOM = .07, BAND = .24, TOPBAND = 0, cabH = oh + TRANSOM + BAND, woodTop = cabH;
+  const TRANSOM = .07, BAND = .2, TOPBAND = 0, cabH = oh + TRANSOM + BAND, woodTop = cabH;
   const pocket = ow / 2 + 0.25, panelSide = 1.3;
   const xl = -ow / 2 - pocket, xr = ow / 2 + pocket + panelSide;
   const depth = D + 0.8;
