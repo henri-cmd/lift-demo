@@ -646,7 +646,7 @@
 @media (prefers-reduced-motion:reduce){#lift .panel .btn,#lift .panel .btn .ico,#lift .panel .btn .lbl{transition:none !important}}
 /* --- door frame: satin stainless header and jambs with a bright chamfer and a dark return --- */
 #lift .trim{filter:none !important; z-index:4}
-#lift{--tw:max(2.4vh,15px); --th:4.7vh}
+#lift{--tw:max(3.2vh,19px); --th:4.7vh}
 #lift .trim.l{left:calc(var(--s,5%) - var(--tw)) !important; width:var(--tw) !important}
 #lift .trim.r{width:var(--tw) !important}
 #lift .trim.t{left:calc(var(--s,5%) - var(--tw)) !important; width:calc(100% - 2 * var(--s,5%) + 2 * var(--tw)) !important}
@@ -664,12 +664,12 @@
 #lift .hdr{padding-bottom:var(--th) !important}
 #lift .trim.t{top:calc(var(--hp,13vh) - var(--th)) !important; height:var(--th) !important;
   background-image:
-    linear-gradient(180deg,rgba(255,255,255,.85) 0,rgba(255,255,255,0) 5%,rgba(255,255,255,0) 66%,rgba(0,0,0,.22) 86%,#1b1c1e 88%,#050505 100%),
+    linear-gradient(180deg,rgba(255,255,255,.85) 0,rgba(255,255,255,0) 5%,rgba(255,255,255,0) 60%,rgba(0,0,0,.16) 100%),
     linear-gradient(90deg,rgba(0,0,0,.24),rgba(255,255,255,.12) 20%,rgba(0,0,0,.06) 47%,rgba(255,255,255,.14) 72%,rgba(0,0,0,.26)),
     url(../assets/2d/scratch.webp),url(../assets/2d/grain-h.webp),
     linear-gradient(180deg,#e1e3e4,#c6c9cb 42%,#a2a5a8) !important;
   background-blend-mode:normal,normal,screen,overlay,normal !important; background-size:auto,auto,52vh 52vh,24vh 24vh,auto !important; background-repeat:no-repeat,no-repeat,repeat,repeat,no-repeat !important;
-  box-shadow:0 1.1vh 2vh rgba(0,0,0,.55),0 .25vh .4vh rgba(0,0,0,.5),0 -.12vh 0 rgba(0,0,0,.4) !important}
+  box-shadow:0 1vh 1.8vh rgba(0,0,0,.4),0 -.12vh 0 rgba(0,0,0,.35) !important}
 /* plates: same grain and scratches, a bevelled edge that catches the top light, tighter contact shadow */
 #lift .panel{background-image:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 30%,rgba(0,0,0,.05) 70%,rgba(0,0,0,.2)),url(../assets/2d/scratch-soft.webp),url(../assets/2d/grain-v.webp),url(../assets/2d/panel-plate.webp) !important;
   background-blend-mode:normal,screen,overlay,normal !important; background-size:100% 100%,240% auto,90% auto,100% 100% !important; background-repeat:no-repeat,repeat,repeat,no-repeat !important;
@@ -1519,7 +1519,7 @@
   function geom() {
     const W = cab.clientWidth, p = W * CFG.persp;
     // wall either side of the doors: always a visible margin past the frame, and once the doorway reaches maxDoorWidth the walls take the rest
-    const frameW = Math.max(innerHeight * .024, 15), sideW = Math.max(frameW + Math.max(12, W * CFG.wallShow), (W - CFG.maxDoorWidth) / 2);
+    const frameW = Math.max(innerHeight * .032, 19), sideW = Math.max(frameW + Math.max(12, W * CFG.wallShow), (W - CFG.maxDoorWidth) / 2);
     root.style.setProperty('--p', p + 'px');
     root.style.setProperty('--s', (sideW) + 'px');
     root.style.setProperty('--r', (W * CFG.recess) + 'px');
