@@ -575,8 +575,8 @@ const blurMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, d: { 
         if (thr > 0.) { float l = max(c.r, max(c.g, c.b)); c.rgb *= smoothstep(thr, thr * 2.2, l); }
         s += c * w; tw += w; }
       gl_FragColor = s / tw; }` });
-const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { value: null }, bloom: { value: CFG.halation }, ca: { value: CFG.fringe }, time: { value: 0 }, res: { value: new THREE.Vector2(1, 1) }, grade: { value: CFG.grade }, dt: { value: null }, near: { value: .02 }, far: { value: 60 }, pk: { value: 1 }, asp: { value: 1 }, aoS: { value: 0 }, aoR: { value: CFG.aoRadius } }, vertexShader: FSV, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
-  fragmentShader: `uniform sampler2D t, b, dt; uniform float bloom, ca, time, grade, near, far, pk, asp, aoS, aoR; uniform vec2 res; varying vec2 vUv;
+const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { value: null }, bloom: { value: CFG.halation }, ca: { value: CFG.fringe }, time: { value: 0 }, res: { value: new THREE.Vector2(1, 1) }, grade: { value: CFG.grade }, lens: { value: 1 }, dt: { value: null }, near: { value: .02 }, far: { value: 60 }, pk: { value: 1 }, asp: { value: 1 }, aoS: { value: 0 }, aoR: { value: CFG.aoRadius } }, vertexShader: FSV, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
+  fragmentShader: `uniform sampler2D t, b, dt; uniform float bloom, ca, time, grade, lens, near, far, pk, asp, aoS, aoR; uniform vec2 res; varying vec2 vUv;
     float lin(float d){ return near * far / (far - d * (far - near)); }
     // contact shadows: how much nearby geometry stands in front of this point's own surface (its slope is taken into account,
     // so flat walls seen at an angle don't darken themselves)
@@ -598,10 +598,10 @@ const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { v
         k = mix(vec3(l), k, 1. + .16 * grade);                                         // a little more colour than AgX leaves
         k = max(mix(k, k * k * (3. - 2. * k), .72 * grade), 0.);                       // film S-curve: deeper blacks, firmer highlights
         k *= mix(vec3(1.), mix(vec3(.93, 1., 1.08), vec3(1.035, 1., .955), smoothstep(.04, .65, l)), grade);   // cool shadows, warm highlights
-        float v = length((vUv - .5) * vec2(1., .92)); k *= 1. - .34 * grade * smoothstep(.32, .8, v);         // optical vignette
+        float v = length((vUv - .5) * vec2(1., .92)); k *= 1. - .34 * grade * lens * smoothstep(.32, .8, v);         // optical vignette
         vec3 h3 = fract(vec3(floor(vUv * res).xyx) * vec3(.1031, .1030, .0973) + time * .013); h3 += dot(h3, h3.yzx + 33.33);
         float n = fract((h3.x + h3.y) * h3.z) - .5;
-        k += n * .026 * grade * (1. - l * .7) * a;                                    // fine grain, stronger in the shadows
+        k += n * .026 * grade * lens * (1. - l * .7) * a;                                    // fine grain, stronger in the shadows
         gl_FragColor.rgb = k; }
       #include <colorspace_fragment>
     }` });
@@ -1192,7 +1192,9 @@ function stepQualityDown() {
   if (qLevel >= 3 && renderer.shadowMap.enabled) { renderer.shadowMap.enabled = false; if (G.key) G.key.castShadow = false; scene.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) m.needsUpdate = true; }); }
   renderer.setPixelRatio(pixelRatioNow()); renderer.setSize(innerWidth, innerHeight); sizePost();
 }
+const EXPORT = /[?&]export\b/.test(location.search);
 function frame() {
+  if (EXPORT && window.__liftPause) { setTimeout(frame, 100); return; }
   const now0 = performance.now();
   // when nothing has been touched for a few seconds and nothing is moving, draw every other frame (saves battery, no visible change)
   const idle = !busy && now0 - lastInput > 2500 && travel < .02 && (turnT === 0 || turnT === 1) && !doorAnim && !roll;
@@ -1315,5 +1317,6 @@ if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout());
 document.fonts && document.fonts.load('900 60px Doto').then(() => drawIndicator());
 nextFrame(frame);
 setTimeout(() => root.querySelector('.loading').classList.add('done'), 600);
+if (EXPORT) window.__lift = { THREE, renderer, scene, camera, cab, doors, M, IND, PSC, renderScene, sizePost, plateBase, outMat, get G() { return G; } };
 </script>
 </body></html>
