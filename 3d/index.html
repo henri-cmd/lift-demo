@@ -215,6 +215,7 @@ const CFG = {
   doorMs: 1100, perFloorMs: 750, arriveDwellMs: 300,
   // camera
   fov: 54,                 // vertical field of view (degrees)
+  panelScale: 0.52,        // button panel size (1 = the original oversized panel; ~0.5 is a real car panel, about 31 cm wide)
   doorFill: 0.76,          // share of the screen width the doorway takes on landscape screens (the rest is cab wall)
   lookYaw: .7, lookPitch: .45, // how far the head turns towards the cursor (degrees)
   headShift: 0.035,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
@@ -670,9 +671,10 @@ function build() {
   plane(sw0 * 1.5, sh0 * 3.2, new THREE.MeshBasicMaterial({ map: glowTex('255,40,55'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .07 }), 0, iy, FZ + .038);
 
   /* --- button panel: brushed plate, LED display, engraved buttons with halo rings, lift functions along the bottom --- */
+  const panelStart = cab.children.length, PS = CFG.panelScale;
   const cols = 3, rows = Math.ceil(F.length / cols), fns = CFG.functions.filter(f => FN[f]), pw = .6, top = .2, pitch = .185;
   const ph = top + .1 + rows * pitch + (fns.length ? pitch + .05 : 0);
-  const px = ow / 2 + pw / 2 + .07, py = Math.max(eye + .06, RAIL_Y + RAIL_H + ph / 2 + .05);
+  const px = ow / 2 + pw * PS / 2 + .1, py = Math.max(1.3, RAIL_Y + RAIL_H + ph * PS / 2 + .05);
   const bxs = c => -pw / 2 + .11 + c * ((pw - .22) / (cols - 1)), bys = r => ph / 2 - top - .06 - r * pitch;
   const fy = bys(rows) - .05, fxs = k => -pw / 2 + .085 + k * ((pw - .17) / Math.max(1, fns.length - 1));
   const labels = F.map((f, k) => [f.n.toUpperCase(), bxs(k % cols) + pw / 2, bys(Math.floor(k / cols)) - .068]).concat(fns.map((f, k) => [FN[f].label, fxs(k) + pw / 2, fy - .062]));
@@ -695,7 +697,8 @@ function build() {
   };
   F.forEach((f, k) => { const { ring, b } = addButton(px + bxs(k % cols), py + bys(Math.floor(k / cols)), numberCap(k + 1), .031, 0x2a2a2a); b.userData.floor = k; btnRings.push(ring); btnMeshes.push(b); });
   fns.forEach((f, k) => { const { ring, b } = addButton(px + fxs(k), py + fy, capTexture(g => { g.scale(1.45, 1.45); FN[f].draw(g); }), .029, f === 'alarm' ? 0x5a1512 : 0x2a2a2a); b.userData.fn = f; b.userData.ring = ring; fnMeshes.push(b); });
-  G.panel = new THREE.Vector3(px, py, FZ + .01);
+  { const pg = new THREE.Group(); pg.position.set(px, py, FZ); for (const o of cab.children.slice(panelStart)) { o.position.x -= px; o.position.y -= py; o.position.z -= FZ; pg.add(o); } pg.scale.setScalar(PS); cab.add(pg); }
+  G.panel = new THREE.Vector3(px, py, FZ + .01); G.pd = .5 + ph * PS * .62;   // viewing distance that frames the whole panel
 
   /* --- lights: the luminous ceiling does the work; a soft spot adds gentle shadows --- */
   const lz = D * .5;
@@ -1068,10 +1071,10 @@ function frame() {
   const idleYaw = Math.sin(sw * .23) * .25 + Math.sin(sw * .41 + 1.3) * .15, idlePitch = Math.sin(sw * .19 + .7) * .18;
   // facing the doors vs facing the panel (step closer and to the right, then turn towards it)
   const p = smooth(clamp(turnT, 0, 1));
-  const panelYaw = Math.atan2(G.panel.x - G.ow * .25, G.D * .55) * 180 / Math.PI;
+  const pcx = G.panel.x - .1, panelYaw = Math.atan2(G.panel.x - pcx, G.pd) * 180 / Math.PI;
   const hs = RM ? 0 : CFG.headShift;
-  camera.position.set(G.ow * .25 * p + vx + lookX * hs + Math.sin(sw * .21) * .006, G.eye + vy - lookY * hs * .5 + Math.sin(sw * .27 + 1) * .004, G.D - G.D * .45 * p);
-  const pitchToPanel = Math.atan2(G.panel.y - G.eye, G.D * .55) * 180 / Math.PI;
+  camera.position.set(pcx * p + vx + lookX * hs + Math.sin(sw * .21) * .006, G.eye + (G.panel.y - G.eye) * .7 * p + vy - lookY * hs * .5 + Math.sin(sw * .27 + 1) * .004, G.D + (G.pd - G.D) * p);
+  const pitchToPanel = Math.atan2((G.panel.y - G.eye) * .3, G.pd) * 180 / Math.PI;
   const yaw = -(panelYaw * p) - lookX * CFG.lookYaw - idleYaw, pitch = pitchToPanel * p - lookY * CFG.lookPitch + idlePitch;
   camera.rotation.set(pitch * Math.PI / 180, yaw * Math.PI / 180, Math.sin(sw * .17) * .0015);
 
