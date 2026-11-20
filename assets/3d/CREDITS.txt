@@ -1,5 +1,5 @@
 Textures in this folder are CC0 (public domain):
-- veneer-*.webp: "Rosewood Veneer 02" from Poly Haven (polyhaven.com/a/rosewood_veneer_02), rotated so the grain runs vertically
+- veneer-*.webp: "White Maple Veneer" from Poly Haven (polyhaven.com/a/white_maple_veneer), rotated so the grain runs vertically
 - steel-patina.webp: roughness map of "Metal 012" from ambientCG (ambientcg.com/a/Metal012)
 - smear.webp: "Surface Imperfections 003" from ambientCG (ambientcg.com/a/SurfaceImperfections003)
 - scratches.webp: "Scratches 003" from ambientCG (ambientcg.com/a/Scratches003)

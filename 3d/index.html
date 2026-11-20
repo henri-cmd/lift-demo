@@ -206,7 +206,7 @@ const CFG = {
   ],
   tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
   lowerPanel: 0x263645,    // the panel below the rail: a muted, slightly grey blue
-  woodTint: 0xb6978a,      // deepens the rosewood veneer scan towards the red-brown of the references
+  woodTint: 0xfdf3e3,      // a touch of warmth on the pale maple scan, for a Scandinavian birch look
   functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
   contactEmail: '',        // Call button opens an email to this address (blank = just rings)
 
@@ -351,7 +351,7 @@ const noiseTex = (base, amt, blotch, size = 512) => canvasTex(size, size, (g, w,
 const plaster = noiseTex('#cdc6bb', 10, 90);
 const concrete = noiseTex('#46423e', 14, 200, 1024);
 
-// scanned textures (CC0): rosewood veneer from Poly Haven (grain turned to run vertically); a steel patina (roughness) from ambientCG
+// scanned textures (CC0): white maple veneer from Poly Haven (pale, birch-like; grain turned to run vertically); a steel patina (roughness) from ambientCG
 const loader = new THREE.TextureLoader();
 const loadTex = (url, srgb) => { const t = loader.load(url, () => captureEnv()); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAXANI; return t; };
 const woodMap = loadTex(CFG.tex + 'veneer-diff.webp', true), woodNormal = loadTex(CFG.tex + 'veneer-normal.webp'), woodRough = loadTex(CFG.tex + 'veneer-rough.webp');
