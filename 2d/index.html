@@ -1477,7 +1477,8 @@
     if (!busy) {
       const target = scrollTarget();
       const next = RM ? target : cVal + (target - cVal) * CFG.doorEase;
-      if (Math.abs(next - cVal) > .0005 || target === 0 && cVal !== 0) setC(Math.abs(next - target) < .001 ? target : next);
+      // ease towards the target, then snap the last sliver so the doors really meet (and fully clear when open)
+      if (cVal !== target) setC(Math.abs(next - target) < .006 ? target : next);
       const f = floorNow();
       if (f !== cur) {
         const dir = f > cur ? 1 : -1;
@@ -1542,7 +1543,7 @@
   if (CFG.wallImg) root.querySelectorAll('.wall').forEach(w => w.style.backgroundImage = `url(${CFG.wallImg})`);
   root.style.setProperty('--turn-ms', CFG.turnMs + 'ms');
   if (CFG.ceilImg) $('.ceil').style.background = `url(${CFG.ceilImg}) center/cover`;
-  let panPx = 300, turned = false;
+  let panPx = 300, turned = false; let turnedAt = 0, onPanel = false;
   function geom() {
     const W = cab.clientWidth, p = W * CFG.persp;
     // wall either side of the doors: always a visible margin past the frame, and once the doorway reaches maxDoorWidth the walls take the rest
@@ -1583,7 +1584,7 @@
   let backTimer = 0;
   function look(on) {
     if (turned === on) return;
-    turned = on; root.classList.toggle('turned', on);
+    turned = on; root.classList.toggle('turned', on); turnedAt = performance.now(); onPanel = false;
     root.style.setProperty('--pan', on ? panPx + 'px' : '0px');
     if (on) armBack(); else clearTimeout(backTimer);
   }
@@ -1595,7 +1596,12 @@
     root.addEventListener('pointermove', e => {
       if (busy || e.pointerType !== 'mouse') return;
       if (!turned && e.clientX > innerWidth - CFG.revealDistance) look(true);
-      else if (turned) { if (e.clientX < innerWidth * 0.3) look(false); else armBack(); }
+      else if (turned) {
+        // once the slide has settled and the cursor has been on (or right of) the panel, moving off its left edge returns to the lift
+        const pl = $('.panel').getBoundingClientRect().left, settled = performance.now() - turnedAt > CFG.turnMs + 80;
+        if (settled && e.clientX >= pl) onPanel = true;
+        if (e.clientX < innerWidth * 0.3 || settled && onPanel && e.clientX < pl - 6) look(false); else armBack();
+      }
     });
     wallR.addEventListener('click', e => { if (!turned && !busy) { e.stopPropagation(); look(true); } }); // tap the right-hand wall strip (touch)
     sc.addEventListener('scroll', () => { if (turned && !busy) look(false); }, { passive: true });
