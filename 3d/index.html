@@ -716,7 +716,7 @@ function build() {
   const leakMat = (o) => new THREE.MeshBasicMaterial({ map: shaftTex.clone(), color: 0xfff1d6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, ...o });
   G.leaks = [];
   const fadeDown = m => { const geo = new THREE.PlaneGeometry(m.geometry.parameters.width, m.geometry.parameters.height, 1, 12), pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
-    for (let i = 0; i < pos.count; i++) { const v = pos.getY(i) / m.geometry.parameters.height + .5, f = Math.pow(clamp((v - .12) / .45, 0, 1), 1.6); col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = f; }
+    for (let i = 0; i < pos.count; i++) { const v = pos.getY(i) / m.geometry.parameters.height + .5, f = Math.pow(clamp((v - .42) / .48, 0, 1), 2); col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = f; }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); m.geometry.dispose(); m.geometry = geo; m.material.vertexColors = true; m.material.needsUpdate = true; return m; };
   for (const [x, w, k] of [[0, .003, 1]]) { const m = plane(w, oh, leakMat(), x, oh / 2, x ? -.0235 : -.0195); m.material.map.needsUpdate = true; m.userData.k = k; fadeDown(m); G.leaks.push(m); }
   G.headLeak = plane(ow - .02, .004, leakMat({ map: null }), 0, oh - .006, -.0235);
@@ -1066,7 +1066,7 @@ function frame() {
     for (const m of G.leaks) { m.material.map.offset.y = shaftPhase; m.material.opacity = m.userData.k * k * shut; }
     G.headLeak.material.opacity = 0;
     G.steady.material.opacity = .16 * (1 - k) * shut;             // parked at a floor: a faint steady line from the landing
-    G.gapLight.position.y = bandY * G.oh; G.gapLight.intensity = .3 * k * shut * Math.pow(clamp((bandY - .12) / .45, 0, 1), 1.6);   // the sliver catching the door edges, right at the gap
+    G.gapLight.position.y = bandY * G.oh; G.gapLight.intensity = .3 * k * shut * Math.pow(clamp((bandY - .42) / .48, 0, 1), 2);   // the sliver catching the door edges, right at the gap
   }
   // eyes adapt a little to a bright floor
   renderer.toneMappingExposure = CFG.exposure * (1 - .2 * openK * lumNow) * ((now < alarmUntil) ? .55 : 1);
