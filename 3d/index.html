@@ -205,6 +205,7 @@ const CFG = {
         <div class="ph"></div>` }
   ],
   tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
+  lowerPanel: 0x263645,    // the panel below the rail: a muted, slightly grey blue
   woodTint: 0x8f5a40,      // deepens the sapele veneer towards the warm red-brown of the references
   functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
   contactEmail: '',        // Call button opens an email to this address (blank = just rings)
@@ -373,7 +374,7 @@ const M = {
   curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
   edge: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: .75 }),
   wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(.75, .75), roughness: .9, clearcoat: .5, clearcoatRoughness: .24 }),
-  lower: new THREE.MeshPhysicalMaterial({ color: 0x17171a, roughness: .55, clearcoat: .22, clearcoatRoughness: .4, normalMap: grainNormal, normalScale: new THREE.Vector2(.22, .22) }),   // dark satin panel below the rail
+  lower: new THREE.MeshPhysicalMaterial({ color: CFG.lowerPanel, roughness: .55, clearcoat: .22, clearcoatRoughness: .4, normalMap: grainNormal, normalScale: new THREE.Vector2(.22, .22) }),   // dark satin panel below the rail
   ceilGlow: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.55, 1.48, 1.34) }),   // luminous ceiling panels
   floor: new THREE.MeshPhysicalMaterial({ map: terrazzo, roughnessMap: terrazzoRough, roughness: 1, clearcoat: .9, clearcoatRoughness: .12 }),
   reveal: new THREE.MeshPhysicalMaterial({ color: 0xa6a8ab, metalness: 1, roughness: .45 }),
