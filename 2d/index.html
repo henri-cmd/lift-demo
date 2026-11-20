@@ -642,7 +642,7 @@
 #lift .panel .btn{--sheen:0deg; --ring:0; transition:--sheen .7s cubic-bezier(.2,.8,.2,1), --ring .35s ease}
 #lift .panel .btn .cap{background:conic-gradient(from var(--sheen),#fbf7ee,#a39988 11%,#ece5d6 25%,#857c6d 38%,#ddd5c5 50%,#857c6d 62%,#ece5d6 75%,#a39988 89%,#fbf7ee) !important}
 #lift .panel .btn .cap::after{content:""; position:absolute; inset:8.5%; border-radius:50%; box-shadow:inset 0 0 0 .18cqw rgba(40,30,15,.55),inset 0 .5cqw .6cqw rgba(0,0,0,.45); pointer-events:none}
-#lift .panel .btn .ico{isolation:isolate; transition:transform .16s ease-out, box-shadow .16s ease-out !important}
+#lift .panel .btn .ico{isolation:isolate; transition:transform .08s ease-out, box-shadow .08s ease-out !important}
 #lift .panel .btn .ico::after{content:""; position:absolute; inset:0; border-radius:50%; z-index:-1; pointer-events:none;
   background:conic-gradient(from calc(var(--sheen) - 20deg),rgba(255,255,255,.75),rgba(255,255,255,0) 13%,rgba(60,45,20,.12) 25%,rgba(255,255,255,0) 37%,rgba(255,255,255,.55) 50%,rgba(255,255,255,0) 63%,rgba(60,45,20,.12) 75%,rgba(255,255,255,0) 87%,rgba(255,255,255,.75));
   box-shadow:inset 0 0 0 .14cqw rgba(255,255,255,.5),inset 0 0 0 .3cqw rgba(60,45,20,.14)}
@@ -656,7 +656,7 @@
   55%{transform:translateY(.28cqw) scale(.9); box-shadow:inset 0 .5cqw .7cqw rgba(60,45,20,.38),inset 0 -.3cqw .5cqw rgba(60,45,20,.3),0 0 .1cqw rgba(0,0,0,.8)}
   82%{transform:translateY(-.05cqw) scale(1.012)}
   100%{transform:translateY(.08cqw) scale(.975)}}
-#lift .panel .btn.press .ico{animation:liftPress .42s cubic-bezier(.3,.7,.3,1) !important}
+#lift .panel .btn.press .ico{animation:liftPress .26s cubic-bezier(.3,.7,.3,1) !important}
 #lift .panel .btn:active .ico{transform:translateY(.28cqw) scale(.9) !important}
 @media (prefers-reduced-motion:reduce){#lift .panel .btn,#lift .panel .btn .ico,#lift .panel .btn .lbl{transition:none !important}}
 /* --- door frame: satin stainless header and jambs with a bright chamfer and a dark return --- */
@@ -849,13 +849,13 @@
     // scroll-scrubbed doors
     doorZone: 0.7,         // scroll distance (in screen heights) for the doors to close — and the same again to open
     closedHold: 0.28,      // fraction of the zone where the doors sit fully shut
-    doorEase: 0.22,        // smoothing (0–1). Lower = floatier, higher = tighter to the scroll
+    doorEase: 0.3,        // smoothing (0–1). Lower = floatier, higher = tighter to the scroll
     scrollDing: true,      // soft ding when you pass a floor by scrolling
 
     // button-panel ride
-    doorMs: 950,
-    perFloorMs: 750,
-    arriveDwellMs: 300,
+    doorMs: 700,
+    perFloorMs: 520,
+    arriveDwellMs: 180,
     bellHz: 1046.5,
 
     startAtBottom: false,  // true = loads on the ground floor; scroll UP to ride up (floors must be one screen each). List floors ground → top.
@@ -873,7 +873,7 @@
     recess: 0.018,
     doorThickness: 0.035,  // depth of each door leaf (fraction of screen width) — shows on the leading edges as they move         // how far the doors sit back behind the front wall (fraction of screen width)
     persp: 1.1,            // camera distance from the doors, as a fraction of screen width (lower = wider lens)
-    turnMs: 900,           // camera slide duration
+    turnMs: 600,           // camera slide duration
     panelOffset: 0.02,     // panel sits on the front wall this far past the right edge of the screen (fraction of width)
     panelWallExt: 1,       // how far the front wall carries on past the screen edge before the cab corner
     revealDistance: 90,    // px — mouse this close to the right edge turns the camera to the panel
@@ -1509,12 +1509,12 @@
     const dir = t > cur ? 1 : -1;
     btns[t].classList.add('lit');
     clearTimeout(idleTimer);
-    if (turned) { await sleep(T(250)); look(false); await sleep(T(CFG.turnMs)); }
+    if (turned) { await sleep(T(120)); look(false); await sleep(T(CFG.turnMs)); }
 
     root.classList.add('ride');
     void root.offsetWidth;
     setC(1); doorSound();
-    await sleep(T(CFG.doorMs + 200));
+    await sleep(T(CFG.doorMs + 80));
 
     setArrow(dir); jolt(); root.classList.add('moving'); humOn();
     let i = cur;
@@ -1525,7 +1525,7 @@
     cur = t; markHere(t);
     await sleep(T(CFG.arriveDwellMs));
     ding(dir); btns[t].classList.remove('lit');
-    await sleep(T(350));
+    await sleep(T(180));
 
     setC(0); doorSound();
     await sleep(T(CFG.doorMs));
