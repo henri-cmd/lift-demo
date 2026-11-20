@@ -362,7 +362,7 @@ const steelMat = (set, o = {}) => new THREE.MeshPhysicalMaterial({ map: set.albe
   color: 0xf3ece0, metalness: 1, roughness: 1, anisotropy: .75, anisotropyRotation: Math.PI / 2, envMapIntensity: 1, ...o });   // warm, champagne-toned stainless
 const lightCurtainTex = canvasTex(32, 1024, (g, w, h) => { g.fillStyle = '#1b1c1e'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#26282b'; g.fillRect(w * .3, 0, w * .4, h);
-  for (let y = 14; y < h; y += 22) { g.fillStyle = '#0a0a0b'; g.beginPath(); g.arc(w / 2, y, 4.2, 0, 7); g.fill(); g.fillStyle = 'rgba(120,20,20,.55)'; g.beginPath(); g.arc(w / 2, y, 2, 0, 7); g.fill(); } }, { repeat: false });
+  for (let y = 14; y < h; y += 22) { g.fillStyle = '#0a0a0b'; g.beginPath(); g.arc(w / 2, y, 4.2, 0, 7); g.fill(); g.fillStyle = 'rgba(0,95,150,.6)'; g.beginPath(); g.arc(w / 2, y, 2, 0, 7); g.fill(); } }, { repeat: false });
 const M = {
   doorL: steelMat(doorSetL, { color: 0xcdc6ba }), doorR: steelMat(doorSetR, { color: 0xcdc6ba }),
   steel: steelMat(steelSet),
@@ -381,7 +381,7 @@ const M = {
   black: new THREE.MeshBasicMaterial({ color: 0x050505 }),
 };
 
-/* ===== SCREENS: red LED matrix behind smoked glass (indicator above the doors + display on the panel) ===== */
+/* ===== SCREENS: ANZ-blue LED matrix behind smoked glass (indicator above the doors + display on the panel) ===== */
 const GLYPH = {A:'.###.#...##...#######...##...##...#',B:'####.#...##...#####.#...##...#####.',C:'.###.#...##....#....#....#...#.###.',D:'####.#...##...##...##...##...#####.',
 E:'######....#....####.#....#....#####',F:'######....#....####.#....#....#....',G:'.###.#...##....#.####...##...#.####',H:'#...##...##...#######...##...##...#',
 I:'.###...#....#....#....#....#...###.',J:'..###...#....#....#....#.#..#..##..',K:'#...##..#.#.#..##...#.#..#..#.#...#',L:'#....#....#....#....#....#....#####',
@@ -393,6 +393,7 @@ Y:'#...##...#.#.#...#....#....#....#..',Z:'#####....#...#...#...#...#....#####',
 4:'...#...##..#.#.#..#.#####...#....#.',5:'######....####.....#....##...#.###.',6:'..##..#...#....####.#...##...#.###.',7:'#####....#...#...#...#....#....#...',
 8:'.###.#...##...#.###.#...##...#.###.',9:'.###.#...##...#.####....#...#..##..'};
 const GL_EXTRA = { ' ': '.'.repeat(35), '-': '..........#####..........'.padEnd(35, '.') };
+const LED_BLUE = '#0a8fd4';   // ANZ blue (#007DBA) lifted slightly so it glows like an LED
 function makeScreen(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = MAXANI; return { c, tex, g: c.getContext('2d') }; }
 function textDots(grid, text, rowOff = 0) {   // → Set of lit dot indices, text centred in the grid
   const lit = new Set(), w = text.length * 6 - 1, top = Math.floor((grid.rows - 7) / 2), x0 = Math.floor((grid.cols - w) / 2);
@@ -404,15 +405,15 @@ function textDots(grid, text, rowOff = 0) {   // → Set of lit dot indices, tex
 function drawMatrix(g, grid, lit, ox, oy, p) {
   for (let r = 0; r < grid.rows; r++) for (let k = 0; k < grid.cols; k++) {
     const on = lit.has(r * grid.cols + k), x = ox + k * p, y = oy + r * p, s = p * .7, o = (p - s) / 2;
-    if (!on) { g.fillStyle = 'rgba(60,10,12,.5)'; g.fillRect(x + o, y + o, s, s); continue; }
-    g.shadowColor = 'rgba(255,30,50,.95)'; g.shadowBlur = p * 1.1; g.fillStyle = '#ff2f43'; g.beginPath(); g.roundRect(x + o, y + o, s, s, s * .28); g.fill();
-    g.shadowBlur = 0; g.fillStyle = 'rgba(255,190,190,.85)'; g.fillRect(x + o + s * .3, y + o + s * .3, s * .4, s * .4);
+    if (!on) { g.fillStyle = 'rgba(6,30,46,.6)'; g.fillRect(x + o, y + o, s, s); continue; }
+    g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = p * 1.1; g.fillStyle = LED_BLUE; g.beginPath(); g.roundRect(x + o, y + o, s, s, s * .28); g.fill();
+    g.shadowBlur = 0; g.fillStyle = 'rgba(170,222,255,.85)'; g.fillRect(x + o + s * .3, y + o + s * .3, s * .4, s * .4);
   }
   g.shadowBlur = 0;
 }
 function lampTri(g, x, y, s, up, on) {   // direction lamp: a backlit white triangle
   g.beginPath(); if (up) { g.moveTo(x, y - s * .55); g.lineTo(x + s * .6, y + s * .45); g.lineTo(x - s * .6, y + s * .45); } else { g.moveTo(x - s * .6, y - s * .45); g.lineTo(x + s * .6, y - s * .45); g.lineTo(x, y + s * .55); } g.closePath();
-  if (on) { g.shadowColor = 'rgba(255,244,220,.95)'; g.shadowBlur = s * .7; g.fillStyle = '#fff6e2'; g.fill(); g.shadowBlur = 0; }
+  if (on) { g.shadowColor = 'rgba(200,228,255,.8)'; g.shadowBlur = s * .45; g.fillStyle = '#cfe2f2'; g.fill(); g.shadowBlur = 0; }
   else { g.fillStyle = 'rgba(255,255,255,.07)'; g.fill(); }
 }
 const maxName = Math.max(...F.map((f, i) => `${i + 1} ${f.n.toUpperCase()}`.length), 8);
@@ -430,8 +431,8 @@ function drawIndicator(now = performance.now()) {
     lampTri(g, 82, 98, 62, false, down); lampTri(g, W - 82, 98, 62, true, up);
     const n = F.length, gap = Math.min(46, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
     for (let i = 0; i < n; i++) { const on = i === curShown, x = x0 + i * gap; g.beginPath(); g.arc(x, 214, 9, 0, 7);
-      if (on) { g.shadowColor = 'rgba(255,40,55,.95)'; g.shadowBlur = 16; g.fillStyle = '#ff3a4a'; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(255,210,205,.9)'; g.beginPath(); g.arc(x - 2, 212, 3.2, 0, 7); g.fill(); }
-      else { g.fillStyle = 'rgba(90,18,20,.55)'; g.fill(); } }
+      if (on) { g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = 16; g.fillStyle = LED_BLUE; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(180,226,255,.9)'; g.beginPath(); g.arc(x - 2, 212, 3.2, 0, 7); g.fill(); }
+      else { g.fillStyle = 'rgba(8,40,60,.6)'; g.fill(); } }
     IND.tex.needsUpdate = true; }
   // --- panel display: floor number + travel arrow
   { const g = PSC.g, W = 512, H = 256; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
@@ -672,13 +673,13 @@ function build() {
     const rail = new THREE.Mesh(new THREE.CylinderGeometry(.019, .019, depth - .4, 24), M.steelPolished); rail.rotation.x = Math.PI / 2; rail.position.set(x, RAIL_Y + .1, depth / 2 + .1); cab.add(rail);
   }
 
-  /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, red LEDs --- */
+  /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, blue LEDs --- */
   const sw0 = Math.min(.52, ow * .3), sh0 = sw0 * 256 / 1536, iy = oh + TRANSOM + .075;
   plane(sw0 + .26, sh0 + .2, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .42, depthWrite: false }), 0, iy - .018, FZ + .0015);   // housing's soft shadow on the veneer
   const house = new THREE.Mesh(new RoundedBoxGeometry(sw0 + .1, sh0 + .034, .034, 4, .012), M.steel); house.position.set(0, iy, FZ + .017); cab.add(house);
   box(sw0 + .012, sh0 + .012, .004, M.black, 0, iy, FZ + .033);
   plane(sw0, sh0, screenMat(IND), 0, iy, FZ + .0356);
-  plane(sw0 * 1.5, sh0 * 3.2, new THREE.MeshBasicMaterial({ map: glowTex('255,40,55'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .07 }), 0, iy, FZ + .038);
+  plane(sw0 * 1.5, sh0 * 3.2, new THREE.MeshBasicMaterial({ map: glowTex('0,125,186'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .07 }), 0, iy, FZ + .038);
 
   /* --- button panel: brushed plate, LED display, engraved buttons with halo rings, lift functions along the bottom --- */
   const panelStart = cab.children.length, PS = CFG.panelScale;
@@ -971,7 +972,7 @@ async function go(t) {
   busy = true; root.classList.add('busy');
   const dir = t > cur ? 1 : -1;
   clickSound(); pressButton(t);
-  btnRings[t].userData.lit = true; btnRings[t].material.emissive.setHex(0xff6a2a); btnRings[t].material.emissiveIntensity = 1.6; btnRings[t].material.color.setHex(0xff8a4a);
+  btnRings[t].userData.lit = true; btnRings[t].material.emissive.setHex(0x0a8fd4); btnRings[t].material.emissiveIntensity = 1.6; btnRings[t].material.color.setHex(0x2aa4e0);
   await sleep(550);
   lookAtPanel(false);
   if (cVal < .98) { doorSound(CFG.doorMs, true); await animateDoors(1, CFG.doorMs); bump = .3; }
@@ -991,13 +992,13 @@ async function go(t) {
   doorSound(CFG.doorMs, false); await animateDoors(0, CFG.doorMs);
   busy = false; root.classList.remove('busy');
 }
-function flashButton(k) { clickSound(); pressButton(k); const m = btnRings[k].material; m.emissive.setHex(0xff6a2a); m.emissiveIntensity = 1.6; setTimeout(() => markHere(curShown), 300); }
+function flashButton(k) { clickSound(); pressButton(k); const m = btnRings[k].material; m.emissive.setHex(0x0a8fd4); m.emissiveIntensity = 1.6; setTimeout(() => markHere(curShown), 300); }
 function pressButton(k) { const b = typeof k === 'number' ? btnMeshes[k] : k; if (!b) return; const z = b.userData.z0 ?? (b.userData.z0 = b.position.z); b.position.z = z - .006; setTimeout(() => { b.position.z = z; }, 170); }
 function flash(text, ms) { flashText = text; drawIndicator(); setTimeout(() => { flashText = null; drawIndicator(); }, ms); }
 let alarmUntil = 0;
 async function liftFn(fn, b) {
   clickSound(); pressButton(b);
-  const ring = b.userData.ring.material, lit = () => { ring.emissive.setHex(fn === 'alarm' ? 0xff2a1a : 0xff6a2a); ring.emissiveIntensity = 1.6; }, off = () => { ring.emissiveIntensity = 0; ring.emissive.setHex(0); };
+  const ring = b.userData.ring.material, lit = () => { ring.emissive.setHex(fn === 'alarm' ? 0xff2a1a : 0x0a8fd4); ring.emissiveIntensity = 1.6; }, off = () => { ring.emissiveIntensity = 0; ring.emissive.setHex(0); };
   lit();
   if (fn === 'alarm') { alarmUntil = performance.now() + 2600; alarmSound(); flash('ALARM', 2600); setTimeout(off, 2600); return; }
   if (fn === 'call') { callSound(); flash('CALLING', 2200); setTimeout(off, 2200); if (CFG.contactEmail) setTimeout(() => { location.href = 'mailto:' + CFG.contactEmail; }, 900); return; }
@@ -1049,7 +1050,7 @@ function frame() {
   if (doors.l) { doors.l.position.x = -open; doors.r.position.x = open; ldoors.l.position.x = -open; ldoors.r.position.x = open; }
 
   // LED screens: floor names roll like a mechanical display; arrows blink while the car moves
-  const blink = !moving || (now % 900) < 560;
+  const blink = true;   // direction arrows stay steadily lit while moving (no blinking)
   if (roll || blink !== blinkOn) { blinkOn = blink; drawIndicator(now); }
 
   // the floor's own light: colour and brightness of what's beyond the doors, eased in as they open
