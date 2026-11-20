@@ -221,6 +221,7 @@ const CFG = {
   lookYaw: .3, lookPitch: .2, // how far the head turns towards the cursor (degrees)
   headShift: 0.012,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
   lookEase: 0.32,          // seconds — how quickly the head follows the cursor
+  panelHoverMs: 260,       // how long the cursor rests on the panel before the camera goes to it
   panelTurnMs: 1400,       // glide to/from the button panel
   vibration: 0.4,
   // build (metres)
@@ -693,7 +694,7 @@ function build() {
   plane(pw + .16, ph + .16, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .4, depthWrite: false }), px + .008, py - .02, FZ + .0016);   // plate's soft shadow
   for (const sx of [-1, 1]) for (const sy of [-1, 1]) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(.007, .007, .003, 20), M.steelPolished); sc.rotation.x = Math.PI / 2; sc.position.set(px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0155); cab.add(sc);
     box(.009, .0016, .0008, M.slot, px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0172).rotation.z = .5 + sx * sy; }
-  box(pw, ph, .014, new THREE.MeshPhysicalMaterial({ map: plateTexture(pw, ph, labels), color: 0xf3ece0, normalMap: steelSet.normal, normalScale: new THREE.Vector2(.08, .08), metalness: .9, roughness: .38, anisotropy: .6, anisotropyRotation: Math.PI / 2 }), px, py, FZ + .007);
+  G.plate = box(pw, ph, .014, new THREE.MeshPhysicalMaterial({ map: plateTexture(pw, ph, labels), color: 0xf3ece0, normalMap: steelSet.normal, normalScale: new THREE.Vector2(.08, .08), metalness: .9, roughness: .38, anisotropy: .6, anisotropyRotation: Math.PI / 2 }), px, py, FZ + .007);
   { const m = box(pw - .08, .002, .001, M.steelDark, px, py + fy + pitch * .52, FZ + .0145); m.visible = fns.length > 0; }   // fine line above the function row
   const psw = .24, psh = psw * 256 / 512;
   box(psw + .02, psh + .02, .006, M.black, px, py + ph / 2 - top / 2 - .01, FZ + .016);
@@ -840,10 +841,18 @@ root.addEventListener('pointermove', e => {
   if (e.pointerType !== 'mouse') return;
   tLookX = (e.clientX / innerWidth - .5) * 2; tLookY = (e.clientY / innerHeight - .5) * 2;
   root.style.cursor = hitButton(e) !== null ? 'pointer' : '';
+  // resting the cursor on the panel glides you over to it. It re-arms only once the cursor has left the panel,
+  // so coming back to the doors with the mouse still parked there doesn't send you straight back.
+  if (e.target.closest('.ui')) return;
+  const over = overPlate(e);
+  if (!over) { hoverArmed = true; clearTimeout(hoverTimer); hoverTimer = 0; }
+  else if (hoverArmed && !turned && !busy && turnT < .05 && !hoverTimer) hoverTimer = setTimeout(() => { hoverTimer = 0; if (!turned && !busy) { hoverArmed = false; lookAtPanel(true); } }, CFG.panelHoverMs);
 });
+let hoverTimer = 0, hoverArmed = true;
+function overPlate(e) { if (!G.plate) return false; ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObject(G.plate, false).length > 0; }
 root.addEventListener('pointerleave', () => { tLookX = tLookY = 0; });
 const ftab = root.querySelector('.ftab');
-function lookAtPanel(on) { turned = on; ftab.textContent = on ? '← Doors' : 'Floors →'; }
+function lookAtPanel(on) { if (!on && turned) hoverArmed = false; turned = on; ftab.textContent = on ? '← Doors' : 'Floors →'; clearTimeout(hoverTimer); hoverTimer = 0; }
 ftab.addEventListener('click', e => { e.stopPropagation(); lookAtPanel(!turned); });
 
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -857,6 +866,7 @@ root.addEventListener('click', e => {
   if (e.target.closest('.ui')) return;
   const o = hitButton(e);
   if (o) { initAudio(); o.userData.fn ? liftFn(o.userData.fn, o) : go(o.userData.floor); }
+  else if (turned && !busy && !overPlate(e)) lookAtPanel(false);   // clicking away from the panel takes you back to the doors
 });
 
 /* ===== SOUND (only the ding plays while scrolling; everything else belongs to button rides) ===== */
