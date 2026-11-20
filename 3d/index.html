@@ -228,6 +228,7 @@ const CFG = {
   openingH: 2.1,           // doorway height; its width follows the screen shape
   revealDepth: 0.04,       // thickness of the landing wall the doors sit in (kept thin so the page gets the space)
   pageZoom: 0.8,           // page content scale through the doorway (1 = normal web size; lower shows more content)
+  pagePush: 5,             // metres the page comes towards you as the camera pushes in to the panel (0 = none)
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.3,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 0.88,
@@ -800,7 +801,7 @@ function build() {
   wallEl.style.width = pxW + 'px'; wallEl.style.height = pxH + 'px';
   wallEl.style.setProperty('--mx', Math.round(pxW * (mg - 1) / mg / 2) + 'px');
   if (!pageObj) { pageObj = new CSS3DObject(wallEl); cssScene.add(pageObj); }
-  pageObj.position.set(0, yc, zP);
+  pageObj.position.set(0, yc, zP); G.zP = zP;
   pageObj.scale.setScalar(RW / pxW);
 
   camera.aspect = aspect; camera.updateProjectionMatrix();
@@ -1157,6 +1158,7 @@ function frame() {
   const idleYaw = (Math.sin(sw * .23) * .25 + Math.sin(sw * .41 + 1.3) * .15) * .35, idlePitch = Math.sin(sw * .19 + .7) * .18 * .35;
   // facing the doors vs facing the panel (step closer and to the right, then turn towards it)
   const p = turnT * turnT * turnT * (turnT * (turnT * 6 - 15) + 10);   // smootherstep: eases in and out with no jolt
+  if (pageObj) pageObj.position.z = G.zP + p * CFG.pagePush;   // pushing in to the panel also brings the view beyond the doors closer
   const pcx = G.panel.x, panelYaw = 0;   // the camera slides across and in until it faces the panel squarely, dead centre
   const hs = RM ? 0 : CFG.headShift;
   camera.position.set(pcx * p + vx + lookX * hs + Math.sin(sw * .21) * .002, G.eye + (G.panel.y - G.eye) * p + vy - lookY * hs * .5 + Math.sin(sw * .27 + 1) * .0015, G.D + (G.pd - G.D) * p);
