@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Lift — hybrid</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap" rel="stylesheet">
@@ -36,9 +36,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .ui{position:absolute; z-index:5; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.85);
   font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase; padding:9px 13px; border-radius:20px; cursor:pointer;
   -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px)}
-#lift3d .snd{left:16px; bottom:16px}
-#lift3d .ftab{right:16px; bottom:16px}
-#lift3d .hint{left:50%; bottom:18px; transform:translateX(-50%); cursor:default; transition:opacity .6s}
+#lift3d .snd{left:calc(16px + env(safe-area-inset-left)); bottom:calc(16px + env(safe-area-inset-bottom))}
+#lift3d .ftab{right:calc(16px + env(safe-area-inset-right)); bottom:calc(16px + env(safe-area-inset-bottom))}
+@media (pointer:coarse){ #lift3d .ui{padding:13px 17px; font-size:12px} }
+#lift3d .hint{left:50%; bottom:calc(18px + env(safe-area-inset-bottom)); transform:translateX(-50%); cursor:default; transition:opacity .6s}
 #lift3d .hint.off{opacity:0}
 #lift3d .tag{left:16px; top:14px; cursor:default; opacity:.55}
 #lift3d.busy .ftab{opacity:.3; pointer-events:none}
@@ -267,7 +268,11 @@ const MOBILE = matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, i
 const SHADOWS = !MOBILE;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+// Quality steps down by itself if the frame rate drops (see the governor in the frame loop); it never steps back up, so it can't flicker.
+let qLevel = 0;
+const Q_SCALE = [1, .82, .66, .52];
+const pixelRatioNow = () => Math.max(.5, Math.min(2, devicePixelRatio, Math.sqrt((MOBILE ? 2.2e6 : 3.6e6) / Math.max(1, innerWidth * innerHeight))) * Q_SCALE[qLevel]);
+renderer.setPixelRatio(pixelRatioNow());
 renderer.setClearColor(0x000000, 0);
 renderer.toneMapping = THREE.AgXToneMapping;
 renderer.toneMappingExposure = CFG.exposure;
@@ -601,12 +606,13 @@ const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { v
       #include <colorspace_fragment>
     }` });
 const fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), outMat); fsQuad.frustumCulled = false; fsScene.add(fsQuad);
-const AO = POST && !MOBILE && CFG.ao > 0;
+let AO = POST && !MOBILE && CFG.ao > 0;
 const rtDepth = new THREE.WebGLRenderTarget(4, 4, { depthTexture: new THREE.DepthTexture(4, 4, THREE.UnsignedIntType) });
 const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
 function sizePost() { const v = renderer.getDrawingBufferSize(new THREE.Vector2()); rtScene.setSize(v.x, v.y); rtDepth.setSize(v.x, v.y); const w = Math.max(2, v.x >> 2), h = Math.max(2, v.y >> 2); rtA.setSize(w, h); rtB.setSize(w, h); }
 function renderScene() {
   if (!POST) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
+  if (!AO) outMat.uniforms.aoS.value = 0;
   if (AO) {   // depth of the solid geometry only (shading/glow overlays are hidden for this pass)
     for (const o of G.ghost || []) { o.userData.vis = o.visible; o.visible = false; }
     scene.overrideMaterial = depthOnly; renderer.setRenderTarget(rtDepth); renderer.clear(); renderer.render(scene, camera); scene.overrideMaterial = null;
@@ -727,7 +733,7 @@ function build() {
   const pocket = ow / 2 + 0.25, panelSide = 1.3;
   const xl = -ow / 2 - pocket, xr = ow / 2 + pocket + panelSide;
   const depth = D + CFG.roomBehind;
-  const rl = -ow / 2 - CFG.roomSide, rr = ow / 2 + .2 + .6 * CFG.panelScale + CFG.roomSide * .7;   // the room's own side walls (the front wall runs on behind them, where the doors park)
+  const rl = -ow / 2 - CFG.roomSide, rr = ow / 2 + .2 + .6 * CFG.panelScale * 1.45 + CFG.roomSide * .7;   // the room's own side walls (the front wall runs on behind them, where the doors park)
   G = { ow, oh, D, eye, cabH, xl, xr, depth };
 
   /* --- front wall: veneer bays either side of the doorway, header bands above --- */
@@ -788,7 +794,7 @@ function build() {
   }
 
   /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, blue LEDs --- */
-  const sw0 = Math.min(.52, ow * .3), sh0 = sw0 * IND_H / IND_W, iy = oh + (TRANSOM + CFG.headroom) / 2;
+  const sw0 = Math.min(.52, ow * (aspect < 1 ? .62 : aspect < 1.3 ? .42 : .3)), sh0 = sw0 * IND_H / IND_W, iy = oh + (TRANSOM + CFG.headroom) / 2;
   { // a horizontally brushed body on a dark gasket (the shadow line where it meets the veneer), glass set back inside a slim
     // polished bezel, and a fixing screw at each end. The body is shallow, so it sits close to the wall.
     const hw = sw0 + .075, hh = sh0 + .024, hd = CFG.indicatorDepth;
@@ -806,9 +812,13 @@ function build() {
   }
 
   /* --- button panel: brushed plate, LED display, engraved buttons with halo rings, lift functions along the bottom --- */
-  const panelStart = cab.children.length, PS = CFG.panelScale;
+  const panelStart = cab.children.length;
   const cols = 3, rows = Math.ceil(F.length / cols), fns = CFG.functions.filter(f => FN[f]), pw = .6, top = .2, pitch = .185;
   const ph = top + .1 + rows * pitch + (fns.length ? pitch + .05 : 0);
+  // panel size follows the screen: on narrow screens it grows to about three-quarters of the width (finger-sized buttons),
+  // and it never gets taller than the wall you can see
+  const visW = 2 * Math.tan(hfov / 2) * (D - FZ);
+  const PS = Math.min(aspect < 1 ? clamp(visW * .76 / pw, CFG.panelScale * .7, CFG.panelScale * 1.45) : CFG.panelScale, (viewTop - .05 - (RAIL_Y + RAIL_H + .06)) / ph);
   const px = ow / 2 + pw * PS / 2 + .2, py = Math.max(1.3, RAIL_Y + RAIL_H + ph * PS / 2 + .05);
   const bxs = c => -pw / 2 + .11 + c * ((pw - .22) / (cols - 1)), bys = r => ph / 2 - top - .06 - r * pitch;
   const fy = bys(rows) - .05, fxs = k => -pw / 2 + .085 + k * ((pw - .17) / Math.max(1, fns.length - 1));
@@ -848,7 +858,7 @@ function build() {
   rectLight(0xfff1de, 4.6 * CFG.fill * .7, (rr - rl) * .9, depth * .85, (rl + rr) / 2, cabH - .02, depth / 2);
   // the key: light coming down from the ceiling just in front of the wall, so everything proud of the wall throws a soft
   // shadow downwards — the header onto the doors, the indicator and panel onto the veneer, the rail onto the panel below
-  const key = new THREE.DirectionalLight(0xfff0dc, CFG.keyLight); const kx = (xl + xr) / 2;
+  const key = G.key = new THREE.DirectionalLight(0xfff0dc, CFG.keyLight); const kx = (xl + xr) / 2;
   key.position.set(kx, cabH / 2 + 4, 4 * CFG.keyAngle); key.target.position.set(kx, cabH / 2, 0); cab.add(key, key.target);
   key.castShadow = SHADOWS; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -.0004; key.shadow.normalBias = .012; key.shadow.radius = 7;
   { const c = key.shadow.camera, hw = (xr - xl) / 2 + .3, hh = cabH / 2 + .8; c.left = -hw; c.right = hw; c.top = hh; c.bottom = -hh; c.near = .5; c.far = 12; c.updateProjectionMatrix(); }
@@ -875,7 +885,7 @@ function build() {
   ao(depth, rl + .004, .16, depth / 2, Math.PI / 2, false, .4); ao(depth, rr - .004, .16, depth / 2, -Math.PI / 2, false, .4);
   cab.traverse(o => { if (o.isMesh && !o.userData.noShadow && !Array.isArray(o.material) && !o.material.transparent && !o.material.isMeshBasicMaterial) { o.receiveShadow = SHADOWS; o.castShadow = SHADOWS; } });
   if (G.mirror) {
-    const S = CFG.wallMirror, over = [], add = (w, h, x, y, z, k, dx, dy, lod, tint) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), reflMat(G.mirror, k * S, dx, dy, lod, tint)); m.position.set(x, y, z); m.renderOrder = 2; cab.add(m); over.push(m); };
+    const S = CFG.wallMirror, over = G.over = [], add = (w, h, x, y, z, k, dx, dy, lod, tint) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), reflMat(G.mirror, k * S, dx, dy, lod, tint)); m.position.set(x, y, z); m.renderOrder = 2; cab.add(m); over.push(m); };
     const hwI = sw0 + .075, hhI = sh0 + .024, pwS = pw * PS, phS = ph * PS;
     add(ow + 2 * t, TRANSOM - .012, 0, oh + TRANSOM / 2 - ins, .0755, .5, 1, 0, 2.2);                                    // header over the doors (brushed along its length)
     for (const sx of [-1, 1]) add(t - .008, oh - .02, sx * (ow / 2 + t / 2 - ins), oh / 2, .0585, .45, 0, 1, 2);          // door frame
@@ -903,7 +913,7 @@ function build() {
   placePage(0, eye);
 
   camera.aspect = aspect; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight); sizePost();
+  renderer.setPixelRatio(pixelRatioNow()); renderer.setSize(innerWidth, innerHeight); sizePost();
   layout();
 }
 
@@ -1173,7 +1183,24 @@ const tintNow = new THREE.Color(0x222222); let lumNow = .12;
 const nextFrame = /[?&]test\b/.test(location.search) ? f => setTimeout(f, 33) : f => requestAnimationFrame(f);
 const clock = new THREE.Clock();
 let shakeX = 0, shakeY = 0, lastScroll = 0, scrollVel = 0, travel = 0, blinkOn = true, backdropFor = -1;
+const TEST = /[?&]test\b/.test(location.search);
+let gAcc = 0, gN = 0, gLast = 0, lastInput = performance.now(), frameNo = 0;
+for (const ev of ['pointermove', 'pointerdown', 'wheel', 'touchstart', 'touchmove', 'keydown']) addEventListener(ev, () => { lastInput = performance.now(); }, { passive: true, capture: true });
+function stepQualityDown() {
+  if (qLevel >= Q_SCALE.length - 1) return; qLevel++;
+  if (qLevel >= 2) { AO = false; if (G.mirror) { G.mirror.visible = false; for (const m of G.over || []) m.visible = false; M.doorL.envMapIntensity = M.doorR.envMapIntensity = 1; } }
+  if (qLevel >= 3 && renderer.shadowMap.enabled) { renderer.shadowMap.enabled = false; if (G.key) G.key.castShadow = false; scene.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) m.needsUpdate = true; }); }
+  renderer.setPixelRatio(pixelRatioNow()); renderer.setSize(innerWidth, innerHeight); sizePost();
+}
 function frame() {
+  const now0 = performance.now();
+  // when nothing has been touched for a few seconds and nothing is moving, draw every other frame (saves battery, no visible change)
+  const idle = !busy && now0 - lastInput > 2500 && travel < .02 && (turnT === 0 || turnT === 1) && !doorAnim && !roll;
+  if (idle && (frameNo++ & 1)) { nextFrame(frame); return; }
+  // quality governor: if frames are taking too long, step the quality down a notch
+  if (!TEST && !document.hidden && gLast) { const ft = now0 - gLast; if (ft < 200) { gAcc += idle ? ft / 2 : ft; gN++; }
+    if (gN >= 90) { if (gAcc / gN > 23 && now0 > 4000) stepQualityDown(); gAcc = 0; gN = 0; } }
+  gLast = now0;
   const dt = Math.min(.05, clock.getDelta()), now = performance.now();
   // scroll: apply drag momentum, then move the page
   if (!busy) scrollY = pageEl.scrollTop;
@@ -1269,9 +1296,21 @@ const grainEl = root.querySelector('.grain');
   g.putImageData(d, 0, 0); grainEl.style.backgroundImage = `url(${c.toDataURL()})`; }
 
 /* ===== START ===== */
+if (MOBILE) root.querySelector('.hint').textContent = 'Swipe up ↑';
 build();
 setIndicator(0);
-addEventListener('resize', () => { build(); });
+let resizeT = 0, lastW = innerWidth, lastH = innerHeight;
+addEventListener('resize', () => {
+  if (innerWidth === lastW && Math.abs(innerHeight - lastH) < 90 && MOBILE) return;   // a phone's toolbars sliding in and out isn't a real resize
+  clearTimeout(resizeT); resizeT = setTimeout(() => {
+    lastW = innerWidth; lastH = innerHeight;
+    const span = () => { const a = starts[cur] ?? 0, b = cur < swaps.length ? swaps[cur] : pageEl.scrollHeight - pageEl.clientHeight; return [a, Math.max(a, b)]; };
+    const [a, b] = span(), fr = b > a ? clamp((pageEl.scrollTop - a) / (b - a), -.4, 1) : 0;
+    build();
+    const [a2, b2] = span(); pageEl.scrollTop = a2 + fr * (b2 - a2); lastTop = scrollY = pageEl.scrollTop;
+  }, 140);
+});
+addEventListener('orientationchange', () => dispatchEvent(new Event('resize')));
 if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout()); floorEls.forEach(f => ro.observe(f.querySelector('.copy'))); }
 document.fonts && document.fonts.load('900 60px Doto').then(() => drawIndicator());
 nextFrame(frame);
