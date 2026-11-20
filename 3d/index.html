@@ -224,6 +224,7 @@ const CFG = {
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.27,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 1.0,
+  musicVolume: 0.5,        // lift music during button rides (0 = none)
 };
 
 /* ===== SETUP ===== */
@@ -400,12 +401,12 @@ function ledScreen(cols, rows, pxPerDot) {
       g.shadowBlur = 0; tex.needsUpdate = true;
     } };
 }
-function textDots(scr, text, align = 'center', reserve = 0) {
+function textDots(scr, text, align = 'center', reserve = 0, rowOff = 0) {
   const lit = new Set(), w = text.length * 6 - 1, top = Math.floor((scr.rows - 7) / 2);
   const span = scr.cols - reserve * 2;
   let x0 = align === 'center' ? reserve + Math.floor((span - w) / 2) : reserve;
   [...text].forEach((ch, n) => { const gl = GLYPH[ch] || GL_EXTRA[ch]; if (!gl) return;
-    for (let i = 0; i < 35; i++) if (gl[i] === '#') { const x = x0 + n * 6 + (i % 5); if (x >= 0 && x < scr.cols) lit.add((top + Math.floor(i / 5)) * scr.cols + x); } });
+    for (let i = 0; i < 35; i++) if (gl[i] === '#') { const x = x0 + n * 6 + (i % 5), y = top + Math.floor(i / 5) + rowOff; if (x >= 0 && x < scr.cols && y >= 0 && y < scr.rows) lit.add(y * scr.cols + x); } });
   return lit;
 }
 function arrowDots(scr, x, dir, lit) {   // 7-row triangle
@@ -416,13 +417,20 @@ const maxName = Math.max(...F.map((f, i) => `${i + 1} ${f.n.toUpperCase()}`.leng
 const IND = ledScreen(maxName * 6 + 15, 11, 16);
 const PSC = ledScreen(22, 11, 16);
 let indText = '', indDir = 0, curShown = 0;
-function drawIndicator() {
-  const lit = textDots(IND, indText, 'center', 7);
-  if (indDir) arrowDots(IND, indDir > 0 ? IND.cols - 4 : 3, indDir, lit);
+function drawIndicator(now = performance.now()) {
+  const two = (scr, from, to, reserve) => {   // old text rolls out as the new one rolls in
+    if (!roll) return textDots(scr, to, 'center', reserve);
+    const k = clamp((now - roll.t0) / 280, 0, 1), off = Math.round(k * scr.rows), lit = textDots(scr, from, 'center', reserve, -roll.dir * off);
+    for (const d of textDots(scr, to, 'center', reserve, roll.dir * (scr.rows - off))) lit.add(d);
+    return lit; };
+  const arrow = indDir && (typeof blinkOn === 'undefined' || blinkOn);
+  const lit = two(IND, roll ? roll.from : '', indText, 7);
+  if (arrow) arrowDots(IND, indDir > 0 ? IND.cols - 4 : 3, indDir, lit);
   IND.draw(lit);
-  const pl = textDots(PSC, String(curShown + 1), 'center', 0);
-  if (indDir) arrowDots(PSC, 3, indDir, pl);
+  const pl = two(PSC, roll ? (roll.from.split(' ')[0] || '') : '', String(curShown + 1), 0);
+  if (arrow) arrowDots(PSC, 3, indDir, pl);
   PSC.draw(pl);
+  if (roll && now - roll.t0 >= 280) roll = null;
 }
 const setIndicator = i => { curShown = i; indText = `${i + 1} ${F[i].n.toUpperCase()}`; drawIndicator(); markHere(i); };
 function markHere(i) { btnRings.forEach((r, k) => { if (r.userData.lit) return; r.material.emissive.setHex(k === i ? 0xb8b2a6 : 0); r.material.emissiveIntensity = k === i ? .6 : 0; }); }
@@ -453,6 +461,7 @@ function plateTexture(pw, ph, labels) {
 function glowTex(rgb) {
   return canvasTex(256, 256, (g) => { const r = g.createRadialGradient(128, 128, 0, 128, 128, 128); r.addColorStop(0, `rgba(${rgb},1)`); r.addColorStop(.35, `rgba(${rgb},.3)`); r.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = r; g.fillRect(0, 0, 256, 256); }, { repeat: false });
 }
+const shaftTex = canvasTex(4, 256, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 4, 256); const r = g.createLinearGradient(0, 60, 0, 196); r.addColorStop(0, 'rgba(255,255,255,0)'); r.addColorStop(.5, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 60, 4, 136); });
 let aoTexCache = null;
 function aoMat(flip, strength = .5) {
   if (!aoTexCache) aoTexCache = canvasTex(4, 128, (g) => { const r = g.createLinearGradient(0, 128, 0, 0); r.addColorStop(0, 'rgba(0,0,0,1)'); r.addColorStop(.3, 'rgba(0,0,0,.3)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 4, 128); }, { repeat: false });
@@ -617,6 +626,11 @@ function build() {
   cab.add(new THREE.HemisphereLight(0xfff3e0, 0x2a2420, .18));
   // light from the room spilling into the cab through the open doors
   G.landing = new THREE.PointLight(0xfff0dc, 0, 0, 2); G.landing.position.set(0, oh * .8, z1 - .3); cab.add(G.landing);
+  G.bounce = new THREE.AmbientLight(0xffffff, 0); cab.add(G.bounce);   // the floor's colour bouncing around the cab once the doors open
+  // shaft lights seen through the hairline between the closed doors while the car travels
+  G.gap = plane(.005, oh, new THREE.MeshBasicMaterial({ map: shaftTex.clone(), color: 0xfff1d6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), 0, oh / 2, -.0195);
+  G.gap.material.map.needsUpdate = true;
+  G.gapLight = new THREE.PointLight(0xfff0d0, 0, 2.5, 2); G.gapLight.position.set(0, eye, .3); cab.add(G.gapLight);
   // soft contact shadows where cab walls meet floor and ceiling
   const ao = (w, x, y, z, ry, flip, s = .5) => { const m = plane(w, .32, aoMat(flip, s), x, y, z, ry); m.renderOrder = 1; };
   ao(wl, xl + wl / 2, .16, .052, 0, false); ao(wr, ow / 2 + wr / 2, .16, .052, 0, false);
@@ -733,67 +747,147 @@ root.addEventListener('click', e => {
   if (f !== null) { initAudio(); go(f); }
 });
 
-/* ===== SOUND (ding, doors, hum) ===== */
-let ac = null, soundOn = false, hum = null;
-function initAudio() { if (!ac && soundOn) ac = new (window.AudioContext || window.webkitAudioContext)(); }
+/* ===== SOUND (only the ding plays while scrolling; everything else belongs to button rides) ===== */
+let ac = null, soundOn = false, hum = null, master = null, noiseBuf = null, mus = null, musTimer = 0;
+function initAudio() {
+  if (ac || !soundOn) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  master = ac.createGain(); master.gain.value = .9; master.connect(ac.destination);
+  noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  // lift music bus: through a small 'cab speaker' band-pass
+  const g = ac.createGain(); g.gain.value = 0; const spk = ac.createBiquadFilter(); spk.type = 'bandpass'; spk.frequency.value = 1700; spk.Q.value = .32;
+  g.connect(spk).connect(master); mus = { gain: g, next: 0, step: 0 };
+}
 const sndBtn = root.querySelector('.snd');
-sndBtn.addEventListener('click', e => { e.stopPropagation(); soundOn = !soundOn; initAudio(); sndBtn.textContent = soundOn ? 'Sound on' : 'Sound off'; if (!soundOn) humOff(); });
-function ding(dir, vol = .3) {
+sndBtn.addEventListener('click', e => { e.stopPropagation(); soundOn = !soundOn; initAudio(); if (ac && ac.state === 'suspended') ac.resume(); sndBtn.textContent = soundOn ? 'Sound on' : 'Sound off'; if (!soundOn) { humOff(); musicOff(); } });
+const noise = (t, dur) => { const n = ac.createBufferSource(); n.buffer = noiseBuf; n.start(t, Math.random()); n.stop(t + dur); return n; };
+function ding(dir, vol = .3) {   // once going up, twice going down — like real car lanterns
   if (!soundOn || !ac) return;
-  const strike = t0 => [[1, 1], [2.76, .35], [5.4, .12]].forEach(([m, g]) => {
+  const strike = t0 => [[1, 1], [2.76, .35], [5.4, .12], [8.9, .04]].forEach(([m, g]) => {
     const o = ac.createOscillator(), e = ac.createGain(); o.frequency.value = 1046.5 * m;
-    e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g * vol, t0 + .004); e.gain.exponentialRampToValueAtTime(.0001, t0 + 1.6);
-    o.connect(e).connect(ac.destination); o.start(t0); o.stop(t0 + 1.7);
+    e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g * vol, t0 + .004); e.gain.exponentialRampToValueAtTime(.0001, t0 + 1.8 / Math.sqrt(m));
+    o.connect(e).connect(master); o.start(t0); o.stop(t0 + 1.9);
   });
   const t = ac.currentTime; strike(t); if (dir < 0) strike(t + .45);
 }
-function doorSound() {
+function clickSound() {   // button: a short mechanical tick
   if (!soundOn || !ac) return;
-  const t = ac.currentTime, n = ac.createBufferSource(), b = ac.createBuffer(1, ac.sampleRate * 1.2, ac.sampleRate), d = b.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  n.buffer = b; const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500; const g = ac.createGain();
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.05, t + .2); g.gain.linearRampToValueAtTime(0, t + 1.1);
-  n.connect(f).connect(g).connect(ac.destination); n.start(t);
+  const t = ac.currentTime, n = noise(t, .03), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 1.2;
+  g.gain.setValueAtTime(.16, t); g.gain.exponentialRampToValueAtTime(.0001, t + .03); n.connect(f).connect(g).connect(master);
+  const o = ac.createOscillator(), og = ac.createGain(); o.frequency.value = 170; og.gain.setValueAtTime(.1, t); og.gain.exponentialRampToValueAtTime(.0001, t + .05); o.connect(og).connect(master); o.start(t); o.stop(t + .06);
 }
-function humOn() {
+function doorSound(ms, closing) {   // rollers on the track, the operator motor, and a soft thud when the leaves meet / park
   if (!soundOn || !ac) return;
-  const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = 48;
-  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 160;
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.1, t + .6); o.connect(f).connect(g).connect(ac.destination); o.start(t); hum = { o, g };
+  const t = ac.currentTime, d = ms / 1000;
+  const n = noise(t, d + .1), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.Q.value = .7;
+  f.frequency.setValueAtTime(260, t); f.frequency.linearRampToValueAtTime(620, t + d * .35); f.frequency.linearRampToValueAtTime(300, t + d);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.075, t + d * .2); g.gain.setValueAtTime(.075, t + d * .7); g.gain.linearRampToValueAtTime(0, t + d);
+  n.connect(f).connect(g).connect(master);
+  const m = ac.createOscillator(), mg = ac.createGain(), mf = ac.createBiquadFilter(); m.type = 'sawtooth'; mf.type = 'lowpass'; mf.frequency.value = 420;
+  m.frequency.setValueAtTime(70, t); m.frequency.linearRampToValueAtTime(128, t + d * .3); m.frequency.setValueAtTime(128, t + d * .7); m.frequency.linearRampToValueAtTime(64, t + d);
+  mg.gain.setValueAtTime(0, t); mg.gain.linearRampToValueAtTime(.022, t + d * .15); mg.gain.setValueAtTime(.022, t + d * .8); mg.gain.linearRampToValueAtTime(0, t + d);
+  m.connect(mf).connect(mg).connect(master); m.start(t); m.stop(t + d + .05);
+  const th = ac.createOscillator(), tg = ac.createGain(), tt = t + d * (closing ? .97 : .98);   // the thud
+  th.frequency.setValueAtTime(closing ? 92 : 70, tt); th.frequency.exponentialRampToValueAtTime(42, tt + .12);
+  tg.gain.setValueAtTime(0, tt); tg.gain.linearRampToValueAtTime(closing ? .2 : .1, tt + .006); tg.gain.exponentialRampToValueAtTime(.0001, tt + .22);
+  th.connect(tg).connect(master); th.start(tt); th.stop(tt + .25);
 }
-function humOff() { if (!hum || !ac) return; const { o, g } = hum, t = ac.currentTime; hum = null; g.gain.setTargetAtTime(0, t, .15); o.stop(t + .8); }
+function humOn() {   // traction motor: pitch rises as the car gets up to speed, with a wash of air in the shaft
+  if (!soundOn || !ac) return;
+  const t = ac.currentTime, g = ac.createGain(), f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 190;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.11, t + .7); f.connect(g).connect(master);
+  const os = [1, 1.503, 2.01].map((m, i) => { const o = ac.createOscillator(); o.type = i ? 'triangle' : 'sawtooth';
+    o.frequency.setValueAtTime(30 * m, t); o.frequency.exponentialRampToValueAtTime(52 * m, t + .9); const og = ac.createGain(); og.gain.value = [1, .35, .2][i]; o.connect(og).connect(f); o.start(t); return o; });
+  const n = ac.createBufferSource(); n.buffer = noiseBuf; n.loop = true; const nf = ac.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 380; const ng = ac.createGain();
+  ng.gain.setValueAtTime(0, t); ng.gain.linearRampToValueAtTime(.035, t + .9); n.connect(nf).connect(ng).connect(master); n.start(t);
+  hum = { os, g, n, ng };
+}
+function humOff() {
+  if (!hum || !ac) return; const { os, g, n, ng } = hum, t = ac.currentTime; hum = null;
+  os.forEach((o, i) => { o.frequency.cancelScheduledValues(t); o.frequency.setValueAtTime(o.frequency.value, t); o.frequency.exponentialRampToValueAtTime(26 * [1, 1.503, 2.01][i], t + .8); o.stop(t + 1); });
+  g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + .85);
+  ng.gain.cancelScheduledValues(t); ng.gain.setValueAtTime(ng.gain.value, t); ng.gain.linearRampToValueAtTime(0, t + .8); n.stop(t + 1);
+}
+// lift music (button rides only): breezy bossa in C — vibraphone melody, soft keys, bass, shaker
+const CHORDS = [[523.25, 659.25, 783.99, 987.77, 130.81], [440, 523.25, 659.25, 783.99, 110], [587.33, 698.46, 880, 1046.5, 146.83], [392, 493.88, 587.33, 698.46, 98]];
+const MEL = [783.99, 0, 659.25, 783.99, 880, 0, 783.99, 0, 1046.5, 0, 880, 0, 783.99, 659.25, 0, 0, 698.46, 0, 880, 0, 1046.5, 0, 987.77, 880, 783.99, 0, 698.46, 0, 587.33, 0, 659.25, 0];
+const EIGHTH = 60 / 124 / 2;
+function vib(f, t, v, dur = 1.4) {
+  const o = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain(), g2 = ac.createGain(), tr = ac.createOscillator(), tg = ac.createGain();
+  o.frequency.value = f; o2.frequency.value = f * 4; g2.gain.value = .08; tr.frequency.value = 5.5; tg.gain.value = v * .25;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  tr.connect(tg).connect(g.gain); o.connect(g); o2.connect(g2).connect(g); g.connect(mus.gain);
+  o.start(t); o2.start(t); tr.start(t); o.stop(t + dur + .05); o2.stop(t + dur + .05); tr.stop(t + dur + .05);
+}
+function bassNote(f, t) { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.3, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + .42); o.connect(g).connect(mus.gain); o.start(t); o.stop(t + .45); }
+function shaker(t, v) { const s = noise(t, .07), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'highpass'; f.frequency.value = 6500; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + .06); s.connect(f).connect(g).connect(mus.gain); }
+function scheduleMuzak() {
+  if (!soundOn || !mus) return;
+  if (mus.next < ac.currentTime) mus.next = ac.currentTime + .05;
+  while (mus.next < ac.currentTime + .35) {
+    const bar = Math.floor(mus.step / 8) % CHORDS.length, st = mus.step % 8, ch = CHORDS[bar], m = MEL[mus.step % MEL.length];
+    if (m) vib(m, mus.next, .085);
+    if (st === 0 || st === 3 || st === 6) ch.slice(0, 4).forEach(f => vib(f / 2, mus.next, .028, .5));
+    if (st === 0 || st === 3 || st === 4 || st === 7) bassNote(ch[4] * (st === 3 || st === 7 ? 1.5 : 1), mus.next);
+    shaker(mus.next, st % 2 ? .012 : .02);
+    mus.next += EIGHTH * (st % 2 ? .86 : 1.14); mus.step++;
+  }
+}
+function musicOn() { if (!soundOn || !mus) return; clearInterval(musTimer); musTimer = setInterval(scheduleMuzak, 100); mus.gain.gain.setTargetAtTime(CFG.musicVolume, ac.currentTime, .3); }
+function musicOff() { if (!mus) return; mus.gain.gain.setTargetAtTime(0, ac.currentTime, .35); setTimeout(() => { if (!busy) clearInterval(musTimer); }, 1600); }
 
 /* ===== DOORS + RIDE ===== */
 let cVal = 1, cTarget = 1, busy = false, cur = 0, moving = false, rideDir = 0, bump = 0;
 let doorAnim = null;   // {from, to, t0, ms} while a button ride drives the doors
 const animateDoors = (to, ms) => new Promise(res => { doorAnim = { from: cVal, to, t0: performance.now(), ms: RM ? 1 : ms, res }; });
+// real door operators run fast through the middle, then creep the last few centimetres
+const doorProfile = k => { const q = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; return k < .78 ? .94 * q(k / .78) : .94 + .06 * (1 - Math.pow(1 - (k - .78) / .22, 2)); };
+let lurchV = 0, lurch = 0;   // the head's lag as the car pulls away and settles (a soft spring)
+let roll = null;             // LED roll animation {from, to, t0, dir}
+let shaftPhase = 0, flk = 0;
 async function go(t) {
   if (busy || t === cur) { if (t === cur) flashButton(t); return; }
   busy = true; root.classList.add('busy');
   const dir = t > cur ? 1 : -1;
+  clickSound(); pressButton(t);
   btnRings[t].userData.lit = true; btnRings[t].material.emissive.setHex(0xff6a2a); btnRings[t].material.emissiveIntensity = 1.6; btnRings[t].material.color.setHex(0xff8a4a);
-  await sleep(500);
+  await sleep(550);
   lookAtPanel(false);
-  doorSound(); await animateDoors(1, CFG.doorMs); bump = .35;
-  moving = true; rideDir = dir; indDir = -dir; drawIndicator(); humOn();
+  if (cVal < .98) { doorSound(CFG.doorMs, true); await animateDoors(1, CFG.doorMs); bump = .3; }
+  await sleep(250);
+  musicOn();
+  moving = true; rideDir = dir; indDir = -dir; drawIndicator(); humOn(); lurchV += dir * .11;
   let i = cur;
-  while (i !== t) { await sleep(CFG.perFloorMs); i += dir; setIndicator(i); bump = 1; }
-  moving = false; humOff();
+  while (i !== t) { await sleep(CFG.perFloorMs); i += dir; rollTo(i, dir); bump = 1; }
+  await sleep(CFG.perFloorMs * .45);
+  moving = false; humOff(); lurchV -= dir * .13;
   scrollY = starts[t]; pageEl.scrollTop = scrollY; updateVisibility(); cur = t;
-  await sleep(CFG.arriveDwellMs);
+  await sleep(CFG.arriveDwellMs + 350);
   indDir = 0; drawIndicator(); ding(dir);
   btnRings[t].userData.lit = false; btnRings[t].material.color.setHex(0x2a2a2a); markHere(t);
-  await sleep(350);
-  doorSound(); await animateDoors(0, CFG.doorMs);
+  await sleep(450);
+  musicOff();
+  doorSound(CFG.doorMs, false); await animateDoors(0, CFG.doorMs);
   busy = false; root.classList.remove('busy');
 }
-function flashButton(k) { const m = btnRings[k].material; m.emissive.setHex(0xff6a2a); m.emissiveIntensity = 1.6; setTimeout(() => markHere(curShown), 300); }
+function flashButton(k) { clickSound(); pressButton(k); const m = btnRings[k].material; m.emissive.setHex(0xff6a2a); m.emissiveIntensity = 1.6; setTimeout(() => markHere(curShown), 300); }
+function pressButton(k) { const b = btnMeshes[k]; if (!b) return; const z = b.userData.z0 ?? (b.userData.z0 = b.position.z); b.position.z = z - .006; setTimeout(() => { b.position.z = z; }, 170); }
+function rollTo(i, dir) { roll = { from: indText, t0: performance.now(), dir }; curShown = i; indText = `${i + 1} ${F[i].n.toUpperCase()}`; markHere(i); }
+
+/* ===== FLOOR LIGHT: each floor's own colour spills into the cab as the doors open ===== */
+const tints = F.map(f => { const c = new THREE.Color(f.bg || '#222'); return { c, lum: .12 }; });
+F.forEach((f, i) => { if (!f.hero) return; const im = new Image(); im.onload = () => {
+  const c = document.createElement('canvas'); c.width = c.height = 8; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 8, 8);
+  const d = g.getImageData(0, 0, 8, 8).data; let r = 0, gg = 0, b = 0; for (let k = 0; k < d.length; k += 4) { r += d[k]; gg += d[k + 1]; b += d[k + 2]; }
+  const col = new THREE.Color().setRGB(r / 64 / 255, gg / 64 / 255, b / 64 / 255, THREE.SRGBColorSpace);
+  tints[i] = { c: col, lum: clamp((r * .3 + gg * .59 + b * .11) / 64 / 255 * 1.6, .12, 1) }; }; im.src = f.hero; });
+const tintNow = new THREE.Color(0x222222); let lumNow = .12;
 
 /* ===== FRAME LOOP ===== */
 // ?test keeps rendering when the tab is in the background (for automated checks only)
 const nextFrame = /[?&]test\b/.test(location.search) ? f => setTimeout(f, 33) : f => requestAnimationFrame(f);
 const clock = new THREE.Clock();
-let shakeX = 0, shakeY = 0, lastScroll = 0, scrollVel = 0, travel = 0;
+let shakeX = 0, shakeY = 0, lastScroll = 0, scrollVel = 0, travel = 0, blinkOn = true;
 function frame() {
   const dt = Math.min(.05, clock.getDelta()), now = performance.now();
   // scroll: apply drag momentum, then move the page
@@ -802,18 +896,26 @@ function frame() {
   updateVisibility();
   // doors: follow the scroll, or a ride's animation
   if (doorAnim) {
-    const k = clamp((now - doorAnim.t0) / doorAnim.ms, 0, 1), e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-    cVal = doorAnim.from + (doorAnim.to - doorAnim.from) * e;
+    const k = clamp((now - doorAnim.t0) / doorAnim.ms, 0, 1);
+    cVal = doorAnim.from + (doorAnim.to - doorAnim.from) * doorProfile(k);
     if (k >= 1) { const r = doorAnim.res; doorAnim = null; r(); }
   } else if (!busy) {
     const target = scrollTarget();
     cVal = RM ? target : cVal + (target - cVal) * (1 - Math.pow(1 - CFG.doorEase, dt * 60));
     const f = floorNow();
-    if (f !== cur) { const dir = f > cur ? 1 : -1; cur = f; setIndicator(f); ding(dir, .14); }
+    if (f !== cur) { const dir = f > cur ? 1 : -1; cur = f; rollTo(f, dir); ding(dir, .14); }
   }
   const open = (1 - cVal) * (G.ow / 2 + .02);
   if (doors.l) { doors.l.position.x = -open; doors.r.position.x = open; ldoors.l.position.x = -open; ldoors.r.position.x = open; }
-  if (G.landing) G.landing.intensity = (1 - cVal) * 1.4;
+
+  // LED screens: floor names roll like a mechanical display; arrows blink while the car moves
+  const blink = !moving || (now % 900) < 560;
+  if (roll || blink !== blinkOn) { blinkOn = blink; drawIndicator(now); }
+
+  // the floor's own light: colour and brightness of what's beyond the doors, eased in as they open
+  const tn = tints[cur] || tints[0]; tintNow.lerp(tn.c, 1 - Math.exp(-dt / .25)); lumNow += (tn.lum - lumNow) * (1 - Math.exp(-dt / .25));
+  const openK = 1 - cVal;
+  if (G.bounce) { G.bounce.color.copy(tintNow); G.bounce.intensity = openK * lumNow * 1.3; G.landing.color.copy(tintNow).lerp(WHITE, .5); G.landing.intensity = openK * (.5 + lumNow * 2.2); }
 
   // travel feel: a ride, or scrolling fast through the shut zone
   const v = Math.abs(pageEl.scrollTop - lastScroll); lastScroll = pageEl.scrollTop;
@@ -827,6 +929,19 @@ function frame() {
     vx = (shakeX * .0015 + Math.sin(t * 23) * .0008) * a; vy = (shakeY * .0022 + Math.sin(t * 31) * .0012) * a;
   }
   vy -= bump * .004 * CFG.vibration;
+  // start/stop lurch (spring)
+  lurchV += (-70 * lurch - 10 * lurchV) * dt; lurch += lurchV * dt; if (!RM) vy += lurch;
+  // shaft lights slipping past the hairline gap between the doors, and the faint flicker they throw
+  const ride = moving ? 1 : 0; G.shaftK = (G.shaftK || 0) + (ride - (G.shaftK || 0)) * (1 - Math.exp(-dt / .3));
+  if (G.gap) {
+    shaftPhase = (shaftPhase + rideDir * dt / (CFG.perFloorMs / 1000) + 1) % 1;
+    G.gap.material.map.offset.y = shaftPhase; G.gap.material.opacity = G.shaftK * .85 * cVal;
+    const atEye = Math.exp(-Math.pow((((shaftPhase + .5 - G.eye / G.oh) % 1 + 1) % 1 - .5) / .16, 2));
+    G.gapLight.intensity = G.shaftK * cVal * atEye * .9;
+  }
+  // the odd faint dip in the lights while travelling; eyes adapt a little to a bright floor
+  if (!RM && travel > .3 && Math.random() < .03 * travel) flk = .03 + Math.random() * .05; flk *= .8;
+  renderer.toneMappingExposure = CFG.exposure * (1 - flk) * (1 - .2 * openK * lumNow);
 
   // camera: head follows the cursor; turns to the panel when asked
   const le = 1 - Math.exp(-dt / CFG.lookEase);
@@ -850,6 +965,7 @@ function frame() {
   if (grainEl) grainEl.style.transform = `translate(${(Math.random() * 64) | 0}px,${(Math.random() * 64) | 0}px)`;
   nextFrame(frame);
 }
+const WHITE = new THREE.Color(0xffffff);
 
 /* ===== FILM GRAIN ===== */
 const grainEl = root.querySelector('.grain');
