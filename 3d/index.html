@@ -476,7 +476,7 @@ function glowTex(rgb) {
 }
 function glowTexDark() { return canvasTex(64, 4, (g) => { const r = g.createLinearGradient(0, 0, 64, 0); r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(.5, 'rgba(0,0,0,1)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 4); }, { repeat: false }); }
 function blobTex() { return canvasTex(128, 128, (g) => { const r = g.createRadialGradient(64, 64, 20, 64, 64, 64); r.addColorStop(0, 'rgba(0,0,0,1)'); r.addColorStop(.55, 'rgba(0,0,0,.55)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); }, { repeat: false }); }
-const shaftTex = canvasTex(4, 256, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 4, 256); const r = g.createLinearGradient(0, 60, 0, 196); r.addColorStop(0, 'rgba(255,255,255,0)'); r.addColorStop(.5, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 60, 4, 136); });
+const shaftTex = canvasTex(4, 512, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 4, 512); const r = g.createLinearGradient(0, 96, 0, 416); [[0, 0], [.3, .12], [.44, .7], [.5, 1], [.56, .7], [.7, .12], [1, 0]].forEach(([p, a]) => r.addColorStop(p, `rgba(255,255,255,${a})`)); g.fillStyle = r; g.fillRect(0, 96, 4, 320); });
 let aoTexCache = null;
 function aoMat(flip, strength = .5) {
   if (!aoTexCache) aoTexCache = canvasTex(4, 128, (g) => { const r = g.createLinearGradient(0, 128, 0, 0); r.addColorStop(0, 'rgba(0,0,0,1)'); r.addColorStop(.3, 'rgba(0,0,0,.3)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 4, 128); }, { repeat: false });
@@ -711,10 +711,14 @@ function build() {
   G.landing = new THREE.PointLight(0xfff0dc, 0, 0, 2); G.landing.position.set(0, oh * .8, z1 - .3); cab.add(G.landing);
   G.bounce = new THREE.AmbientLight(0xffffff, 0); cab.add(G.bounce);   // the floor's colour bouncing around the cab once the doors open
   G.alarm = new THREE.PointLight(0xff2a1a, 0, 0, 1.6); G.alarm.position.set(0, cabH - .3, D * .5); cab.add(G.alarm);
-  // shaft lights seen through the hairline between the closed doors while the car travels
-  G.gap = plane(.005, oh, new THREE.MeshBasicMaterial({ map: shaftTex.clone(), color: 0xfff1d6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), 0, oh / 2, -.0195);
-  G.gap.material.map.needsUpdate = true;
-  G.gapLight = new THREE.PointLight(0xfff0d0, 0, 2.5, 2); G.gapLight.position.set(0, eye, .3); cab.add(G.gapLight);
+  // light leaking in from the shaft: the hairline between the doors (strongest), the side slots, the head slot
+  const leakMat = (o) => new THREE.MeshBasicMaterial({ map: shaftTex.clone(), color: 0xfff1d6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, ...o });
+  G.leaks = [];
+  for (const [x, w, k] of [[0, .004, 1], [-ow / 2 + .004, .003, .4], [ow / 2 - .004, .003, .4]]) { const m = plane(w, oh, leakMat(), x, oh / 2, x ? -.0235 : -.0195); m.material.map.needsUpdate = true; m.userData.k = k; G.leaks.push(m); }
+  G.headLeak = plane(ow - .02, .004, leakMat({ map: null }), 0, oh - .006, -.0235);
+  G.steady = plane(.003, oh, leakMat({ map: null, color: 0xffe9c8 }), 0, oh / 2, -.0195);
+  G.gap = G.leaks[0];
+  G.gapLight = new THREE.PointLight(0xfff0d0, 0, .5, 2); G.gapLight.position.set(0, eye, -.005); cab.add(G.gapLight);
   // soft contact shadows: under the transom onto the doors, and where walls meet floor and ceiling
   const ao = (w, x, y, z, ry, flip, s = .5, h = .32) => { const m = plane(w, h, aoMat(flip, s), x, y, z, ry); m.renderOrder = 1; return m; };
   ao(ow, 0, oh - .11, -.022, 0, true, .7, .22);
@@ -1049,18 +1053,20 @@ function frame() {
   vy -= bump * .004 * CFG.vibration;
   // start/stop lurch (spring)
   lurchV += (-70 * lurch - 10 * lurchV) * dt; lurch += lurchV * dt; if (!RM) vy += lurch;
-  // shaft lights slipping past the hairline gap between the doors, and the faint flicker they throw
-  const ride = moving ? 1 : 0; G.shaftK = (G.shaftK || 0) + (ride - (G.shaftK || 0)) * (1 - Math.exp(-dt / .3));
+  // light only gets in where it physically can: the hairline between the doors and the slots around them.
+  // Between floors the shaft is dark; each landing's light slides past as a band, at a speed that follows the car's.
   if (G.gap) {
-    shaftPhase = (shaftPhase + rideDir * dt / (CFG.perFloorMs / 1000) + 1) % 1;
-    G.gap.material.map.offset.y = shaftPhase; G.gap.material.opacity = G.shaftK * .85 * cVal;
-    const atEye = Math.exp(-Math.pow((((shaftPhase + .5 - G.eye / G.oh) % 1 + 1) % 1 - .5) / .16, 2));
-    G.gapLight.intensity = G.shaftK * cVal * atEye * .9;
+    const k = RM ? 0 : travel, shut = clamp((cVal - .9) / .1, 0, 1);
+    shaftPhase = ((shaftPhase + indDir * k * dt / (CFG.perFloorMs / 1000)) % 1 + 1) % 1;
+    const bandY = ((.5 - shaftPhase) % 1 + 1) % 1;                 // where the band's centre sits on the doors (0 = floor, 1 = head)
+    for (const m of G.leaks) { m.material.map.offset.y = shaftPhase; m.material.opacity = m.userData.k * k * shut; }
+    G.headLeak.material.opacity = .55 * k * shut * Math.exp(-Math.pow((bandY - 1) / .12, 2));
+    G.steady.material.opacity = .16 * (1 - k) * shut;             // parked at a floor: a faint steady line from the landing
+    G.gapLight.position.y = bandY * G.oh; G.gapLight.intensity = .5 * k * shut;   // the sliver catching the door edges, right at the gap
   }
-  // the odd faint dip in the lights while travelling; eyes adapt a little to a bright floor
-  if (!RM && travel > .3 && Math.random() < .03 * travel) flk = .03 + Math.random() * .05; flk *= .8;
-  const alarmOn = now < alarmUntil; if (G.alarm) G.alarm.intensity = alarmOn ? (.5 + .5 * Math.sin(now / 70)) * 9 : 0;
-  renderer.toneMappingExposure = CFG.exposure * (1 - flk) * (1 - .2 * openK * lumNow) * (alarmOn ? .55 : 1);
+  // eyes adapt a little to a bright floor
+  renderer.toneMappingExposure = CFG.exposure * (1 - .2 * openK * lumNow) * ((now < alarmUntil) ? .55 : 1);
+  if (G.alarm) G.alarm.intensity = now < alarmUntil ? (.5 + .5 * Math.sin(now / 70)) * 9 : 0;
 
   // camera: head follows the cursor; turns to the panel when asked
   const le = 1 - Math.exp(-dt / CFG.lookEase);
