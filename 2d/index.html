@@ -1083,6 +1083,8 @@
   function drawLed() {
     const text = (mtxText || '').trim().toUpperCase(), tu = root.querySelector('.tri.u'), td = root.querySelector('.tri.d');
     const up = !!tu && tu.classList.contains('on'), down = !!td && td.classList.contains('on'), here = lamps.findIndex(l => l.classList.contains('on'));
+    // only repaint the LED screens when what they show has changed (this is called on every scroll frame)
+    const ledKey = text + '|' + up + '|' + down + '|' + here; if (ledKey === drawLed.key && mtx.width === 1536) return; drawLed.key = ledKey;
     { if (mtx.width !== 1536) { mtx.width = 1536; mtx.height = 256; }
       const g = mtx.getContext('2d'), W = 1536, H = 256, cols = Math.max(maxLen, 8) * 6 + 1, rows = 9; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
       const pp = Math.min((W - 330) / cols, 150 / rows), mw = pp * cols;
@@ -1174,6 +1176,10 @@
   // door leading-edge thickness as seen from the camera: wider the further the edge is from centre
   const dl = $('.door.l'), dr = $('.door.r');
   function doorEdges() {
+    // nothing to re-measure while the doors are still: skip the style and layout reads
+    const moving = root.classList.contains('ride') || root.classList.contains('turned');
+    if (!moving && cVal === doorEdges.c && innerWidth === doorEdges.w) { requestAnimationFrame(doorEdges); return; }
+    doorEdges.c = cVal; doorEdges.w = innerWidth;
     const p = parseFloat(getComputedStyle(root).getPropertyValue('--p')) || 1000;
     const mid = innerWidth / 2, a = dl.getBoundingClientRect(), b = dr.getBoundingClientRect();
     const t = innerWidth * CFG.doorThickness;
