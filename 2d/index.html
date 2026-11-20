@@ -561,7 +561,12 @@
 #lift{--hdr-h:12.4vh; --dark-amt:.06}
 #lift .cab{filter:none}
 #lift .door{filter:none !important}
-#lift .door::before,#lift .door .dsk{display:none !important}                 /* reflections, wipe marks and the safety edge are in the door images */
+#lift .door::before{width:.5vh !important; background:linear-gradient(90deg,#121214,#2a2b2e 45%,#0c0c0d) !important; box-shadow:none !important}
+/* the reflection is one picture pinned to the doorway; each door's steel slides through it */
+#lift .door .dsk{box-shadow:none !important; background:none !important}
+#lift .door .dsk > i{mix-blend-mode:hard-light !important; opacity:1 !important; background:url(../assets/2d/door-refl.webp) center/cover no-repeat !important}
+#lift.ride .door .dsk > i{transition:transform var(--door-ms) cubic-bezier(.6,0,.3,1)}
+#lift.rm .door .dsk > i{transition:none}                 /* reflections, wipe marks and the safety edge are in the door images */
 #lift .door.l{box-shadow:none} #lift .door.r{box-shadow:none}
 #lift .door::after{background:linear-gradient(180deg,#2b2c2e,#3a3b3d 40%,#1f2021)}
 #lift .shade{box-shadow:inset 2.2vh 0 2.6vh -1.5vh rgba(0,0,0,.4),inset -2.2vh 0 2.6vh -1.5vh rgba(0,0,0,.4)}   /* the header's shadow is already in the doors */
@@ -821,8 +826,8 @@
     ],
     headerImg: '',         // indicator housing plate (wide strip, blank display window in the centre)
     frameImg: '',          // optional overlay above the doors (reflections/grime), transparent PNG
-    doorL: '../assets/2d/door-l.webp',
-    doorR: '../assets/2d/door-r.webp',
+    doorL: '../assets/2d/door-l-steel.webp',
+    doorR: '../assets/2d/door-r-steel.webp',
     wallTex: '../assets/2d/wall.webp',      // wood-veneer wall (tiles left↔right)
     indicatorImg: '../assets/2d/indicator.webp',  // photo of the indicator plate (4:1, blank glass window)
     plateImg: '',          // (modern theme: glass panel drawn in code)
