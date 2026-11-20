@@ -4,3 +4,4 @@ Textures in this folder are CC0 (public domain):
 - smear.webp: "Surface Imperfections 003" from ambientCG (ambientcg.com/a/SurfaceImperfections003)
 - scratches.webp: "Scratches 003" from ambientCG (ambientcg.com/a/Scratches003)
 - leather-normal.webp: "Leather White" normal map from Poly Haven (polyhaven.com/a/leather_white)
+- steel-sheen.webp: roughness map of "Metal 049 B" from ambientCG (ambientcg.com/a/Metal049B)
