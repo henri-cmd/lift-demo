@@ -229,7 +229,7 @@ const CFG = {
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.3,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 0.84,
-  shaftLight: 0.4,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
+  shaftLight: 0.2,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
   halation: 0.16,          // strength of the soft glow around bright areas
   halationFrom: 1.15,      // brightness where the glow starts
@@ -715,9 +715,12 @@ function build() {
   // light leaking in from the shaft: the hairline between the doors (strongest), the side slots, the head slot
   const leakMat = (o) => new THREE.MeshBasicMaterial({ map: shaftTex.clone(), color: 0xfff1d6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, ...o });
   G.leaks = [];
-  for (const [x, w, k] of [[0, .004, 1], [-ow / 2 + .004, .003, .4], [ow / 2 - .004, .003, .4]]) { const m = plane(w, oh, leakMat(), x, oh / 2, x ? -.0235 : -.0195); m.material.map.needsUpdate = true; m.userData.k = k; G.leaks.push(m); }
+  const fadeDown = m => { const geo = new THREE.PlaneGeometry(m.geometry.parameters.width, m.geometry.parameters.height, 1, 12), pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) { const v = pos.getY(i) / m.geometry.parameters.height + .5, f = Math.pow(clamp((v - .12) / .45, 0, 1), 1.6); col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = f; }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); m.geometry.dispose(); m.geometry = geo; m.material.vertexColors = true; m.material.needsUpdate = true; return m; };
+  for (const [x, w, k] of [[0, .004, 1], [-ow / 2 + .004, .003, .4], [ow / 2 - .004, .003, .4]]) { const m = plane(w, oh, leakMat(), x, oh / 2, x ? -.0235 : -.0195); m.material.map.needsUpdate = true; m.userData.k = k; fadeDown(m); G.leaks.push(m); }
   G.headLeak = plane(ow - .02, .004, leakMat({ map: null }), 0, oh - .006, -.0235);
-  G.steady = plane(.003, oh, leakMat({ map: null, color: 0xffe9c8 }), 0, oh / 2, -.0195);
+  G.steady = fadeDown(plane(.003, oh, leakMat({ map: null, color: 0xffe9c8 }), 0, oh / 2, -.0195));
   G.gap = G.leaks[0];
   G.gapLight = new THREE.PointLight(0xfff0d0, 0, .5, 2); G.gapLight.position.set(0, eye, -.005); cab.add(G.gapLight);
   // soft contact shadows: under the transom onto the doors, and where walls meet floor and ceiling
@@ -1063,7 +1066,7 @@ function frame() {
     for (const m of G.leaks) { m.material.map.offset.y = shaftPhase; m.material.opacity = m.userData.k * k * shut; }
     G.headLeak.material.opacity = .55 * k * shut * Math.exp(-Math.pow((bandY - 1) / .12, 2));
     G.steady.material.opacity = .16 * (1 - k) * shut;             // parked at a floor: a faint steady line from the landing
-    G.gapLight.position.y = bandY * G.oh; G.gapLight.intensity = .5 * k * shut;   // the sliver catching the door edges, right at the gap
+    G.gapLight.position.y = bandY * G.oh; G.gapLight.intensity = .5 * k * shut * Math.pow(clamp((bandY - .12) / .45, 0, 1), 1.6);   // the sliver catching the door edges, right at the gap
   }
   // eyes adapt a little to a bright floor
   renderer.toneMappingExposure = CFG.exposure * (1 - .2 * openK * lumNow) * ((now < alarmUntil) ? .55 : 1);
