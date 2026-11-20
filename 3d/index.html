@@ -221,6 +221,7 @@ const CFG = {
   lookYaw: .3, lookPitch: .2, // how far the head turns towards the cursor (degrees)
   headShift: 0.012,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
   lookEase: 0.32,          // seconds — how quickly the head follows the cursor
+  panelOrbit: 0.07,        // metres the camera circles the panel with the cursor (shows its depth); 0 = fixed
   panelTurnMs: 1400,       // glide to/from the button panel
   vibration: 0.4,
   // build (metres)
@@ -465,14 +466,25 @@ const FN = {
   alarm: { label: 'ALARM', draw: g => { g.beginPath(); g.moveTo(-46, 30); g.quadraticCurveTo(-30, 18, -30, -8); g.arc(0, -8, 30, Math.PI, 0); g.quadraticCurveTo(30, 18, 46, 30); g.closePath(); g.fill(); g.beginPath(); g.arc(0, 42, 11, 0, Math.PI); g.fill(); g.fillRect(-5, -50, 10, 14); } },
   call: { label: 'CALL', draw: g => { g.lineWidth = 20; g.lineCap = 'round'; g.beginPath(); g.arc(0, 26, 46, Math.PI * 1.18, Math.PI * 1.82); g.stroke(); g.save(); g.rotate(-.62); g.fillRect(-62, -12, 30, 42); g.restore(); g.save(); g.rotate(.62); g.fillRect(32, -12, 30, 42); g.restore(); } },
 };
-function plateTexture(pw, ph, labels) {
+function plateTexture(pw, ph, labels, holes, win) {
   const s = 1024 / pw;
   return canvasTex(1024, Math.round(ph * s), (g, w, h) => {
     g.fillStyle = '#bdbab4'; g.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x++) { g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .06})`; g.fillRect(x, 0, 1, h); }
+    // contact shading: each button and the display sit in a soft pool of shadow, heavier underneath (light comes from above)
+    for (const [x, y, r] of holes) { const cx = x * s, cy = (ph / 2 - y) * s + r * s * .22, R = r * s * 2.1; const rg = g.createRadialGradient(cx, cy, r * s * .8, cx, cy, R); rg.addColorStop(0, 'rgba(20,16,12,.5)'); rg.addColorStop(1, 'rgba(20,16,12,0)'); g.fillStyle = rg; g.fillRect(cx - R, cy - R, 2 * R, 2 * R); }
+    { const [x, y, ww, hh] = win, x0 = (x - ww / 2) * s, y0 = (ph / 2 - y - hh / 2) * s; g.save(); g.shadowColor = 'rgba(20,16,12,.55)'; g.shadowBlur = 26; g.shadowOffsetY = 10; g.fillStyle = '#8f8c86'; g.fillRect(x0, y0, ww * s, hh * s); g.restore(); }
     g.font = '700 34px -apple-system,Helvetica,Arial,sans-serif'; g.textAlign = 'center';
     for (const [t, x, y] of labels) { g.fillStyle = 'rgba(255,255,255,.6)'; g.fillText(t, x * s, (ph / 2 - y) * s + 2); g.fillStyle = '#2b2c2f'; g.fillText(t, x * s, (ph / 2 - y) * s); }
   }, { repeat: false });
+}
+// the labels are cut into the plate: a normal map from the lettering makes their edges catch the light
+function plateNormal(pw, ph, labels) {
+  const w = 1024, s = w / pw, h = Math.round(ph * s), c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.filter = 'blur(1.2px)'; g.fillStyle = '#000'; g.font = '700 34px -apple-system,Helvetica,Arial,sans-serif'; g.textAlign = 'center';
+  for (const [t, x, y] of labels) g.fillText(t, x * s, (ph / 2 - y) * s);
+  const d = g.getImageData(0, 0, w, h).data, hf = new Float32Array(w * h); for (let i = 0; i < w * h; i++) hf[i] = d[i * 4] / 255;
+  const t = normalFromHeight(hf, w, h, 2.4); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t;
 }
 
 /* ===== LOOK HELPERS ===== */
@@ -693,18 +705,25 @@ function build() {
   plane(pw + .16, ph + .16, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .4, depthWrite: false }), px + .008, py - .02, FZ + .0016);   // plate's soft shadow
   for (const sx of [-1, 1]) for (const sy of [-1, 1]) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(.007, .007, .003, 20), M.steelPolished); sc.rotation.x = Math.PI / 2; sc.position.set(px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0155); cab.add(sc);
     box(.009, .0016, .0008, M.slot, px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0172).rotation.z = .5 + sx * sy; }
-  box(pw, ph, .014, new THREE.MeshPhysicalMaterial({ map: plateTexture(pw, ph, labels), color: 0xf3ece0, normalMap: steelSet.normal, normalScale: new THREE.Vector2(.08, .08), metalness: .9, roughness: .38, anisotropy: .6, anisotropyRotation: Math.PI / 2 }), px, py, FZ + .007);
-  { const m = box(pw - .08, .002, .001, M.steelDark, px, py + fy + pitch * .52, FZ + .0145); m.visible = fns.length > 0; }   // fine line above the function row
-  const psw = .24, psh = psw * 256 / 512;
-  box(psw + .02, psh + .02, .006, M.black, px, py + ph / 2 - top / 2 - .01, FZ + .016);
-  { const s = plane(psw, psh, screenMat(PSC), px, py + ph / 2 - top / 2 - .01, FZ + .0195); }
+  const psw = .24, psh = psw * 256 / 512, psy = ph / 2 - top / 2 - .01;
+  const holes = F.map((f, k) => [bxs(k % cols) + pw / 2, bys(Math.floor(k / cols)), .037]).concat(fns.map((f, k) => [fxs(k) + pw / 2, fy, .035]));
+  { const mat = new THREE.MeshPhysicalMaterial({ map: plateTexture(pw, ph, labels, holes, [pw / 2, psy, psw + .05, psh + .05]), color: 0xf3ece0, normalMap: plateNormal(pw, ph, labels), normalScale: new THREE.Vector2(.9, .9), roughnessMap: steelSet.rough, metalness: .9, roughness: 1.15, anisotropy: .6, anisotropyRotation: Math.PI / 2 });
+    const m = new THREE.Mesh(new RoundedBoxGeometry(pw, ph, .016, 3, .005), [M.steelPolished, M.steelPolished, M.steelPolished, M.steelPolished, mat, M.steelDark]); m.position.set(px, py, FZ + .008); m.receiveShadow = SHADOWS; m.castShadow = SHADOWS; cab.add(m); }
+  { const m = box(pw - .08, .002, .001, M.steelDark, px, py + fy + pitch * .52, FZ + .0165); m.visible = fns.length > 0; }   // fine line above the function row
+  // display: glass set back inside a polished bezel
+  box(psw + .012, psh + .012, .004, M.black, px, py + psy, FZ + .016);
+  plane(psw, psh, screenMat(PSC), px, py + psy, FZ + .0185);
+  { const bw = .013, bz = FZ + .0215, bd = .011;
+    box(psw + 2 * bw, bw, bd, M.steelPolished, px, py + psy + psh / 2 + bw / 2, bz); box(psw + 2 * bw, bw, bd, M.steelPolished, px, py + psy - psh / 2 - bw / 2, bz);
+    box(bw, psh, bd, M.steelPolished, px - psw / 2 - bw / 2, py + psy, bz); box(bw, psh, bd, M.steelPolished, px + psw / 2 + bw / 2, py + psy, bz); }
   // a button: steel body (the part that's hit-tested and depresses), an upright engraved cap, and a halo ring
   const addButton = (x, y, capTex, radius, ringColor) => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius + .006, .0055, 16, 64), new THREE.MeshStandardMaterial({ color: ringColor, emissive: 0x000000, metalness: .3, roughness: .35 }));
-    ring.position.set(x, y, FZ + .015); cab.add(ring);
-    const b = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius + .002, .016, 48), M.steelPolished); b.rotation.x = Math.PI / 2; b.position.set(x, y, FZ + .019); cab.add(b);
-    const cap = new THREE.Mesh(new THREE.CircleGeometry(radius - .0015, 48), new THREE.MeshPhysicalMaterial({ map: capTex, metalness: .85, roughness: .3, clearcoat: .3 }));
-    cap.rotation.x = -Math.PI / 2; cap.position.y = .0083; b.add(cap);   // child of the body: faces the cab, number the right way up
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius + .0075, .0055, 16, 64), new THREE.MeshStandardMaterial({ color: ringColor, emissive: 0x000000, metalness: .3, roughness: .35 }));
+    ring.position.set(x, y, FZ + .0165); cab.add(ring);
+    const hh = .013, prof = [[0, hh], [radius - .0055, hh], [radius - .0025, hh - .0012], [radius - .0006, hh - .0038], [radius, hh - .008], [radius + .0025, -hh]].map(([r, y]) => new THREE.Vector2(r, y));
+    const b = new THREE.Mesh(new THREE.LatheGeometry(prof, 56), M.steelPolished); b.rotation.x = Math.PI / 2; b.position.set(x, y, FZ + .022); cab.add(b);
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(radius - .0055, 48), new THREE.MeshPhysicalMaterial({ map: capTex, metalness: .85, roughness: .3, clearcoat: .3 }));
+    cap.rotation.x = -Math.PI / 2; cap.position.y = .0133; b.add(cap);   // child of the body: faces the cab, number the right way up
     return { ring, b };
   };
   F.forEach((f, k) => { const { ring, b } = addButton(px + bxs(k % cols), py + bys(Math.floor(k / cols)), numberCap(k + 1), .031, 0x2a2a2a); b.userData.floor = k; btnRings.push(ring); btnMeshes.push(b); });
@@ -715,6 +734,9 @@ function build() {
       g.textAlign = 'center'; const eng = (t, y, f) => { g.font = f; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(t, w / 2, y + 2); g.fillStyle = '#2e2f32'; g.fillText(t, w / 2, y); };
       eng('MAX LOAD 630 kg', 70, '700 44px -apple-system,Helvetica,Arial,sans-serif'); eng('8 PERSONS', 128, '600 38px -apple-system,Helvetica,Arial,sans-serif'); }, { repeat: false });
     const m = new THREE.Mesh(new RoundedBoxGeometry(lw, lh, .012, 2, .002), [M.steel, M.steel, M.steel, M.steel, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xd9d3c8, metalness: .55, roughness: .68, envMapIntensity: .7 }), M.steelDark]); m.position.set(px, ly, FZ + .006); m.userData.noShadow = true; cab.add(m); }
+  G.panelKey = new THREE.SpotLight(0xfff1de, 0, 0, .5, .9, 2); G.panelKey.position.set(px - .1, py + .8, FZ + .26);
+  G.panelKey.target.position.set(px, py - .08, FZ); cab.add(G.panelKey, G.panelKey.target);
+  G.panelKey.castShadow = SHADOWS; G.panelKey.shadow.mapSize.set(1024, 1024); G.panelKey.shadow.bias = -.0004; G.panelKey.shadow.normalBias = .004; G.panelKey.shadow.radius = 5; G.panelKey.shadow.camera.near = .1; G.panelKey.shadow.camera.far = 2.5;
   G.panel = new THREE.Vector3(px, py, FZ + .01); G.pd = Math.max((ph * PS * 1.32 / 2) / Math.tan(vfov / 2), (pw * PS * 1.5 / 2) / Math.tan(hfov / 2));   // distance that frames the whole panel, front-on
 
   /* --- lights: the luminous ceiling does the work; a soft spot adds gentle shadows --- */
@@ -1098,7 +1120,7 @@ function frame() {
   // camera: head follows the cursor; turns to the panel when asked
   const le = 1 - Math.exp(-dt / CFG.lookEase);
   const lk = RM ? 0 : 1;
-  lookX += (tLookX * lk * (turned ? .15 : 1) - lookX) * le; lookY += (tLookY * lk * (turned ? .15 : 1) - lookY) * le;
+  lookX += (tLookX * lk - lookX) * le; lookY += (tLookY * lk - lookY) * le;
   turnT = clamp(turnT + (turned ? 1 : -1) * dt / (CFG.panelTurnMs / 1000), 0, 1);
   const sw = now / 1000;
   const idleYaw = (Math.sin(sw * .23) * .25 + Math.sin(sw * .41 + 1.3) * .15) * .35, idlePitch = Math.sin(sw * .19 + .7) * .18 * .35;
@@ -1106,9 +1128,11 @@ function frame() {
   const p = turnT * turnT * turnT * (turnT * (turnT * 6 - 15) + 10);   // smootherstep: eases in and out with no jolt
   const pcx = G.panel.x, panelYaw = 0;   // the camera slides across and in until it faces the panel squarely, dead centre
   const hs = RM ? 0 : CFG.headShift;
-  camera.position.set(pcx * p + vx + lookX * hs + Math.sin(sw * .21) * .002, G.eye + (G.panel.y - G.eye) * p + vy - lookY * hs * .5 + Math.sin(sw * .27 + 1) * .0015, G.D + (G.pd - G.D) * p);
+  const orbX = (RM ? 0 : lookX * CFG.panelOrbit + Math.sin(sw * .31) * .006) * p, orbY = (RM ? 0 : -lookY * CFG.panelOrbit * .6 + Math.sin(sw * .23 + 1) * .004) * p;
+  camera.position.set(pcx * p + orbX + vx + lookX * hs * (1 - p) + Math.sin(sw * .21) * .002, G.eye + (G.panel.y - G.eye) * p + orbY + vy - lookY * hs * .5 * (1 - p) + Math.sin(sw * .27 + 1) * .0015, G.D + (G.pd - G.D) * p);
   const pitchToPanel = 0;
-  const yaw = -(panelYaw * p) - lookX * CFG.lookYaw - idleYaw * (1 - .7 * p), pitch = pitchToPanel * p - lookY * CFG.lookPitch + idlePitch * (1 - .7 * p);
+  const yaw = Math.atan2(orbX, G.pd) * 180 / Math.PI - lookX * CFG.lookYaw * (1 - p) - idleYaw * (1 - p), pitch = -Math.atan2(orbY, G.pd) * 180 / Math.PI - lookY * CFG.lookPitch * (1 - p) + idlePitch * (1 - p);
+  if (G.panelKey) G.panelKey.intensity = p * 2.6;
   camera.rotation.set(pitch * Math.PI / 180, yaw * Math.PI / 180, Math.sin(sw * .17) * .0015);
 
   if (envDirty && --envDirty === 0) doCaptureEnv();
