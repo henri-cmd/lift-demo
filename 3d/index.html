@@ -442,7 +442,8 @@ function lampTri(g, x, y, s, up, on) {   // direction lamp: a backlit white tria
   else { g.fillStyle = 'rgba(255,255,255,.07)'; g.fill(); }
 }
 const maxName = Math.max(...F.map((f, i) => `${i + 1} ${f.n.toUpperCase()}`.length), 8);
-const IND = makeScreen(1536, 256), PSC = makeScreen(512, 256);
+const IND_W = 1536, IND_H = 150;
+const IND = makeScreen(IND_W, IND_H), PSC = makeScreen(512, 256);
 const IGRID = { cols: maxName * 6 + 1, rows: 9 }, PGRID = { cols: 13, rows: 9 };
 let indText = '', indDir = 0, curShown = 0, flashText = null;
 function drawIndicator(now = performance.now()) {
@@ -450,13 +451,13 @@ function drawIndicator(now = performance.now()) {
   const dots = (grid, from, to) => { if (!roll) return textDots(grid, to); const off = Math.round(kRoll * grid.rows), lit = textDots(grid, from, -roll.dir * off); for (const d of textDots(grid, to, roll.dir * (grid.rows - off))) lit.add(d); return lit; };
   const blinkOk = typeof blinkOn === 'undefined' ? true : blinkOn, up = indDir > 0 && blinkOk, down = indDir < 0 && blinkOk;
   // --- indicator: [▼]  1 INTRO  [▲], with a lamp per floor underneath
-  { const g = IND.g, W = 1536, H = 256; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
-    const p = Math.min((W - 330) / IGRID.cols, 150 / IGRID.rows), mw = p * IGRID.cols;
-    drawMatrix(g, IGRID, flashText ? textDots(IGRID, flashText) : dots(IGRID, roll ? roll.from : '', indText), (W - mw) / 2, 30, p);
-    lampTri(g, 82, 98, 62, false, down); lampTri(g, W - 82, 98, 62, true, up);
-    const n = F.length, gap = Math.min(46, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
-    for (let i = 0; i < n; i++) { const on = i === curShown, x = x0 + i * gap; g.beginPath(); g.arc(x, 214, 9, 0, 7);
-      if (on) { g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = 16; g.fillStyle = LED_BLUE; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(180,226,255,.9)'; g.beginPath(); g.arc(x - 2, 212, 3.2, 0, 7); g.fill(); }
+  { const g = IND.g, W = IND_W, H = IND_H; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
+    const p = Math.min((W - 300) / IGRID.cols, 100 / IGRID.rows), mw = p * IGRID.cols;
+    drawMatrix(g, IGRID, flashText ? textDots(IGRID, flashText) : dots(IGRID, roll ? roll.from : '', indText), (W - mw) / 2, 13, p);
+    lampTri(g, 70, 63, 44, false, down); lampTri(g, W - 70, 63, 44, true, up);
+    const n = F.length, gap = Math.min(38, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
+    for (let i = 0; i < n; i++) { const on = i === curShown, x = x0 + i * gap; g.beginPath(); g.arc(x, 131, 5.5, 0, 7);
+      if (on) { g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = 12; g.fillStyle = LED_BLUE; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(180,226,255,.9)'; g.beginPath(); g.arc(x - 1.2, 129.8, 2, 0, 7); g.fill(); }
       else { g.fillStyle = 'rgba(8,40,60,.6)'; g.fill(); } }
     IND.tex.needsUpdate = true; }
   // --- panel display: floor number + travel arrow
@@ -496,6 +497,7 @@ function plateTexture(pw, ph, labels) {
   return canvasTex(1024, Math.round(ph * s), (g, w, h) => {
     g.fillStyle = '#bdbab4'; g.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x++) { g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .06})`; g.fillRect(x, 0, 1, h); }
+    { const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, 'rgba(255,255,255,.14)'); lg.addColorStop(.35, 'rgba(255,255,255,0)'); lg.addColorStop(1, 'rgba(0,0,0,.2)'); g.fillStyle = lg; g.fillRect(0, 0, w, h); }   // lit from above
     g.font = '700 34px -apple-system,Helvetica,Arial,sans-serif'; g.textAlign = 'center';
     for (const [t, x, y] of labels) { g.fillStyle = 'rgba(255,255,255,.6)'; g.fillText(t, x * s, (ph / 2 - y) * s + 2); g.fillStyle = '#2b2c2f'; g.fillText(t, x * s, (ph / 2 - y) * s); }
   }, { repeat: false });
@@ -722,19 +724,15 @@ function build() {
   }
 
   /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, blue LEDs --- */
-  const sw0 = Math.min(.52, ow * .3), sh0 = sw0 * 256 / 1536, iy = oh + TRANSOM + .075;
+  const sw0 = Math.min(.62, ow * .34), sh0 = sw0 * IND_H / IND_W, iy = oh + TRANSOM + .06;
   { // a horizontally brushed body on a dark gasket (the shadow line where it meets the veneer), glass set back inside a slim
-    // polished bezel, and a fixing screw at each end. Its shadow comes from the key light, so it sits on the wall.
-    const hw = sw0 + .11, hh = sh0 + .04, hd = .026;
-    box(hw + .006, hh + .006, .003, M.slot, 0, iy, FZ + .0015);
-    const house = new THREE.Mesh(new RoundedBoxGeometry(hw, hh, hd, 4, .007), M.steelH); house.position.set(0, iy, FZ + .003 + hd / 2); cab.add(house);
-    const fz = FZ + .003 + hd, bw = .005;
-    box(sw0 + .004, sh0 + .004, .002, M.black, 0, iy, fz - .0005);
-    plane(sw0, sh0, screenMat(IND), 0, iy, fz + .0008);
-    box(sw0 + 2 * bw, bw, .005, M.steelPolished, 0, iy + sh0 / 2 + bw / 2, fz + .0015); box(sw0 + 2 * bw, bw, .005, M.steelPolished, 0, iy - sh0 / 2 - bw / 2, fz + .0015);
-    box(bw, sh0, .005, M.steelPolished, -sw0 / 2 - bw / 2, iy, fz + .0015); box(bw, sh0, .005, M.steelPolished, sw0 / 2 + bw / 2, iy, fz + .0015);
-    for (const sx of [-1, 1]) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(.0042, .0042, .002, 20), M.steelPolished); sc.rotation.x = Math.PI / 2; sc.position.set(sx * (sw0 / 2 + .03), iy, fz + .0006); cab.add(sc);
-      box(.006, .001, .0006, M.slot, sx * (sw0 / 2 + .03), iy, fz + .0018).rotation.z = .6 * sx; }
+    // (kept slim and modern: one thin strip of black glass, flush in a fine frame). Its shadow comes from the key light.
+    const hw = sw0 + .016, hh = sh0 + .016, hd = .012;   // slim: a fine frame, barely proud of the wall
+    box(hw + .005, hh + .005, .002, M.slot, 0, iy, FZ + .001);
+    const house = new THREE.Mesh(new RoundedBoxGeometry(hw, hh, hd, 3, .0035), M.steelH); house.position.set(0, iy, FZ + .002 + hd / 2); cab.add(house);
+    const fz = FZ + .002 + hd;
+    box(sw0 + .003, sh0 + .003, .002, M.black, 0, iy, fz - .0006);
+    plane(sw0, sh0, screenMat(IND), 0, iy, fz + .0006);
     plane(sw0 * 1.4, sh0 * 2.6, new THREE.MeshBasicMaterial({ map: glowTex('0,125,186'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .05 }), 0, iy, fz + .008);
   }
 
@@ -749,7 +747,7 @@ function build() {
   plane(pw + .16, ph + .16, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .4, depthWrite: false }), px + .008, py - .02, FZ + .0016);   // plate's soft shadow
   for (const sx of [-1, 1]) for (const sy of [-1, 1]) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(.007, .007, .003, 20), M.steelPolished); sc.rotation.x = Math.PI / 2; sc.position.set(px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0155); cab.add(sc);
     box(.009, .0016, .0008, M.slot, px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0172).rotation.z = .5 + sx * sy; }
-  G.plate = box(pw, ph, .014, new THREE.MeshPhysicalMaterial({ map: plateTexture(pw, ph, labels), color: 0xf3ece0, normalMap: steelSet.normal, normalScale: new THREE.Vector2(.08, .08), metalness: .9, roughness: .38, anisotropy: .6, anisotropyRotation: Math.PI / 2 }), px, py, FZ + .007);
+  G.plate = box(pw, ph, .014, new THREE.MeshPhysicalMaterial({ map: plateTexture(pw, ph, labels), color: 0xf3ece0, normalMap: steelSet.normal, normalScale: new THREE.Vector2(.08, .08), metalness: .45, roughness: .55, anisotropy: .25, anisotropyRotation: Math.PI / 2 }), px, py, FZ + .007);
   { const m = box(pw - .08, .002, .001, M.steelDark, px, py + fy + pitch * .52, FZ + .0145); m.visible = fns.length > 0; }   // fine line above the function row
   const psw = .24, psh = psw * 256 / 512;
   box(psw + .02, psh + .02, .006, M.black, px, py + ph / 2 - top / 2 - .01, FZ + .016);
