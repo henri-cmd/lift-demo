@@ -586,7 +586,25 @@
 #lift .lights{left:26%; width:48%; top:69%; height:10%; gap:5%}
 #lift .lamp{height:60%; background:rgba(40,120,170,.22); box-shadow:none}
 #lift .lamp.on{background:#2aa6ee; box-shadow:0 0 .45vh rgba(0,125,186,.9)}
+/* ----- screens and button panel in the 3D lift's design ----- */
+#lift .ind .mtx{left:6.9% !important; width:86.2% !important; top:13.5% !important; height:73% !important; display:block !important; z-index:2}
+#lift .ind .digits,#lift .ind .tri,#lift .ind .lights,#lift .ind .scr,#lift .ind .refl{display:none !important}
+#lift .panel{display:block !important; padding:0 !important; width:var(--panel-w,26vh); aspect-ratio:886/1883; border-radius:.3vh; transform:translateY(-63%) !important;
+  background:url(../assets/2d/panel.webp) center/100% 100% no-repeat !important; box-shadow:0 .7vh 1.6vh rgba(0,0,0,.42),0 0 0 .1vh rgba(0,0,0,.35) !important}
+#lift .panel .screw{display:none}
+#lift .panel .fns{display:contents}
+#lift .panel .btn{position:absolute !important; width:15.5%; aspect-ratio:1; height:auto; padding:0; margin:0; display:block; border-radius:50%; transform:translate(-50%,-50%); background:none; cursor:pointer}
+#lift .panel .btn.fnb{width:14.5%}
+#lift .panel .btn .cap,#lift .panel .btn .lbl{opacity:0; pointer-events:none}
+#lift .panel .btn::after{content:""; position:absolute; inset:-7%; border-radius:50%; border:.42vh solid transparent; transition:border-color .2s, box-shadow .2s, background .2s}
+#lift .panel .btn:hover::after{border-color:rgba(255,255,255,.28)}
+#lift .panel .btn:active{transform:translate(-50%,-50%) scale(.95)}
+#lift .panel .btn.here::after{border-color:#35b4f2; box-shadow:0 0 1.3vh rgba(0,125,186,.95),inset 0 0 1.1vh rgba(120,200,250,.55); background:radial-gradient(circle,rgba(143,208,245,.34),rgba(143,208,245,.12) 60%,transparent 72%)}
+#lift .panel .btn.lit::after,#lift .panel .btn.on::after{border-color:#2aa4e0; box-shadow:0 0 1.5vh rgba(0,125,186,1),inset 0 0 .9vh rgba(120,200,250,.5)}
+#lift .panel .btn[aria-label="alarm"].on::after{border-color:#ff3a26; box-shadow:0 0 1.5vh rgba(255,50,30,.9)}
+#lift .panel .pscr{position:absolute; left:29%; width:42.6%; top:3.5%; height:10.1%; border-radius:.15vh; pointer-events:none}
 </style>
+
 <script>
 (() => {
   /* ===== CONFIG ===== */
@@ -910,6 +928,10 @@
     b.addEventListener('click', () => liftFn(fn, b));
     $('.panel').appendChild(b);
   });
+  { // lay each button over its place on the rendered panel
+    const colX = [18.5, 49.9, 81.7], rowY = [20.45, 34.75, 49.3, 63.95], fnX = [14, 38, 62, 86];
+    btns.forEach((b, k) => { b.style.left = colX[k % 3] + '%'; b.style.top = (rowY[Math.floor(k / 3)] ?? 63.95) + '%'; });
+    [...root.querySelectorAll('.btn.fn')].forEach((b, k) => { b.style.left = (fnX[k] ?? 86) + '%'; b.style.top = '82.4%'; b.classList.add('fnb'); }); }
   // lift functions sit under the floor buttons, two to a row, centred
   const fnBtns = [...root.querySelectorAll('.btn.fn')];
   if (fnBtns.length) {
@@ -950,8 +972,47 @@
     8:'.###.#...##...#.###.#...##...#.###.',9:'.###.#...##...#.####....#...#..##..'};
   const mtx = document.createElement('canvas'); mtx.className = 'mtx'; indEl.appendChild(mtx);
   let mtxText = '';
+  // --- the 3D lift's screens, drawn flat: one canvas in the indicator's glass, one in the button panel's display
+  const pscr = document.createElement('canvas'); pscr.className = 'pscr'; pscr.width = 512; pscr.height = 256; $('.panel').appendChild(pscr);
+  const LED = '#0a8fd4';
+  function ledDots(cols, rows, text) {
+    const lit = new Set(), w = text.length * 6 - 1, top = Math.floor((rows - 7) / 2), x0 = Math.floor((cols - w) / 2);
+    [...text].forEach((ch, n) => { const gl = GLYPH[ch]; if (!gl) return;
+      for (let i = 0; i < 35; i++) if (gl[i] === '#') { const x = x0 + n * 6 + (i % 5), y = top + Math.floor(i / 5); if (x >= 0 && x < cols) lit.add(y * cols + x); } });
+    return lit;
+  }
+  function ledMatrix(g, cols, rows, lit, ox, oy, p) {
+    for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
+      const on = lit.has(r * cols + k), x = ox + k * p, y = oy + r * p, sz = p * .7, o = (p - sz) / 2;
+      if (!on) { g.fillStyle = 'rgba(6,30,46,.6)'; g.fillRect(x + o, y + o, sz, sz); continue; }
+      g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = p * 1.1; g.fillStyle = LED; g.beginPath(); g.roundRect(x + o, y + o, sz, sz, sz * .28); g.fill();
+      g.shadowBlur = 0; g.fillStyle = 'rgba(170,222,255,.85)'; g.fillRect(x + o + sz * .3, y + o + sz * .3, sz * .4, sz * .4);
+    }
+    g.shadowBlur = 0;
+  }
+  function ledTri(g, x, y, sz, up, on) {
+    g.beginPath(); if (up) { g.moveTo(x, y - sz * .55); g.lineTo(x + sz * .6, y + sz * .45); g.lineTo(x - sz * .6, y + sz * .45); } else { g.moveTo(x - sz * .6, y - sz * .45); g.lineTo(x + sz * .6, y - sz * .45); g.lineTo(x, y + sz * .55); } g.closePath();
+    if (on) { g.shadowColor = 'rgba(200,228,255,.8)'; g.shadowBlur = sz * .45; g.fillStyle = '#cfe2f2'; g.fill(); g.shadowBlur = 0; } else { g.fillStyle = 'rgba(255,255,255,.07)'; g.fill(); }
+  }
+  function drawLed() {
+    const text = (mtxText || '').trim().toUpperCase(), tu = root.querySelector('.tri.u'), td = root.querySelector('.tri.d');
+    const up = !!tu && tu.classList.contains('on'), down = !!td && td.classList.contains('on'), here = lamps.findIndex(l => l.classList.contains('on'));
+    { if (mtx.width !== 1536) { mtx.width = 1536; mtx.height = 256; }
+      const g = mtx.getContext('2d'), W = 1536, H = 256, cols = Math.max(maxLen, 8) * 6 + 1, rows = 9; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
+      const pp = Math.min((W - 330) / cols, 150 / rows), mw = pp * cols;
+      ledMatrix(g, cols, rows, ledDots(cols, rows, text), (W - mw) / 2, 30, pp);
+      ledTri(g, 82, 98, 62, false, down); ledTri(g, W - 82, 98, 62, true, up);
+      const n = F.length, gap = Math.min(46, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
+      for (let i = 0; i < n; i++) { const x = x0 + i * gap; g.beginPath(); g.arc(x, 214, 9, 0, 7);
+        if (i === here) { g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = 16; g.fillStyle = LED; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(180,226,255,.9)'; g.beginPath(); g.arc(x - 2, 212, 3.2, 0, 7); g.fill(); }
+        else { g.fillStyle = 'rgba(8,40,60,.6)'; g.fill(); } } }
+    { const g = pscr.getContext('2d'), W = 512, H = 256, cols = 13, rows = 9, pp = 21; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
+      const num = text.split(' ')[0] || '';
+      ledMatrix(g, cols, rows, ledDots(cols, rows, /^\d+$/.test(num) ? num : ''), W - pp * cols - 46, (H - pp * rows) / 2, pp);
+      ledTri(g, 96, 128, 74, up, up || down); }
+  }
   function drawMatrix(txt) {
-    mtxText = txt;
+    mtxText = txt; drawLed(); return;
     if (!root.classList.contains('screen-matrix')) return;
     const dpr = Math.min(3, devicePixelRatio || 1), w = mtx.clientWidth, h = mtx.clientHeight;
     if (!w || !h) return;
@@ -1014,10 +1075,10 @@
     const au = box.querySelector('.ar.u'), ad = box.querySelector('.ar.d');
     ind2Dir = d => { au && au.classList.toggle('on', d > 0); ad && ad.classList.toggle('on', d < 0); };
   })();
-  const setNum = i => { const changed = numEl.textContent !== label(i); numEl.textContent = label(i); if (changed) screenSet(label(i)); lamps.forEach((l, k) => l.classList.toggle('on', k === i)); if (ind2Set) ind2Set(i); };
+  const setNum = i => { const changed = numEl.textContent !== label(i); numEl.textContent = label(i); if (changed) screenSet(label(i)); lamps.forEach((l, k) => l.classList.toggle('on', k === i)); if (ind2Set) ind2Set(i); drawLed(); };
   const liftDir = d => CFG.descending ? -d : d;   // page direction → lift direction
   const triU = $('.tri.u'), triD = $('.tri.d');
-  const setArrow = dir => { dir = liftDir(dir); triU.classList.toggle('on', dir > 0); triD.classList.toggle('on', dir < 0); if (ind2Dir) ind2Dir(dir); };
+  const setArrow = dir => { dir = liftDir(dir); triU.classList.toggle('on', dir > 0); triD.classList.toggle('on', dir < 0); if (ind2Dir) ind2Dir(dir); drawLed(); };
   const markHere = i => {
     btns.forEach((b, k) => b.classList.toggle('here', k === i));
   };
