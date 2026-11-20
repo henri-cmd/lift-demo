@@ -852,6 +852,8 @@
     floorSlots: 12,        // floor buttons on the panel; spares beyond your floors show as blank placeholders
     functions: ['open', 'close', 'alarm', 'call'],  // bottom-row lift buttons (any of: open, close, alarm, call)
     // 3D cab + camera turn
+    wallShow: 0.03,         // wall always visible outside the door frame, each side (fraction of screen width)
+    maxDoorWidth: 1320,     // px — the doorway stops growing here; wider screens show more wall instead
     wallWidth: 0.022,       // width of the front wall either side of the doors (fraction of screen width)
     recess: 0.018,
     doorThickness: 0.035,  // depth of each door leaf (fraction of screen width) — shows on the leading edges as they move         // how far the doors sit back behind the front wall (fraction of screen width)
@@ -1516,8 +1518,10 @@
   let panPx = 300, turned = false;
   function geom() {
     const W = cab.clientWidth, p = W * CFG.persp;
+    // wall either side of the doors: always a visible margin past the frame, and once the doorway reaches maxDoorWidth the walls take the rest
+    const frameW = Math.max(innerHeight * .024, 15), sideW = Math.max(frameW + Math.max(12, W * CFG.wallShow), (W - CFG.maxDoorWidth) / 2);
     root.style.setProperty('--p', p + 'px');
-    root.style.setProperty('--s', (W * CFG.wallWidth) + 'px');
+    root.style.setProperty('--s', (sideW) + 'px');
     root.style.setProperty('--r', (W * CFG.recess) + 'px');
     const d = p * 0.92;   // interior walls reach from the front wall almost to the camera
     root.style.setProperty('--d', d + 'px');
@@ -1528,14 +1532,14 @@
     root.style.setProperty('--panel-off', (W * CFG.panelOffset) + 'px');
     // slide: the gap between the doorway and the panel is matched on the panel's right, at the frame edge
     const pw = $('.panel').offsetWidth || W * .12;
-    const gap = W * CFG.wallWidth + W * CFG.panelOffset;
+    const gap = sideW + W * CFG.panelOffset;
     panPx = pw + gap + W * CFG.panelOffset;
     if (turned) root.style.setProperty('--pan', panPx + 'px');
     // slim door-frame trim
     root.style.setProperty('--t', Math.max(3, W * .0026) + 'px');
     // wood wall: one continuous texture across every wall piece, rail at the same height everywhere
     if (CFG.wallTex) {
-      const H = cab.clientHeight, s = W * CFG.wallWidth, wood = (el, left, top) => {
+      const H = cab.clientHeight, s = sideW, wood = (el, left, top) => {
         if (!el) return;
         el.classList.add('wood');
         el.style.background = `url(${CFG.wallTex}) ${-left}px ${-top}px / auto ${H}px repeat-x`;
@@ -1570,6 +1574,14 @@
     sc.addEventListener('scroll', () => { if (turned && !busy) look(false); }, { passive: true });
     root.addEventListener('wheel', () => { if (turned && !busy) look(false); }, { passive: true });
     addEventListener('keydown', e => { if (e.key === 'Escape') look(false); });
+    // up / down arrow keys ride one floor at a time (up = previous section, down = next)
+    addEventListener('keydown', e => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+      e.preventDefault(); if (busy) return;
+      const t = floorNow() + (e.key === 'ArrowDown' ? 1 : -1);
+      if (t >= 0 && t < F.length) { initAudioQuiet(); go(t); }
+    });
   }
 
   /* ===== PANEL DISCOVERY: glance + edge tab, until the visitor opens the panel (fresh on every load) ===== */
