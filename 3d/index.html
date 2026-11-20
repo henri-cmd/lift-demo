@@ -206,6 +206,7 @@ const CFG = {
   ],
   tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
   lowerPanel: 0x263645,    // the panel below the rail: a muted, slightly grey blue
+  indicatorDepth: 0.01,    // how far the indicator's metal body stands off the wall (metres)
   trimMetal: 0x74767a,     // header, rail, indicator housing and door frame: a darker gunmetal, for contrast against the pale wood
   woodTint: 0xfdf3e3,      // a touch of warmth on the pale maple scan, for a Scandinavian birch look
   functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
@@ -442,7 +443,7 @@ function lampTri(g, x, y, s, up, on) {   // direction lamp: a backlit white tria
   else { g.fillStyle = 'rgba(255,255,255,.07)'; g.fill(); }
 }
 const maxName = Math.max(...F.map((f, i) => `${i + 1} ${f.n.toUpperCase()}`.length), 8);
-const IND_W = 1536, IND_H = 150;
+const IND_W = 1536, IND_H = 256;
 const IND = makeScreen(IND_W, IND_H), PSC = makeScreen(512, 256);
 const IGRID = { cols: maxName * 6 + 1, rows: 9 }, PGRID = { cols: 13, rows: 9 };
 let indText = '', indDir = 0, curShown = 0, flashText = null;
@@ -452,12 +453,12 @@ function drawIndicator(now = performance.now()) {
   const blinkOk = typeof blinkOn === 'undefined' ? true : blinkOn, up = indDir > 0 && blinkOk, down = indDir < 0 && blinkOk;
   // --- indicator: [▼]  1 INTRO  [▲], with a lamp per floor underneath
   { const g = IND.g, W = IND_W, H = IND_H; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
-    const p = Math.min((W - 300) / IGRID.cols, 100 / IGRID.rows), mw = p * IGRID.cols;
-    drawMatrix(g, IGRID, flashText ? textDots(IGRID, flashText) : dots(IGRID, roll ? roll.from : '', indText), (W - mw) / 2, 13, p);
-    lampTri(g, 70, 63, 44, false, down); lampTri(g, W - 70, 63, 44, true, up);
-    const n = F.length, gap = Math.min(38, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
-    for (let i = 0; i < n; i++) { const on = i === curShown, x = x0 + i * gap; g.beginPath(); g.arc(x, 131, 5.5, 0, 7);
-      if (on) { g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = 12; g.fillStyle = LED_BLUE; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(180,226,255,.9)'; g.beginPath(); g.arc(x - 1.2, 129.8, 2, 0, 7); g.fill(); }
+    const p = Math.min((W - 330) / IGRID.cols, 150 / IGRID.rows), mw = p * IGRID.cols;
+    drawMatrix(g, IGRID, flashText ? textDots(IGRID, flashText) : dots(IGRID, roll ? roll.from : '', indText), (W - mw) / 2, 30, p);
+    lampTri(g, 82, 98, 62, false, down); lampTri(g, W - 82, 98, 62, true, up);
+    const n = F.length, gap = Math.min(46, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
+    for (let i = 0; i < n; i++) { const on = i === curShown, x = x0 + i * gap; g.beginPath(); g.arc(x, 214, 9, 0, 7);
+      if (on) { g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = 16; g.fillStyle = LED_BLUE; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(180,226,255,.9)'; g.beginPath(); g.arc(x - 2, 212, 3.2, 0, 7); g.fill(); }
       else { g.fillStyle = 'rgba(8,40,60,.6)'; g.fill(); } }
     IND.tex.needsUpdate = true; }
   // --- panel display: floor number + travel arrow
@@ -724,15 +725,19 @@ function build() {
   }
 
   /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, blue LEDs --- */
-  const sw0 = Math.min(.62, ow * .34), sh0 = sw0 * IND_H / IND_W, iy = oh + TRANSOM + .06;
+  const sw0 = Math.min(.52, ow * .3), sh0 = sw0 * IND_H / IND_W, iy = oh + TRANSOM + .075;
   { // a horizontally brushed body on a dark gasket (the shadow line where it meets the veneer), glass set back inside a slim
-    // (kept slim and modern: one thin strip of black glass, flush in a fine frame). Its shadow comes from the key light.
-    const hw = sw0 + .016, hh = sh0 + .016, hd = .012;   // slim: a fine frame, barely proud of the wall
-    box(hw + .005, hh + .005, .002, M.slot, 0, iy, FZ + .001);
-    const house = new THREE.Mesh(new RoundedBoxGeometry(hw, hh, hd, 3, .0035), M.steelH); house.position.set(0, iy, FZ + .002 + hd / 2); cab.add(house);
-    const fz = FZ + .002 + hd;
-    box(sw0 + .003, sh0 + .003, .002, M.black, 0, iy, fz - .0006);
+    // polished bezel, and a fixing screw at each end. The body is shallow, so it sits close to the wall.
+    const hw = sw0 + .11, hh = sh0 + .04, hd = CFG.indicatorDepth;
+    box(hw + .006, hh + .006, .002, M.slot, 0, iy, FZ + .001);
+    const house = new THREE.Mesh(new RoundedBoxGeometry(hw, hh, hd, 4, Math.min(.007, hd * .45)), M.steelH); house.position.set(0, iy, FZ + .002 + hd / 2); cab.add(house);
+    const fz = FZ + .002 + hd, bw = .005;
+    box(sw0 + .004, sh0 + .004, .002, M.black, 0, iy, fz - .0006);
     plane(sw0, sh0, screenMat(IND), 0, iy, fz + .0006);
+    box(sw0 + 2 * bw, bw, .003, M.steelPolished, 0, iy + sh0 / 2 + bw / 2, fz + .0008); box(sw0 + 2 * bw, bw, .003, M.steelPolished, 0, iy - sh0 / 2 - bw / 2, fz + .0008);
+    box(bw, sh0, .003, M.steelPolished, -sw0 / 2 - bw / 2, iy, fz + .0008); box(bw, sh0, .003, M.steelPolished, sw0 / 2 + bw / 2, iy, fz + .0008);
+    for (const sx of [-1, 1]) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(.0042, .0042, .0016, 20), M.steelPolished); sc.rotation.x = Math.PI / 2; sc.position.set(sx * (sw0 / 2 + .03), iy, fz + .0004); cab.add(sc);
+      box(.006, .001, .0006, M.slot, sx * (sw0 / 2 + .03), iy, fz + .0014).rotation.z = .6 * sx; }
     plane(sw0 * 1.4, sh0 * 2.6, new THREE.MeshBasicMaterial({ map: glowTex('0,125,186'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .05 }), 0, iy, fz + .008);
   }
 
