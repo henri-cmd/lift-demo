@@ -229,13 +229,13 @@ const CFG = {
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.3,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 0.88,
-  shaftLight: 0.24,
+  shaftLight: 0.5,
   shaftRate: 0.3,          // how many light bands drift past per second at full speed (kept slow so it never strobes)         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
   grade: 1,                // cinema grade strength: film contrast, split tone, vignette, grain (0 = off)
   halation: 0.2,          // strength of the soft glow around bright areas
   halationFrom: 1.15,      // brightness where the glow starts
-  fringe: 0.012,           // colour fringing towards the corners
+  fringe: 0,           // colour fringing towards the corners
   musicVolume: 0.5,        // lift music during button rides (0 = none)
 };
 
@@ -617,7 +617,7 @@ function build() {
   const D = (Hvis / 2) / Math.tan(vfov / 2);
   const eye = viewTop - Hvis / 2;
   // header above the doors, as in the references: steel transom, a band of veneer carrying the indicator, steel band, luminous ceiling
-  const TRANSOM = .07, BAND = .17, TOPBAND = .07, cabH = oh + TRANSOM + BAND + TOPBAND, woodTop = cabH - TOPBAND;
+  const TRANSOM = .07, BAND = .24, TOPBAND = 0, cabH = oh + TRANSOM + BAND, woodTop = cabH;
   const pocket = ow / 2 + 0.25, panelSide = 1.3;
   const xl = -ow / 2 - pocket, xr = ow / 2 + pocket + panelSide;
   const depth = D + 0.8;
@@ -629,7 +629,6 @@ function build() {
   wallRun(ow / 2 + t - ins, xr, woodTop).position.set(0, 0, FZ);
   plane(ow + 2 * t, BAND, woodAt(-ow / 2 - t, ow / 2 + t, oh + TRANSOM, woodTop), 0, oh + TRANSOM + BAND / 2, FZ);
   { const m = new THREE.Mesh(new RoundedBoxGeometry(ow + 2 * t - 2 * ins, TRANSOM, .075, 4, .007), M.steelH); m.position.set(0, oh + TRANSOM / 2 - ins, .0375); cab.add(m); }   // transom over the doors
-  { const m = new THREE.Mesh(new RoundedBoxGeometry(xr - xl, TOPBAND, .016, 3, .005), M.steelH); m.position.set((xl + xr) / 2, cabH - TOPBAND / 2, FZ + .006); cab.add(m); }   // band under the ceiling
   // slim polished architrave down each side of the doorway
   for (const sx of [-1, 1]) { const m = new THREE.Mesh(new RoundedBoxGeometry(t, oh - ins, .062, 3, .005), M.steelPolished); m.position.set(sx * (ow / 2 + t / 2 - ins), (oh - ins) / 2, .031); cab.add(m); }
   // the slots the doors run in; cab sill with grooves
@@ -664,9 +663,6 @@ function build() {
   { const g = wallRun(0, depth, woodTop, .37); g.rotation.y = Math.PI / 2; g.position.set(xl, 0, depth); }
   { const g = wallRun(0, depth, woodTop, .61); g.rotation.y = -Math.PI / 2; g.position.set(xr, 0, 0); }
   { const g = wallRun(0, xr - xl, woodTop, .83); g.rotation.y = Math.PI; g.position.set(xr, 0, depth); }
-  plane(depth, TOPBAND, M.steel, xl + .001, cabH - TOPBAND / 2, depth / 2, Math.PI / 2);
-  plane(depth, TOPBAND, M.steel, xr - .001, cabH - TOPBAND / 2, depth / 2, -Math.PI / 2);
-  plane(xr - xl, TOPBAND, M.steel, (xl + xr) / 2, cabH - TOPBAND / 2, depth - .001, Math.PI);
   // ceiling: backlit white panels divided by steel strips (the soft, even light of the reference)
   plane(xr - xl, depth, M.ceilGlow, (xl + xr) / 2, cabH, depth / 2, 0, Math.PI / 2);
   for (let x = Math.ceil(xl / 1.1) * 1.1; x < xr; x += 1.1) box(.035, .006, depth, M.steel, x + .55, cabH - .003, depth / 2);
@@ -678,7 +674,7 @@ function build() {
   }
 
   /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, red LEDs --- */
-  const sw0 = Math.min(.52, ow * .3), sh0 = sw0 * 256 / 1536, iy = oh + TRANSOM + BAND * .44;
+  const sw0 = Math.min(.52, ow * .3), sh0 = sw0 * 256 / 1536, iy = oh + TRANSOM + .075;
   plane(sw0 + .26, sh0 + .2, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .42, depthWrite: false }), 0, iy - .018, FZ + .0015);   // housing's soft shadow on the veneer
   const house = new THREE.Mesh(new RoundedBoxGeometry(sw0 + .1, sh0 + .034, .034, 4, .012), M.steel); house.position.set(0, iy, FZ + .017); cab.add(house);
   box(sw0 + .012, sh0 + .012, .004, M.black, 0, iy, FZ + .033);
@@ -717,8 +713,7 @@ function build() {
     const tex = canvasTex(512, 174, (g, w, h) => { g.fillStyle = '#c2bfb8'; g.fillRect(0, 0, w, h); for (let x = 0; x < w; x++) { g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .05})`; g.fillRect(x, 0, 1, h); }
       g.textAlign = 'center'; const eng = (t, y, f) => { g.font = f; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(t, w / 2, y + 2); g.fillStyle = '#2e2f32'; g.fillText(t, w / 2, y); };
       eng('MAX LOAD 630 kg', 70, '700 44px -apple-system,Helvetica,Arial,sans-serif'); eng('8 PERSONS', 128, '600 38px -apple-system,Helvetica,Arial,sans-serif'); }, { repeat: false });
-    plane(lw + .05, lh + .05, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .3, depthWrite: false }), px + .003, ly - .006, FZ + .0016);
-    const m = new THREE.Mesh(new RoundedBoxGeometry(lw, lh, .012, 2, .002), [M.steel, M.steel, M.steel, M.steel, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xf3ece0, metalness: .9, roughness: .36 }), M.steel]); m.position.set(px, ly, FZ + .006); m.userData.noShadow = true; cab.add(m); }
+    const m = new THREE.Mesh(new RoundedBoxGeometry(lw, lh, .012, 2, .002), [M.steel, M.steel, M.steel, M.steel, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xd9d3c8, metalness: .55, roughness: .68, envMapIntensity: .7 }), M.steelDark]); m.position.set(px, ly, FZ + .006); m.userData.noShadow = true; cab.add(m); }
   G.panel = new THREE.Vector3(px, py, FZ + .01); G.pd = .5 + ph * PS * .62;   // viewing distance that frames the whole panel
 
   /* --- lights: the luminous ceiling does the work; a soft spot adds gentle shadows --- */
