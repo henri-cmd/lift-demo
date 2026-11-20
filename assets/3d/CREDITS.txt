@@ -1,0 +1,3 @@
+Textures in this folder are CC0 (public domain):
+- sapele-*.webp: "Sapele Veneer" from Poly Haven (polyhaven.com/a/sapele_veneer)
+- steel-patina.webp: roughness map of "Metal 012" from ambientCG (ambientcg.com/a/Metal012)

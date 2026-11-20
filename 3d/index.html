@@ -8,7 +8,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d{position:fixed; inset:0; overflow:hidden; background:#000; font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif; color:#eee;
   touch-action:none; user-select:none; -webkit-user-select:none}
 #lift3d .css3d,#lift3d canvas.gl{position:absolute; inset:0}
-#lift3d canvas.gl{z-index:1; pointer-events:none}
+#lift3d canvas.gl{z-index:1; pointer-events:none; filter:sepia(.1) saturate(1.04)}
 #lift3d .css3d{z-index:0}
 
 /* the floors: one continuous page seen through the doorway (a real DOM page placed in the 3D scene) */
@@ -30,7 +30,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 /* overlays */
 #lift3d .grain{position:absolute; inset:-64px; z-index:3; pointer-events:none; opacity:.07; mix-blend-mode:overlay; background-size:128px 128px; will-change:transform}
 #lift3d .vig{position:absolute; inset:0; z-index:2; pointer-events:none;
-  background:radial-gradient(ellipse 120% 100% at 50% 45%,transparent 55%,rgba(0,0,0,.45) 100%)}
+  background:radial-gradient(ellipse 125% 105% at 50% 45%,transparent 60%,rgba(0,0,0,.28) 100%)}
 #lift3d .ui{position:absolute; z-index:5; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.85);
   font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase; padding:9px 13px; border-radius:20px; cursor:pointer;
   -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px)}
@@ -204,7 +204,10 @@ const CFG = {
         <h2>Thank you</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
         <div class="ph"></div>` }
   ],
-  wallTex: '../assets/lift-wall-v3.webp',
+  tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
+  woodTint: 0x94614a,      // deepens the sapele veneer towards the warm red-brown of the references
+  functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
+  contactEmail: '',        // Call button opens an email to this address (blank = just rings)
 
   // scroll-scrubbed doors (same feel as the 2D version)
   doorZone: 0.7, closedHold: 0.28, doorEase: 0.22, startClosed: true,
@@ -223,7 +226,7 @@ const CFG = {
   pageZoom: 0.8,           // page content scale through the doorway (1 = normal web size; lower shows more content)
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.27,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
-  exposure: 1.0,
+  exposure: 0.92,
   musicVolume: 0.5,        // lift music during button rides (0 = none)
 };
 
@@ -332,47 +335,39 @@ const noiseTex = (base, amt, blotch, size = 512) => canvasTex(size, size, (g, w,
 const plaster = noiseTex('#cdc6bb', 10, 90);
 const concrete = noiseTex('#46423e', 14, 200, 1024);
 
-// wood: the veneer photo, plus a normal map derived from its grain once it loads
+// scanned textures (CC0): sapele veneer from Poly Haven; a steel patina (roughness) from ambientCG
 const loader = new THREE.TextureLoader();
-const woodMap = loader.load(CFG.wallTex, img => { woodNormal.image = deriveNormal(img.image); woodNormal.needsUpdate = true; captureEnv(); });
-woodMap.colorSpace = THREE.SRGBColorSpace; woodMap.wrapS = woodMap.wrapT = THREE.RepeatWrapping; woodMap.anisotropy = MAXANI;
-const flatN = document.createElement('canvas'); flatN.width = flatN.height = 2; { const g = flatN.getContext('2d'); g.fillStyle = 'rgb(128,128,255)'; g.fillRect(0, 0, 2, 2); }
-const woodNormal = new THREE.Texture(flatN); woodNormal.needsUpdate = true; woodNormal.wrapS = woodNormal.wrapT = THREE.RepeatWrapping;
-function deriveNormal(img) {
-  const w = 512, h = Math.round(512 * img.height / img.width), c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
-  g.drawImage(img, 0, 0, w, h); const src = g.getImageData(0, 0, w, h).data, hf = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) hf[i] = (src[i * 4] * .3 + src[i * 4 + 1] * .59 + src[i * 4 + 2] * .11) / 255;
-  return normalFromHeight(hf, w, h, 2.2).image;
-}
+const loadTex = (url, srgb) => { const t = loader.load(url, () => captureEnv()); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAXANI; return t; };
+const woodMap = loadTex(CFG.tex + 'sapele-diff.webp', true), woodNormal = loadTex(CFG.tex + 'sapele-normal.webp'), woodRough = loadTex(CFG.tex + 'sapele-rough.webp');
+// the scanned patina is blended into the generated brushing, so the steel keeps its hairline grain but gains real, uneven wear
+{ const im = new Image(); im.onload = () => { for (const set of [steelSet, doorSetL, doorSetR]) { const c = set.rough.image, g = c.getContext('2d');
+    g.globalAlpha = .26; g.globalCompositeOperation = 'screen'; g.drawImage(im, 0, 0, c.width, c.height); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; set.rough.needsUpdate = true; } captureEnv(); };
+  im.src = CFG.tex + 'steel-patina.webp'; }
 
 /* ===== MATERIALS ===== */
 const steelMat = (set, o = {}) => new THREE.MeshPhysicalMaterial({ map: set.albedo, roughnessMap: set.rough, normalMap: set.normal, normalScale: new THREE.Vector2(.12, .12),
-  color: 0xffffff, metalness: 1, roughness: 1, anisotropy: .75, anisotropyRotation: Math.PI / 2, envMapIntensity: 1, ...o });
+  color: 0xf3ece0, metalness: 1, roughness: 1, anisotropy: .75, anisotropyRotation: Math.PI / 2, envMapIntensity: 1, ...o });   // warm, champagne-toned stainless
 const lightCurtainTex = canvasTex(32, 1024, (g, w, h) => { g.fillStyle = '#1b1c1e'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#26282b'; g.fillRect(w * .3, 0, w * .4, h);
   for (let y = 14; y < h; y += 22) { g.fillStyle = '#0a0a0b'; g.beginPath(); g.arc(w / 2, y, 4.2, 0, 7); g.fill(); g.fillStyle = 'rgba(120,20,20,.55)'; g.beginPath(); g.arc(w / 2, y, 2, 0, 7); g.fill(); } }, { repeat: false });
 const M = {
-  doorL: steelMat(doorSetL), doorR: steelMat(doorSetR),
+  doorL: steelMat(doorSetL, { color: 0xe4ddd0 }), doorR: steelMat(doorSetR, { color: 0xe4ddd0 }),
   steel: steelMat(steelSet),
-  steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xdadcdf, metalness: 1, roughness: .14 }),
-  steelDark: new THREE.MeshPhysicalMaterial({ color: 0x8a8d91, metalness: 1, roughness: .4 }),
+  steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xe6dfd3, metalness: 1, roughness: .18 }),
+  steelDark: new THREE.MeshPhysicalMaterial({ color: 0x8f8b84, metalness: 1, roughness: .4 }),
   slot: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .85 }),
   curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
   edge: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: .75 }),
-  wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, normalScale: new THREE.Vector2(.35, .35), roughness: .55, clearcoat: .55, clearcoatRoughness: .2 }),
-  ceil: new THREE.MeshStandardMaterial({ color: 0xd8d4cd, roughness: .85 }),
+  wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(.6, .6), roughness: .9, clearcoat: .3, clearcoatRoughness: .35 }),
+  lower: new THREE.MeshPhysicalMaterial({ color: 0x17171a, roughness: .5, clearcoat: .3, clearcoatRoughness: .35 }),   // dark satin panel below the rail
+  ceilGlow: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.55, 1.48, 1.34) }),   // luminous ceiling panels
   floor: new THREE.MeshPhysicalMaterial({ map: terrazzo, roughnessMap: terrazzoRough, roughness: 1, clearcoat: .9, clearcoatRoughness: .12 }),
   reveal: new THREE.MeshPhysicalMaterial({ color: 0xa6a8ab, metalness: 1, roughness: .45 }),
-  plaster: new THREE.MeshStandardMaterial({ map: plaster, roughness: .93 }),
-  lceil: new THREE.MeshStandardMaterial({ color: 0xe9e5de, roughness: .9 }),
-  concrete: new THREE.MeshPhysicalMaterial({ map: concrete, color: 0x9a948c, roughness: .55, clearcoat: .6, clearcoatRoughness: .18 }),
-  skirting: new THREE.MeshStandardMaterial({ color: 0x2b2926, roughness: .5 }),
-  diffuser: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.9, 1.78, 1.6), toneMapped: true }),
-  diffuserL: new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.15, 2.05), toneMapped: true }),
+  glass: new THREE.MeshPhysicalMaterial({ color: 0x050506, roughness: .08, metalness: 0, clearcoat: 1, clearcoatRoughness: .04 }),
   black: new THREE.MeshBasicMaterial({ color: 0x050505 }),
 };
 
-/* ===== LED DOT-MATRIX SCREENS (indicator above the doors + display on the panel) ===== */
+/* ===== SCREENS: red LED matrix behind smoked glass (indicator above the doors + display on the panel) ===== */
 const GLYPH = {A:'.###.#...##...#######...##...##...#',B:'####.#...##...#####.#...##...#####.',C:'.###.#...##....#....#....#...#.###.',D:'####.#...##...##...##...##...#####.',
 E:'######....#....####.#....#....#####',F:'######....#....####.#....#....#....',G:'.###.#...##....#.####...##...#.####',H:'#...##...##...#######...##...##...#',
 I:'.###...#....#....#....#....#...###.',J:'..###...#....#....#....#.#..#..##..',K:'#...##..#.#.#..##...#.#..#..#.#...#',L:'#....#....#....#....#....#....#####',
@@ -384,73 +379,80 @@ Y:'#...##...#.#.#...#....#....#....#..',Z:'#####....#...#...#...#...#....#####',
 4:'...#...##..#.#.#..#.#####...#....#.',5:'######....####.....#....##...#.###.',6:'..##..#...#....####.#...##...#.###.',7:'#####....#...#...#...#....#....#...',
 8:'.###.#...##...#.###.#...##...#.###.',9:'.###.#...##...#.####....#...#..##..'};
 const GL_EXTRA = { ' ': '.'.repeat(35), '-': '..........#####..........'.padEnd(35, '.') };
-function ledScreen(cols, rows, pxPerDot) {
-  const c = document.createElement('canvas'); c.width = cols * pxPerDot; c.height = rows * pxPerDot;
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = MAXANI;
-  return { c, tex, cols, rows, p: pxPerDot,
-    draw(lit, arrows) {   // lit: Set of dot indices; arrows: {up, down, x0, x1} drawn as lamps
-      const g = c.getContext('2d'), p = this.p;
-      g.fillStyle = '#060303'; g.fillRect(0, 0, c.width, c.height);
-      for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
-        const on = lit.has(r * cols + k), x = k * p + p / 2, y = r * p + p / 2;
-        if (on) { g.shadowColor = 'rgba(255,70,30,.95)'; g.shadowBlur = p * .9; g.fillStyle = '#ff5a2c'; }
-        else { g.shadowBlur = 0; g.fillStyle = '#1d0d09'; }
-        g.beginPath(); g.arc(x, y, p * .34, 0, 7); g.fill();
-        if (on) { g.shadowBlur = 0; g.fillStyle = 'rgba(255,220,180,.9)'; g.beginPath(); g.arc(x - p * .06, y - p * .06, p * .12, 0, 7); g.fill(); }
-      }
-      g.shadowBlur = 0; tex.needsUpdate = true;
-    } };
-}
-function textDots(scr, text, align = 'center', reserve = 0, rowOff = 0) {
-  const lit = new Set(), w = text.length * 6 - 1, top = Math.floor((scr.rows - 7) / 2);
-  const span = scr.cols - reserve * 2;
-  let x0 = align === 'center' ? reserve + Math.floor((span - w) / 2) : reserve;
+function makeScreen(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = MAXANI; return { c, tex, g: c.getContext('2d') }; }
+function textDots(grid, text, rowOff = 0) {   // → Set of lit dot indices, text centred in the grid
+  const lit = new Set(), w = text.length * 6 - 1, top = Math.floor((grid.rows - 7) / 2), x0 = Math.floor((grid.cols - w) / 2);
   [...text].forEach((ch, n) => { const gl = GLYPH[ch] || GL_EXTRA[ch]; if (!gl) return;
-    for (let i = 0; i < 35; i++) if (gl[i] === '#') { const x = x0 + n * 6 + (i % 5), y = top + Math.floor(i / 5) + rowOff; if (x >= 0 && x < scr.cols && y >= 0 && y < scr.rows) lit.add(y * scr.cols + x); } });
+    for (let i = 0; i < 35; i++) if (gl[i] === '#') { const x = x0 + n * 6 + (i % 5), y = top + Math.floor(i / 5) + rowOff; if (x >= 0 && x < grid.cols && y >= 0 && y < grid.rows) lit.add(y * grid.cols + x); } });
   return lit;
 }
-function arrowDots(scr, x, dir, lit) {   // 7-row triangle
-  const top = Math.floor((scr.rows - 7) / 2);
-  for (let r = 0; r < 7; r++) { const half = dir > 0 ? Math.floor(r / 2) : Math.floor((6 - r) / 2); for (let k = -half; k <= half; k++) lit.add((top + r) * scr.cols + x + k); }
+// one LED: a small rounded-square die with a hot centre and a soft bloom; unlit ones barely show through the glass
+function drawMatrix(g, grid, lit, ox, oy, p) {
+  for (let r = 0; r < grid.rows; r++) for (let k = 0; k < grid.cols; k++) {
+    const on = lit.has(r * grid.cols + k), x = ox + k * p, y = oy + r * p, s = p * .7, o = (p - s) / 2;
+    if (!on) { g.fillStyle = 'rgba(60,10,12,.5)'; g.fillRect(x + o, y + o, s, s); continue; }
+    g.shadowColor = 'rgba(255,30,50,.95)'; g.shadowBlur = p * 1.1; g.fillStyle = '#ff2f43'; g.beginPath(); g.roundRect(x + o, y + o, s, s, s * .28); g.fill();
+    g.shadowBlur = 0; g.fillStyle = 'rgba(255,190,190,.85)'; g.fillRect(x + o + s * .3, y + o + s * .3, s * .4, s * .4);
+  }
+  g.shadowBlur = 0;
 }
-const maxName = Math.max(...F.map((f, i) => `${i + 1} ${f.n.toUpperCase()}`.length));
-const IND = ledScreen(maxName * 6 + 15, 11, 16);
-const PSC = ledScreen(22, 11, 16);
-let indText = '', indDir = 0, curShown = 0;
+function lampTri(g, x, y, s, up, on) {   // direction lamp: a backlit white triangle
+  g.beginPath(); if (up) { g.moveTo(x, y - s * .55); g.lineTo(x + s * .6, y + s * .45); g.lineTo(x - s * .6, y + s * .45); } else { g.moveTo(x - s * .6, y - s * .45); g.lineTo(x + s * .6, y - s * .45); g.lineTo(x, y + s * .55); } g.closePath();
+  if (on) { g.shadowColor = 'rgba(255,244,220,.95)'; g.shadowBlur = s * .7; g.fillStyle = '#fff6e2'; g.fill(); g.shadowBlur = 0; }
+  else { g.fillStyle = 'rgba(255,255,255,.07)'; g.fill(); }
+}
+const maxName = Math.max(...F.map((f, i) => `${i + 1} ${f.n.toUpperCase()}`.length), 8);
+const IND = makeScreen(1536, 256), PSC = makeScreen(512, 256);
+const IGRID = { cols: maxName * 6 + 1, rows: 9 }, PGRID = { cols: 13, rows: 9 };
+let indText = '', indDir = 0, curShown = 0, flashText = null;
 function drawIndicator(now = performance.now()) {
-  const two = (scr, from, to, reserve) => {   // old text rolls out as the new one rolls in
-    if (!roll) return textDots(scr, to, 'center', reserve);
-    const k = clamp((now - roll.t0) / 280, 0, 1), off = Math.round(k * scr.rows), lit = textDots(scr, from, 'center', reserve, -roll.dir * off);
-    for (const d of textDots(scr, to, 'center', reserve, roll.dir * (scr.rows - off))) lit.add(d);
-    return lit; };
-  const arrow = indDir && (typeof blinkOn === 'undefined' || blinkOn);
-  const lit = two(IND, roll ? roll.from : '', indText, 7);
-  if (arrow) arrowDots(IND, indDir > 0 ? IND.cols - 4 : 3, indDir, lit);
-  IND.draw(lit);
-  const pl = two(PSC, roll ? (roll.from.split(' ')[0] || '') : '', String(curShown + 1), 0);
-  if (arrow) arrowDots(PSC, 3, indDir, pl);
-  PSC.draw(pl);
-  if (roll && now - roll.t0 >= 280) roll = null;
+  const kRoll = roll ? clamp((now - roll.t0) / 280, 0, 1) : 1;
+  const dots = (grid, from, to) => { if (!roll) return textDots(grid, to); const off = Math.round(kRoll * grid.rows), lit = textDots(grid, from, -roll.dir * off); for (const d of textDots(grid, to, roll.dir * (grid.rows - off))) lit.add(d); return lit; };
+  const blinkOk = typeof blinkOn === 'undefined' ? true : blinkOn, up = indDir > 0 && blinkOk, down = indDir < 0 && blinkOk;
+  // --- indicator: [▼]  1 INTRO  [▲], with a lamp per floor underneath
+  { const g = IND.g, W = 1536, H = 256; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
+    const p = Math.min((W - 330) / IGRID.cols, 150 / IGRID.rows), mw = p * IGRID.cols;
+    drawMatrix(g, IGRID, flashText ? textDots(IGRID, flashText) : dots(IGRID, roll ? roll.from : '', indText), (W - mw) / 2, 30, p);
+    lampTri(g, 82, 98, 62, false, down); lampTri(g, W - 82, 98, 62, true, up);
+    const n = F.length, gap = Math.min(46, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
+    for (let i = 0; i < n; i++) { const on = i === curShown, x = x0 + i * gap; g.beginPath(); g.arc(x, 214, 9, 0, 7);
+      if (on) { g.shadowColor = 'rgba(255,40,55,.95)'; g.shadowBlur = 16; g.fillStyle = '#ff3a4a'; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(255,210,205,.9)'; g.beginPath(); g.arc(x - 2, 212, 3.2, 0, 7); g.fill(); }
+      else { g.fillStyle = 'rgba(90,18,20,.55)'; g.fill(); } }
+    IND.tex.needsUpdate = true; }
+  // --- panel display: floor number + travel arrow
+  { const g = PSC.g, W = 512, H = 256; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
+    const p = 21, mw = p * PGRID.cols;
+    drawMatrix(g, PGRID, dots(PGRID, roll ? (roll.from.split(' ')[0] || '') : '', String(curShown + 1)), W - mw - 46, (H - p * PGRID.rows) / 2, p);
+    lampTri(g, 96, 128, 74, indDir > 0, indDir !== 0 && blinkOk);
+    PSC.tex.needsUpdate = true; }
+  if (roll && kRoll >= 1) roll = null;
 }
 const setIndicator = i => { curShown = i; indText = `${i + 1} ${F[i].n.toUpperCase()}`; drawIndicator(); markHere(i); };
 function markHere(i) { btnRings.forEach((r, k) => { if (r.userData.lit) return; r.material.emissive.setHex(k === i ? 0xb8b2a6 : 0); r.material.emissiveIntensity = k === i ? .6 : 0; }); }
-// glossy glass over a screen: the LEDs glow through, the room reflects on top
-const screenMat = scr => new THREE.MeshPhysicalMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: scr.tex, emissiveIntensity: 2.4, roughness: .5, metalness: 0, specularIntensity: .25, clearcoat: .25, clearcoatRoughness: .05, envMapIntensity: .1 });
+// the screen surface: LEDs glowing from behind smoked glass that still catches the room's reflection
+const screenMat = scr => new THREE.MeshPhysicalMaterial({ color: 0x020202, emissive: 0xffffff, emissiveMap: scr.tex, emissiveIntensity: 3.2, roughness: .4, metalness: 0, specularIntensity: .12, clearcoat: .22, clearcoatRoughness: .06, envMapIntensity: .06 });
 
 /* ===== PANEL (floor buttons on the front wall, right of the doors) ===== */
-const btnMeshes = [], btnRings = [];
-function buttonTop(n) {
+const btnMeshes = [], btnRings = [], fnMeshes = [];
+function capTexture(draw) {
   return canvasTex(256, 256, (g) => {
-    const r = g.createRadialGradient(110, 100, 10, 128, 128, 128); r.addColorStop(0, '#e9eaeb'); r.addColorStop(.75, '#b4b6b9'); r.addColorStop(1, '#8e9093'); g.fillStyle = r; g.fillRect(0, 0, 256, 256);
+    const r = g.createRadialGradient(110, 100, 10, 128, 128, 128); r.addColorStop(0, '#ecebe8'); r.addColorStop(.75, '#b9b7b2'); r.addColorStop(1, '#93918c'); g.fillStyle = r; g.fillRect(0, 0, 256, 256);
     for (let i = 0; i < 300; i++) { g.strokeStyle = `rgba(255,255,255,${Math.random() * .08})`; g.beginPath(); g.arc(128, 128, Math.random() * 128, 0, 7); g.stroke(); }  // spun finish
-    g.font = '700 118px -apple-system,Helvetica,Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(n, 129, 141); g.fillStyle = '#26272a'; g.fillText(n, 128, 138);   // engraved
+    g.translate(128, 128); for (const [dx, dy, col] of [[1.5, 3, 'rgba(255,255,255,.55)'], [0, 0, '#26272a']]) { g.save(); g.translate(dx, dy); g.fillStyle = g.strokeStyle = col; draw(g); g.restore(); }   // engraved: light edge under dark fill
   }, { repeat: false });
 }
+const numberCap = n => capTexture(g => { g.font = '700 118px -apple-system,Helvetica,Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(n, 0, 8); });
+const tri = (g, x, dir, s = 34) => { g.beginPath(); g.moveTo(x - dir * s * .5, -s * .62); g.lineTo(x + dir * s * .5, 0); g.lineTo(x - dir * s * .5, s * .62); g.closePath(); g.fill(); };
+const FN = {
+  open: { label: 'OPEN', draw: g => { g.fillRect(-4, -44, 8, 88); tri(g, -40, -1); tri(g, 40, 1); } },             // ◀|▶
+  close: { label: 'CLOSE', draw: g => { g.fillRect(-4, -44, 8, 88); tri(g, -34, 1); tri(g, 34, -1); } },           // ▶|◀
+  alarm: { label: 'ALARM', draw: g => { g.beginPath(); g.moveTo(-46, 30); g.quadraticCurveTo(-30, 18, -30, -8); g.arc(0, -8, 30, Math.PI, 0); g.quadraticCurveTo(30, 18, 46, 30); g.closePath(); g.fill(); g.beginPath(); g.arc(0, 42, 11, 0, Math.PI); g.fill(); g.fillRect(-5, -50, 10, 14); } },
+  call: { label: 'CALL', draw: g => { g.lineWidth = 20; g.lineCap = 'round'; g.beginPath(); g.arc(0, 26, 46, Math.PI * 1.18, Math.PI * 1.82); g.stroke(); g.save(); g.rotate(-.62); g.fillRect(-62, -12, 30, 42); g.restore(); g.save(); g.rotate(.62); g.fillRect(32, -12, 30, 42); g.restore(); } },
+};
 function plateTexture(pw, ph, labels) {
   const s = 1024 / pw;
   return canvasTex(1024, Math.round(ph * s), (g, w, h) => {
-    g.fillStyle = '#b9bbbe'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#bdbab4'; g.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x++) { g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .06})`; g.fillRect(x, 0, 1, h); }
     g.font = '700 34px -apple-system,Helvetica,Arial,sans-serif'; g.textAlign = 'center';
     for (const [t, x, y] of labels) { g.fillStyle = 'rgba(255,255,255,.6)'; g.fillText(t, x * s, (ph / 2 - y) * s + 2); g.fillStyle = '#2b2c2f'; g.fillText(t, x * s, (ph / 2 - y) * s); }
@@ -469,7 +471,7 @@ function aoMat(flip, strength = .5) {
   if (flip) { m.map = aoTexCache.clone(); m.map.flipY = false; m.map.needsUpdate = true; }
   return m;
 }
-// reflections: a snapshot of the cab itself (walls, light, doors), so the metal reflects the real room
+// reflections: a snapshot of the cab itself (walls, luminous ceiling, doors), so the metal reflects the real room
 const cubeRT = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType });
 const cubeCam = new THREE.CubeCamera(.05, 40, cubeRT);
 let envTex = null, envDirty = 0;
@@ -486,7 +488,7 @@ function doCaptureEnv() {
 
 /* ===== BUILD ===== */
 const cab = new THREE.Group(); scene.add(cab);
-const doors = { l: null, r: null }, ldoors = { l: null, r: null };
+const doors = { l: null, r: null }, ldoors = { l: new THREE.Group(), r: new THREE.Group() };
 let G = {};            // live geometry numbers
 let pageObj = null;
 const wallEl = document.createElement('div'); wallEl.className = 'wall';
@@ -504,139 +506,150 @@ function rectLight(color, intensity, w, h, x, y, z) {   // ceiling area light fa
   const l = new THREE.RectAreaLight(color, intensity, w, h); l.position.set(x, y, z); l.rotation.set(-Math.PI / 2, 0, 0); cab.add(l); return l;
 }
 const repeatTex = (t, rx, ry) => { const c = t.clone(); c.repeat.set(rx, ry); c.needsUpdate = true; return c; };
-const withMap = (mat, key, tex) => { const m = mat.clone(); m[key] = tex; return m; };
+// veneer mapped by position, so the grain runs on continuously from panel to panel
+const WOOD_M = 1.15;   // metres covered by one tile of the scan
+function woodAt(u0, u1, y0, y1, seed = 0) {
+  const m = M.wood.clone();
+  for (const k of ['map', 'normalMap', 'roughnessMap']) { m[k] = M.wood[k].clone(); m[k].repeat.set((u1 - u0) / WOOD_M, (y1 - y0) / WOOD_M); m[k].offset.set(u0 / WOOD_M + seed, y0 / WOOD_M); m[k].needsUpdate = true; }
+  return m;
+}
+// one run of wall, built in a group (local x along the wall, y up, facing local +z):
+// dark satin panel below a brushed-steel rail, sapele veneer above in bays split by thin steel reveals, steel kick plate at the floor
+const RAIL_Y = .84, RAIL_H = .04, KICK = .1, BAY = .62;
+function wallRun(u0, u1, yTop, seed = 0) {
+  const g = new THREE.Group(), w = u1 - u0, uc = (u0 + u1) / 2; cab.add(g);
+  plane(w, RAIL_Y - KICK, M.lower, uc, (RAIL_Y + KICK) / 2, 0, 0, 0, g);
+  box(w, KICK, .012, M.steelDark, uc, KICK / 2, .006, g);
+  box(w, RAIL_H, .016, M.steel, uc, RAIL_Y + RAIL_H / 2, .008, g);
+  plane(w, yTop - RAIL_Y - RAIL_H, woodAt(u0, u1, RAIL_Y + RAIL_H, yTop, seed), uc, (yTop + RAIL_Y + RAIL_H) / 2, 0, 0, 0, g);
+  for (let u = Math.ceil((u0 + .08) / BAY) * BAY; u < u1 - .08; u += BAY) box(.007, yTop - KICK, .004, M.steelPolished, u, (yTop + KICK) / 2, .002, g);
+  return g;
+}
 
 function build() {
   cab.traverse(o => { if (o.geometry) o.geometry.dispose(); });
-  cab.clear(); btnMeshes.length = 0; btnRings.length = 0;
+  cab.clear(); btnMeshes.length = 0; btnRings.length = 0; fnMeshes.length = 0;
   const aspect = innerWidth / innerHeight;
-  // doorway shape follows the screen: wide on desktop, tall like a real lift on a phone
   const vfov = CFG.fov * Math.PI / 180, hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
   // framing matches the 2D version: the doorway fills the screen width, a strip of wall with the indicator sits on top,
   // and the doors run off the bottom of the screen (no floor in view, with some margin for looking down)
   const oh = CFG.openingH, viewTop = oh + CFG.headroom, floorMargin = .45;
-  const Hvis = viewTop - floorMargin;                       // wall height in view at the doors
+  const Hvis = viewTop - floorMargin;                   // wall height in view at the doors
   const ow = Hvis * aspect / 1.04;                      // doorway width that fills the screen with thin wall either side
   const D = (Hvis / 2) / Math.tan(vfov / 2);
   const eye = viewTop - Hvis / 2;
-  const cabH = oh + 0.62, pocket = ow / 2 + 0.25;
-  const panelSide = 1.25;
+  // header above the doors, as in the references: steel transom, a band of veneer carrying the indicator, steel band, luminous ceiling
+  const TRANSOM = .07, BAND = .17, TOPBAND = .07, cabH = oh + TRANSOM + BAND + TOPBAND, woodTop = cabH - TOPBAND;
+  const pocket = ow / 2 + 0.25, panelSide = 1.3;
   const xl = -ow / 2 - pocket, xr = ow / 2 + pocket + panelSide;
   const depth = D + 0.8;
   G = { ow, oh, D, eye, cabH, xl, xr, depth };
 
-  /* --- cab: front wall in one continuous veneer --- */
-  const wl = -ow / 2 - xl, wr = xr - ow / 2;
-  const woodAt = (x0, x1, y0, y1) => { const m = M.wood.clone();
-    for (const k of ['map', 'normalMap']) { m[k] = M.wood[k].clone(); m[k].repeat.set((x1 - x0) / 1.2, (y1 - y0) / cabH); m[k].offset.set(x0 / 1.2, y0 / cabH); m[k].needsUpdate = true; }
-    m.userData.live = true; return m; };
-  box(wl, cabH, .05, woodAt(xl, -ow / 2, 0, cabH), xl + wl / 2, cabH / 2, .025);
-  box(wr, cabH, .05, woodAt(ow / 2, xr, 0, cabH), ow / 2 + wr / 2, cabH / 2, .025);
-  box(ow, cabH - oh, .05, woodAt(-ow / 2, ow / 2, oh, cabH), 0, oh + (cabH - oh) / 2, .025);
-  // polished steel architrave around the doorway, with a bevel catch-light
-  const t = .028;
-  const ins = .003;   // inset so no trim face sits exactly on a wall face (that caused flicker)
+  /* --- front wall: veneer bays either side of the doorway, header bands above --- */
+  const FZ = .05, t = .028, ins = .003;
+  wallRun(xl, -ow / 2 - t + ins, woodTop).position.set(0, 0, FZ);
+  wallRun(ow / 2 + t - ins, xr, woodTop).position.set(0, 0, FZ);
+  plane(ow + 2 * t, BAND, woodAt(-ow / 2 - t, ow / 2 + t, oh + TRANSOM, woodTop), 0, oh + TRANSOM + BAND / 2, FZ);
+  box(ow + 2 * t - 2 * ins, TRANSOM, .07, M.steel, 0, oh + TRANSOM / 2 - ins, .035);          // transom over the doors
+  box(xr - xl, TOPBAND, .012, M.steel, (xl + xr) / 2, cabH - TOPBAND / 2, FZ + .006);          // band under the ceiling
+  // slim polished architrave down each side of the doorway
   box(t, oh - ins, .06, M.steelPolished, -ow / 2 - t / 2 + ins, (oh - ins) / 2, .03);
   box(t, oh - ins, .06, M.steelPolished, ow / 2 + t / 2 - ins, (oh - ins) / 2, .03);
-  box(ow + 2 * t - 2 * ins, t, .06, M.steelPolished, 0, oh + t / 2 - ins, .03);
-  // jambs lining the opening; cab sill with grooves
+  // the slots the doors run in; cab sill with grooves
   box(.006, oh, .06, M.slot, -ow / 2 + .003, oh / 2, -.03);
   box(.006, oh, .06, M.slot, ow / 2 - .003, oh / 2, -.03);
-  box(ow, .008, .06, M.slot, 0, oh - .004, -.03);   // the head slot the door hangers run in
+  box(ow, .008, .06, M.slot, 0, oh - .004, -.03);
   box(ow + .1, .014, .15, M.steelDark, 0, .007, -.06);
   for (let k = 0; k < 4; k++) box(ow + .1, .003, .006, M.black, 0, .0145, -.11 + k * .025);
 
-  /* --- cab doors: brushed steel leaves with thickness and a rubber safety edge --- */
+  /* --- cab doors: brushed steel leaves with folded edges and a light-curtain safety edge --- */
   const dw = ow / 2 + .012, dt = .022;
-  const leafMat = side => { const m = side === 'l' ? M.doorL : M.doorR; return m; };
   for (const side of ['l', 'r']) {
     const g = new THREE.Group(); cab.add(g);
-    const s = side === 'l' ? -1 : 1;
-    const lh = oh - .008;   // leaves stop just short of the head, leaving a dark running gap
-    const leaf = new THREE.Mesh(new RoundedBoxGeometry(dw - .012, lh, dt, 4, .005), leafMat(side)); leaf.position.set(s * (dw / 2 + .006), lh / 2, 0);
+    const s = side === 'l' ? -1 : 1, lh = oh - .008;
+    const leaf = new THREE.Mesh(new RoundedBoxGeometry(dw - .012, lh, dt, 4, .005), side === 'l' ? M.doorL : M.doorR); leaf.position.set(s * (dw / 2 + .006), lh / 2, 0);
     if (side === 'r') { const uv = leaf.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i)); }
     g.add(leaf);
-    // light-curtain safety edge: dark anodised channel with a column of sensor lenses, and a rubber nosing where the doors meet
     const cur = new THREE.Mesh(new RoundedBoxGeometry(.012, lh - .02, dt + .006, 3, .003), [M.edge, M.edge, M.edge, M.edge, M.curtain, M.edge]);
     cur.position.set(s * .006, lh / 2, .001); g.add(cur);
     const nose = new THREE.Mesh(new THREE.BoxGeometry(.004, lh - .03, dt * .6), M.edge); nose.position.set(s * .0005, lh / 2, 0); g.add(nose);
     g.position.z = -.035; doors[side] = g;
   }
 
-  /* --- landing wall (the doorway's depth) with its own pair of landing doors --- */
+  /* --- the doorway's (thin) depth beyond the doors --- */
   const rd = CFG.revealDepth, z0 = -.06, z1 = z0 - rd;
   plane(rd, oh, M.reveal, -ow / 2, oh / 2, (z0 + z1) / 2, Math.PI / 2);
   plane(rd, oh, M.reveal, ow / 2, oh / 2, (z0 + z1) / 2, -Math.PI / 2);
   plane(ow, rd, M.reveal, 0, oh, (z0 + z1) / 2, 0, Math.PI / 2);
-  for (const side of ['l', 'r']) {
-    const g = new THREE.Group(); cab.add(g); const s = side === 'l' ? -1 : 1;
-    const leaf = new THREE.Mesh(new THREE.BoxGeometry(dw, oh, .03), M.steel); leaf.position.set(s * dw / 2, oh / 2, 0); g.add(leaf);
-    g.position.z = z0 - .02; g.visible = false; ldoors[side] = g;
-  }
 
-  /* --- cab interior: walls, luminous ceiling, terrazzo floor, handrails --- */
-  const sideWood = (len) => { const m = M.wood.clone(); for (const k of ['map', 'normalMap']) { m[k] = M.wood[k].clone(); m[k].repeat.set(len / 1.2, 1); m[k].needsUpdate = true; } return m; };
-  plane(depth, cabH, sideWood(depth), xl, cabH / 2, depth / 2, Math.PI / 2);
-  plane(depth, cabH, sideWood(depth), xr, cabH / 2, depth / 2, -Math.PI / 2);
-  plane(xr - xl, cabH, sideWood(xr - xl), (xl + xr) / 2, cabH / 2, depth, Math.PI);
-  plane(xr - xl, depth, M.ceil, (xl + xr) / 2, cabH, depth / 2, 0, Math.PI / 2);
+  /* --- cab interior: side and back walls in the same scheme, luminous ceiling, terrazzo floor, handrails --- */
+  { const g = wallRun(0, depth, woodTop, .37); g.rotation.y = Math.PI / 2; g.position.set(xl, 0, depth); }
+  { const g = wallRun(0, depth, woodTop, .61); g.rotation.y = -Math.PI / 2; g.position.set(xr, 0, 0); }
+  { const g = wallRun(0, xr - xl, woodTop, .83); g.rotation.y = Math.PI; g.position.set(xr, 0, depth); }
+  plane(depth, TOPBAND, M.steel, xl + .001, cabH - TOPBAND / 2, depth / 2, Math.PI / 2);
+  plane(depth, TOPBAND, M.steel, xr - .001, cabH - TOPBAND / 2, depth / 2, -Math.PI / 2);
+  plane(xr - xl, TOPBAND, M.steel, (xl + xr) / 2, cabH - TOPBAND / 2, depth - .001, Math.PI);
+  // ceiling: backlit white panels divided by steel strips (the soft, even light of the reference)
+  plane(xr - xl, depth, M.ceilGlow, (xl + xr) / 2, cabH, depth / 2, 0, Math.PI / 2);
+  for (let x = Math.ceil(xl / 1.1) * 1.1; x < xr; x += 1.1) box(.035, .006, depth, M.steel, x + .55, cabH - .003, depth / 2);
+  for (let z = .9; z < depth; z += 1.2) box(xr - xl, .006, .035, M.steel, (xl + xr) / 2, cabH - .003, z);
   const fl = M.floor.clone(); fl.map = repeatTex(terrazzo, (xr - xl) / 1.6, depth / 1.6); fl.roughnessMap = repeatTex(terrazzoRough, (xr - xl) / 1.6, depth / 1.6);
   plane(xr - xl, depth, fl, (xl + xr) / 2, 0, depth / 2, 0, -Math.PI / 2);
-  // ceiling: a large recessed light panel in a steel frame, plus small downlights
-  const lw = Math.min(2.2, ow * .7), ld = Math.min(1.4, depth * .45), lz = D * .5;
-  box(lw + .08, .02, ld + .08, M.steelDark, 0, cabH - .01, lz);
-  plane(lw, ld, M.diffuser, 0, cabH - .021, lz, 0, Math.PI / 2);
-  rectLight(0xffe9d2, 7, lw, ld, 0, cabH - .03, lz);
-  for (const x of [xl + .6, xr - .6]) for (const z of [D * .25, D * .85]) {
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(.05, 32), M.diffuser); disc.position.set(x, cabH - .003, z); disc.rotation.x = Math.PI / 2; cab.add(disc);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(.05, .065, 32), M.steelDark); ring.position.set(x, cabH - .002, z); ring.rotation.x = Math.PI / 2; cab.add(ring);
-  }
   for (const x of [xl + .06, xr - .06]) {
-    const rail = new THREE.Mesh(new THREE.CylinderGeometry(.019, .019, depth - .4, 24), M.steelPolished); rail.rotation.x = Math.PI / 2; rail.position.set(x, .95, depth / 2 + .1); cab.add(rail);
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(.019, .019, depth - .4, 24), M.steelPolished); rail.rotation.x = Math.PI / 2; rail.position.set(x, RAIL_Y + .1, depth / 2 + .1); cab.add(rail);
   }
 
-  /* --- indicator above the doors: LED matrix behind glass in a steel bezel --- */
-  const iw = Math.min(.8, ow * .34), ih = iw * IND.rows / IND.cols, iy = oh + .05 + .03 + ih / 2 + .015;
-  box(iw + .07, ih + .07, .03, M.steel, 0, iy, .055);
-  plane(iw, ih, screenMat(IND), 0, iy, .0705);
-  plane(iw * 1.6, ih * 3, new THREE.MeshBasicMaterial({ map: glowTex('255,70,30'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .14 }), 0, iy, .073);
+  /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, red LEDs --- */
+  const sw0 = Math.min(.52, ow * .3), sh0 = sw0 * 256 / 1536, iy = oh + TRANSOM + BAND * .44;
+  const house = new THREE.Mesh(new RoundedBoxGeometry(sw0 + .1, sh0 + .034, .034, 4, .012), M.steel); house.position.set(0, iy, FZ + .017); cab.add(house);
+  box(sw0 + .012, sh0 + .012, .004, M.black, 0, iy, FZ + .033);
+  plane(sw0, sh0, screenMat(IND), 0, iy, FZ + .0356);
+  plane(sw0 * 1.5, sh0 * 3.2, new THREE.MeshBasicMaterial({ map: glowTex('255,40,55'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .07 }), 0, iy, FZ + .038);
 
-  /* --- button panel: brushed plate, LED display, engraved buttons with halo rings --- */
-  const cols = 3, rows = Math.ceil(F.length / cols), pw = .6, top = .2, ph = top + .1 + rows * .185;
-  const px = ow / 2 + .6, py = eye - .02;
-  const bxs = c => -pw / 2 + .11 + c * ((pw - .22) / (cols - 1)), bys = r => ph / 2 - top - .06 - r * .185;
-  const labels = F.map((f, k) => [f.n.toUpperCase(), bxs(k % cols) + pw / 2, bys(Math.floor(k / cols)) - .068]);
-  box(pw, ph, .014, new THREE.MeshPhysicalMaterial({ map: plateTexture(pw, ph, labels), normalMap: steelSet.normal, normalScale: new THREE.Vector2(.08, .08), metalness: .9, roughness: .38, anisotropy: .6, anisotropyRotation: Math.PI / 2 }), px, py, .057);
-  const sw = .26, sh = sw * PSC.rows / PSC.cols;
-  box(sw + .03, sh + .03, .006, M.black, px, py + ph / 2 - top / 2, .066);
-  plane(sw, sh, screenMat(PSC), px, py + ph / 2 - top / 2, .0695);
-  F.forEach((f, k) => {
-    const x = px + bxs(k % cols), y = py + bys(Math.floor(k / cols));
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(.037, .0055, 16, 64), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, emissive: 0x000000, metalness: .3, roughness: .35 }));
-    ring.position.set(x, y, .065); cab.add(ring); btnRings.push(ring);
-    const b = new THREE.Mesh(new THREE.CylinderGeometry(.031, .033, .016, 48), [M.steelPolished, new THREE.MeshPhysicalMaterial({ map: buttonTop(k + 1), metalness: .85, roughness: .3, clearcoat: .3 }), M.steelPolished]);
-    b.rotation.x = Math.PI / 2; b.position.set(x, y, .069); b.userData.floor = k; cab.add(b); btnMeshes.push(b);
-  });
-  G.panel = new THREE.Vector3(px, py, .06);
+  /* --- button panel: brushed plate, LED display, engraved buttons with halo rings, lift functions along the bottom --- */
+  const cols = 3, rows = Math.ceil(F.length / cols), fns = CFG.functions.filter(f => FN[f]), pw = .6, top = .2, pitch = .185;
+  const ph = top + .1 + rows * pitch + (fns.length ? pitch + .05 : 0);
+  const px = ow / 2 + .58, py = Math.max(eye + .06, RAIL_Y + RAIL_H + ph / 2 + .05);
+  const bxs = c => -pw / 2 + .11 + c * ((pw - .22) / (cols - 1)), bys = r => ph / 2 - top - .06 - r * pitch;
+  const fy = bys(rows) - .05, fxs = k => -pw / 2 + .085 + k * ((pw - .17) / Math.max(1, fns.length - 1));
+  const labels = F.map((f, k) => [f.n.toUpperCase(), bxs(k % cols) + pw / 2, bys(Math.floor(k / cols)) - .068]).concat(fns.map((f, k) => [FN[f].label, fxs(k) + pw / 2, fy - .062]));
+  box(pw, ph, .014, new THREE.MeshPhysicalMaterial({ map: plateTexture(pw, ph, labels), color: 0xf3ece0, normalMap: steelSet.normal, normalScale: new THREE.Vector2(.08, .08), metalness: .9, roughness: .38, anisotropy: .6, anisotropyRotation: Math.PI / 2 }), px, py, FZ + .007);
+  { const m = box(pw - .08, .002, .001, M.steelDark, px, py + fy + pitch * .52, FZ + .0145); m.visible = fns.length > 0; }   // fine line above the function row
+  const psw = .24, psh = psw * 256 / 512;
+  box(psw + .02, psh + .02, .006, M.black, px, py + ph / 2 - top / 2 - .01, FZ + .016);
+  { const s = plane(psw, psh, screenMat(PSC), px, py + ph / 2 - top / 2 - .01, FZ + .0195); }
+  // a button: steel body (the part that's hit-tested and depresses), an upright engraved cap, and a halo ring
+  const addButton = (x, y, capTex, radius, ringColor) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius + .006, .0055, 16, 64), new THREE.MeshStandardMaterial({ color: ringColor, emissive: 0x000000, metalness: .3, roughness: .35 }));
+    ring.position.set(x, y, FZ + .015); cab.add(ring);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius + .002, .016, 48), M.steelPolished); b.rotation.x = Math.PI / 2; b.position.set(x, y, FZ + .019); cab.add(b);
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(radius - .0015, 48), new THREE.MeshPhysicalMaterial({ map: capTex, metalness: .85, roughness: .3, clearcoat: .3 }));
+    cap.rotation.x = -Math.PI / 2; cap.position.y = .0083; b.add(cap);   // child of the body: faces the cab, number the right way up
+    return { ring, b };
+  };
+  F.forEach((f, k) => { const { ring, b } = addButton(px + bxs(k % cols), py + bys(Math.floor(k / cols)), numberCap(k + 1), .031, 0x2a2a2a); b.userData.floor = k; btnRings.push(ring); btnMeshes.push(b); });
+  fns.forEach((f, k) => { const { ring, b } = addButton(px + fxs(k), py + fy, capTexture(g => { g.scale(1.45, 1.45); FN[f].draw(g); }), .029, f === 'alarm' ? 0x5a1512 : 0x2a2a2a); b.userData.fn = f; b.userData.ring = ring; fnMeshes.push(b); });
+  G.panel = new THREE.Vector3(px, py, FZ + .01);
 
-  /* --- lights --- */
-  const spot = new THREE.SpotLight(0xffe4c4, 9, 0, 1.2, 1, 2); spot.position.set(0, cabH - .05, lz);
+  /* --- lights: the luminous ceiling does the work; a soft spot adds gentle shadows --- */
+  const lz = D * .5;
+  rectLight(0xfff1de, 3.4, Math.min(xr - xl, 5.5) * .9, depth * .85, (xl + xr) / 2 * .5, cabH - .02, depth / 2);
+  const spot = new THREE.SpotLight(0xfff0dc, 5, 0, 1.2, 1, 2); spot.position.set(0, cabH - .05, lz);
   spot.target.position.set(0, 0, lz * .8); cab.add(spot, spot.target);
-  spot.castShadow = SHADOWS; spot.shadow.mapSize.set(2048, 2048); spot.shadow.bias = -.0008; spot.shadow.normalBias = .04; spot.shadow.radius = 8; spot.shadow.camera.near = .2;
-  cab.add(new THREE.HemisphereLight(0xfff3e0, 0x2a2420, .18));
-  // light from the room spilling into the cab through the open doors
+  spot.castShadow = SHADOWS; spot.shadow.mapSize.set(2048, 2048); spot.shadow.bias = -.0008; spot.shadow.normalBias = .04; spot.shadow.radius = 10; spot.shadow.camera.near = .2;
+  cab.add(new THREE.HemisphereLight(0xfff6ea, 0x6b6157, .38));
+  // light from beyond the doors spilling into the cab
   G.landing = new THREE.PointLight(0xfff0dc, 0, 0, 2); G.landing.position.set(0, oh * .8, z1 - .3); cab.add(G.landing);
   G.bounce = new THREE.AmbientLight(0xffffff, 0); cab.add(G.bounce);   // the floor's colour bouncing around the cab once the doors open
+  G.alarm = new THREE.PointLight(0xff2a1a, 0, 0, 1.6); G.alarm.position.set(0, cabH - .3, D * .5); cab.add(G.alarm);
   // shaft lights seen through the hairline between the closed doors while the car travels
   G.gap = plane(.005, oh, new THREE.MeshBasicMaterial({ map: shaftTex.clone(), color: 0xfff1d6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), 0, oh / 2, -.0195);
   G.gap.material.map.needsUpdate = true;
   G.gapLight = new THREE.PointLight(0xfff0d0, 0, 2.5, 2); G.gapLight.position.set(0, eye, .3); cab.add(G.gapLight);
-  // soft contact shadows where cab walls meet floor and ceiling
-  const ao = (w, x, y, z, ry, flip, s = .5) => { const m = plane(w, .32, aoMat(flip, s), x, y, z, ry); m.renderOrder = 1; };
-  ao(wl, xl + wl / 2, .16, .052, 0, false); ao(wr, ow / 2 + wr / 2, .16, .052, 0, false);
-  ao(depth, xl + .002, .16, depth / 2, Math.PI / 2, false); ao(depth, xr - .002, .16, depth / 2, -Math.PI / 2, false);
-  ao(xr - xl, (xl + xr) / 2, cabH - .16, .052, 0, true, .35);
-  ao(depth, xl + .002, cabH - .16, depth / 2, Math.PI / 2, true, .35); ao(depth, xr - .002, cabH - .16, depth / 2, -Math.PI / 2, true, .35);
+  // soft contact shadows: under the transom onto the doors, and where walls meet floor and ceiling
+  const ao = (w, x, y, z, ry, flip, s = .5, h = .32) => { const m = plane(w, h, aoMat(flip, s), x, y, z, ry); m.renderOrder = 1; return m; };
+  ao(ow, 0, oh - .09, -.022, 0, true, .55, .18);
+  ao(depth, xl + .004, .16, depth / 2, Math.PI / 2, false, .4); ao(depth, xr - .004, .16, depth / 2, -Math.PI / 2, false, .4);
   cab.traverse(o => { if (o.isMesh && !o.material.transparent && !o.material.isMeshBasicMaterial) { o.receiveShadow = SHADOWS; o.castShadow = SHADOWS; } });
   G.envPos = new THREE.Vector3(0, eye, D * .6);
   captureEnv();
@@ -701,12 +714,17 @@ function floorNow() { const v = pageEl.scrollTop; let f = 0; swaps.forEach((s, i
 function updateVisibility() { const v = pageEl.scrollTop; stops.forEach((st, i) => st.classList.toggle('gone', i < swaps.length && v > swaps[i])); }
 
 /* ===== INPUT: scroll (wheel, touch drag with momentum, keys) ===== */
+let arrowTimer = 0;
 let scrollY = 0, vel = 0, dragging = false, lastTouchY = 0, lastTouchT = 0, scrolled = false;
 const maxScroll = () => pageEl.scrollHeight - pageEl.clientHeight;
 function nudge(dy) {
   if (busy) return;
   if (turned) lookAtPanel(false);
   scrollY = clamp(scrollY + dy, 0, maxScroll());
+  if (dy) {   // direction arrows light while you scroll, and go out when you stop (scrolling down = the lift going down)
+    const d = dy > 0 ? -1 : 1; if (d !== indDir) { indDir = d; drawIndicator(); }
+    clearTimeout(arrowTimer); arrowTimer = setTimeout(() => { if (!busy) { indDir = 0; drawIndicator(); } }, 450);
+  }
   if (!scrolled && dy) { scrolled = true; root.querySelector('.hint').classList.add('off'); }
 }
 root.addEventListener('wheel', e => { e.preventDefault(); nudge(e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY); }, { passive: false });
@@ -738,13 +756,13 @@ const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function hitButton(e) {
   ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  const h = ray.intersectObjects(btnMeshes, false)[0];
-  return h ? h.object.userData.floor : null;
+  const h = ray.intersectObjects([...btnMeshes, ...fnMeshes], false)[0];
+  return h ? h.object : null;
 }
 root.addEventListener('click', e => {
   if (e.target.closest('.ui')) return;
-  const f = hitButton(e);
-  if (f !== null) { initAudio(); go(f); }
+  const o = hitButton(e);
+  if (o) { initAudio(); o.userData.fn ? liftFn(o.userData.fn, o) : go(o.userData.floor); }
 });
 
 /* ===== SOUND (only the ding plays while scrolling; everything else belongs to button rides) ===== */
@@ -791,6 +809,17 @@ function doorSound(ms, closing) {   // rollers on the track, the operator motor,
   th.frequency.setValueAtTime(closing ? 92 : 70, tt); th.frequency.exponentialRampToValueAtTime(42, tt + .12);
   tg.gain.setValueAtTime(0, tt); tg.gain.linearRampToValueAtTime(closing ? .2 : .1, tt + .006); tg.gain.exponentialRampToValueAtTime(.0001, tt + .22);
   th.connect(tg).connect(master); th.start(tt); th.stop(tt + .25);
+}
+function alarmSound() {   // old-school alarm bell: fast repeated strikes
+  if (!soundOn || !ac) return; const t = ac.currentTime;
+  for (let i = 0; i < 26; i++) [[1, .5], [2.4, .25], [4.1, .1]].forEach(([m, g]) => { const o = ac.createOscillator(), e = ac.createGain(), t0 = t + i * .095; o.frequency.value = 1480 * m;
+    e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g * .12, t0 + .003); e.gain.exponentialRampToValueAtTime(.0001, t0 + .16); o.connect(e).connect(master); o.start(t0); o.stop(t0 + .18); });
+}
+function callSound() {    // intercom ring: two short bursts
+  if (!soundOn || !ac) return; const t = ac.currentTime;
+  [0, .55].forEach(d => { const o = ac.createOscillator(), m = ac.createOscillator(), g = ac.createGain(), mg = ac.createGain(); o.frequency.value = 440; m.frequency.value = 20; mg.gain.value = .04;
+    g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(.08, t + d + .02); g.gain.setValueAtTime(.08, t + d + .35); g.gain.linearRampToValueAtTime(0, t + d + .38);
+    m.connect(mg).connect(g.gain); o.connect(g).connect(master); o.start(t + d); m.start(t + d); o.stop(t + d + .4); m.stop(t + d + .4); });
 }
 function humOn() {   // traction motor: pitch rises as the car gets up to speed, with a wash of air in the shaft
   if (!soundOn || !ac) return;
@@ -871,7 +900,26 @@ async function go(t) {
   busy = false; root.classList.remove('busy');
 }
 function flashButton(k) { clickSound(); pressButton(k); const m = btnRings[k].material; m.emissive.setHex(0xff6a2a); m.emissiveIntensity = 1.6; setTimeout(() => markHere(curShown), 300); }
-function pressButton(k) { const b = btnMeshes[k]; if (!b) return; const z = b.userData.z0 ?? (b.userData.z0 = b.position.z); b.position.z = z - .006; setTimeout(() => { b.position.z = z; }, 170); }
+function pressButton(k) { const b = typeof k === 'number' ? btnMeshes[k] : k; if (!b) return; const z = b.userData.z0 ?? (b.userData.z0 = b.position.z); b.position.z = z - .006; setTimeout(() => { b.position.z = z; }, 170); }
+function flash(text, ms) { flashText = text; drawIndicator(); setTimeout(() => { flashText = null; drawIndicator(); }, ms); }
+let alarmUntil = 0;
+async function liftFn(fn, b) {
+  clickSound(); pressButton(b);
+  const ring = b.userData.ring.material, lit = () => { ring.emissive.setHex(fn === 'alarm' ? 0xff2a1a : 0xff6a2a); ring.emissiveIntensity = 1.6; }, off = () => { ring.emissiveIntensity = 0; ring.emissive.setHex(0); };
+  lit();
+  if (fn === 'alarm') { alarmUntil = performance.now() + 2600; alarmSound(); flash('ALARM', 2600); setTimeout(off, 2600); return; }
+  if (fn === 'call') { callSound(); flash('CALLING', 2200); setTimeout(off, 2200); if (CFG.contactEmail) setTimeout(() => { location.href = 'mailto:' + CFG.contactEmail; }, 900); return; }
+  if (busy) { setTimeout(off, 250); return; }
+  busy = true; root.classList.add('busy');
+  await sleep(350); lookAtPanel(false);
+  if (fn === 'open') {          // doors open on the floor you're at
+    if (cVal > .02) { scrollY = starts[cur]; pageEl.scrollTop = scrollY; updateVisibility(); doorSound(CFG.doorMs, false); await animateDoors(0, CFG.doorMs); }
+  } else {                      // close: doors shut briefly, then reopen (nowhere to go)
+    const was = cVal; if (cVal < .98) { doorSound(CFG.doorMs, true); await animateDoors(1, CFG.doorMs); bump = .3; }
+    await sleep(900); if (was < .98) { doorSound(CFG.doorMs, false); await animateDoors(was, CFG.doorMs); }
+  }
+  off(); busy = false; root.classList.remove('busy');
+}
 function rollTo(i, dir) { roll = { from: indText, t0: performance.now(), dir }; curShown = i; indText = `${i + 1} ${F[i].n.toUpperCase()}`; markHere(i); }
 
 /* ===== FLOOR LIGHT: each floor's own colour spills into the cab as the doors open ===== */
@@ -941,7 +989,8 @@ function frame() {
   }
   // the odd faint dip in the lights while travelling; eyes adapt a little to a bright floor
   if (!RM && travel > .3 && Math.random() < .03 * travel) flk = .03 + Math.random() * .05; flk *= .8;
-  renderer.toneMappingExposure = CFG.exposure * (1 - flk) * (1 - .2 * openK * lumNow);
+  const alarmOn = now < alarmUntil; if (G.alarm) G.alarm.intensity = alarmOn ? (.5 + .5 * Math.sin(now / 70)) * 9 : 0;
+  renderer.toneMappingExposure = CFG.exposure * (1 - flk) * (1 - .2 * openK * lumNow) * (alarmOn ? .55 : 1);
 
   // camera: head follows the cursor; turns to the panel when asked
   const le = 1 - Math.exp(-dt / CFG.lookEase);
