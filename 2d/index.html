@@ -1080,7 +1080,7 @@
       const g = mtx.getContext('2d'), W = 1536, H = 256, cols = Math.max(maxLen, 8) * 6 + 1, rows = 9; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
       const pp = Math.min((W - 330) / cols, 150 / rows), mw = pp * cols;
       ledMatrix(g, cols, rows, ledDots(cols, rows, text), (W - mw) / 2, 30, pp);
-      ledTri(g, 82, 98, 62, false, down); ledTri(g, W - 82, 98, 62, true, up);
+      ledTri(g, 96, H / 2 - 5, 100, false, down); ledTri(g, W - 96, H / 2 + 5, 100, true, up);
       const n = F.length, gap = Math.min(46, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
       for (let i = 0; i < n; i++) { const x = x0 + i * gap; g.beginPath(); g.arc(x, 214, 9, 0, 7);
         if (i === here) { g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = 16; g.fillStyle = LED; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(180,226,255,.9)'; g.beginPath(); g.arc(x - 2, 212, 3.2, 0, 7); g.fill(); }
@@ -1088,7 +1088,7 @@
     { const g = pscr.getContext('2d'), W = 512, H = 256, cols = 13, rows = 9, pp = 21; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
       const num = text.split(' ')[0] || '';
       ledMatrix(g, cols, rows, ledDots(cols, rows, /^\d+$/.test(num) ? num : ''), W - pp * cols - 46, (H - pp * rows) / 2, pp);
-      ledTri(g, 96, 128, 74, up, up || down); }
+      ledTri(g, 98, H / 2 + (up ? 5 : -5), 98, up, up || down); }
   }
   function drawMatrix(txt) {
     mtxText = txt; drawLed(); return;
