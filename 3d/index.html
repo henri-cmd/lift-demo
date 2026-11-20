@@ -208,6 +208,7 @@ const CFG = {
   tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
   lowerPanel: 0x263645,    // the panel below the rail: a muted, slightly grey blue
   indicatorDepth: 0.01,    // how far the indicator's metal body stands off the wall (metres)
+  wallMirror: 1,           // the same reflection on the header, frame, rail, panels and (faintly) the wood and blue walls (0 = doors only)
   doorMirror: 0.42,         // strength of the real mirror reflection of the room in the doors (0 = off)
   roomSide: 0.5,           // how far the cab's side walls sit beyond the doorway (metres) — small, like a real lift
   roomBehind: 0.45,        // how far the back wall is behind the viewer
@@ -636,6 +637,17 @@ const MIRROR_SHADER = { name: 'DoorMirror',
       float shade = mix(.3, 1., smoothstep(.02, .24, halfH - vP.y));   // the header's shadow still falls across the top of the doors
       gl_FragColor = vec4(c * vec3(.92, .9, .87) * strength * shade, 1.); }` };
 
+// The same mirror image laid on the other surfaces of the front wall (they're all in nearly the same plane as the doors).
+// Each surface sets how strong it is, which way its finish drags the reflection, and how soft it is.
+const reflMat = (mir, strength, dx, dy, lod, tint = [.92, .9, .87]) => new THREE.ShaderMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+  uniforms: { tDiffuse: { value: mir.getRenderTarget().texture }, textureMatrix: mir.material.uniforms.textureMatrix, mirPos: { value: mir.position }, strength: { value: strength }, dir: { value: new THREE.Vector2(dx, dy) }, lod: { value: lod }, tint: { value: new THREE.Vector3(...tint) } },
+  vertexShader: 'uniform mat4 textureMatrix; uniform vec3 mirPos; varying vec4 vUv4; void main(){ vec4 wp = modelMatrix * vec4(position, 1.); vUv4 = textureMatrix * vec4(wp.xyz - mirPos, 1.); gl_Position = projectionMatrix * viewMatrix * wp; }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float strength, lod; uniform vec2 dir; uniform vec3 tint; varying vec4 vUv4;
+    void main(){ vec2 uv = vUv4.xy / vUv4.w, side = vec2(dir.y, dir.x) * .006; vec3 c = vec3(0.); float tw = 0.;
+      for (int i = -6; i <= 6; i++) { float fi = float(i), w = exp(-fi * fi / 14.); vec2 o = dir * fi * .012;
+        c += texture2D(tDiffuse, clamp(uv + o, 0., 1.), lod).rgb * w; c += texture2D(tDiffuse, clamp(uv + o + side, 0., 1.), lod).rgb * w * .5; c += texture2D(tDiffuse, clamp(uv + o - side, 0., 1.), lod).rgb * w * .5; tw += w * 2.; }
+      gl_FragColor = vec4(min(c / tw, vec3(1.25)) * tint * strength, 1.); }` });
+
 /* ===== BUILD ===== */
 const cab = new THREE.Group(); scene.add(cab);
 const doors = { l: null, r: null }, ldoors = { l: new THREE.Group(), r: new THREE.Group() };
@@ -854,6 +866,22 @@ function build() {
   for (const sx of [-1, 1]) ao(.1, sx * (ow / 2 - .05), oh / 2, -.0225, 0, false, 0, oh).visible = false;
   ao(depth, rl + .004, .16, depth / 2, Math.PI / 2, false, .4); ao(depth, rr - .004, .16, depth / 2, -Math.PI / 2, false, .4);
   cab.traverse(o => { if (o.isMesh && !o.userData.noShadow && !Array.isArray(o.material) && !o.material.transparent && !o.material.isMeshBasicMaterial) { o.receiveShadow = SHADOWS; o.castShadow = SHADOWS; } });
+  if (G.mirror) {
+    const S = CFG.wallMirror, over = [], add = (w, h, x, y, z, k, dx, dy, lod, tint) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), reflMat(G.mirror, k * S, dx, dy, lod, tint)); m.position.set(x, y, z); m.renderOrder = 2; cab.add(m); over.push(m); };
+    const hwI = sw0 + .075, hhI = sh0 + .024, pwS = pw * PS, phS = ph * PS;
+    add(ow + 2 * t, TRANSOM - .012, 0, oh + TRANSOM / 2 - ins, .0755, .5, 1, 0, 2.2);                                    // header over the doors (brushed along its length)
+    for (const sx of [-1, 1]) add(t - .008, oh - .02, sx * (ow / 2 + t / 2 - ins), oh / 2, .0625, .45, 0, 1, 2);          // door frame
+    for (const [a, b] of [[rl, -ow / 2 - t], [ow / 2 + t, rr]]) {
+      add(b - a, RAIL_H - .01, (a + b) / 2, RAIL_Y + RAIL_H / 2, FZ + .0185, .45, 1, 0, 2.2);                              // rail
+      add(b - a, woodTop - RAIL_Y - RAIL_H, (a + b) / 2, (woodTop + RAIL_Y + RAIL_H) / 2, FZ + .0021, .13, 0, 1, 3.4, [1, .95, .86]);   // lacquered veneer: faint and soft
+      add(b - a, RAIL_Y - KICK, (a + b) / 2, (RAIL_Y + KICK) / 2, FZ + .0021, .2, 0, 1, 3, [.8, .88, 1]);                  // satin blue panel
+    }
+    add(ow + 2 * t, woodTop - oh - TRANSOM, 0, (woodTop + oh + TRANSOM) / 2, FZ + .0021, .13, 0, 1, 3.4, [1, .95, .86]);  // veneer above the header
+    add(pwS - .004, phS - .004, px, py, FZ + .014 * PS + .0004, .3, 0, 1, 2.4);                                            // button panel plate
+    add(hwI - .006, hhI - .006, 0, iy, FZ + .002 + CFG.indicatorDepth + .0002, .3, 0, 1, 2.4);                             // indicator body
+    const base = G.mirror.onBeforeRender;   // hide them while the mirror image itself is drawn (they'd be sampling the image being rendered)
+    G.mirror.onBeforeRender = function (r, sc, c) { for (const m of over) m.visible = false; base.call(this, r, sc, c); for (const m of over) m.visible = true; };
+  }
   G.ghost = []; cab.traverse(o => { if (o.isMesh && !Array.isArray(o.material) && o.material.transparent) G.ghost.push(o); });
   G.envPos = new THREE.Vector3(0, eye, D * .6);
   captureEnv();
