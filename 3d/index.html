@@ -28,9 +28,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .floor .hero{display:block; width:100%; height:100cqh; object-fit:cover}
 
 /* overlays */
-#lift3d .grain{position:absolute; inset:-64px; z-index:3; pointer-events:none; opacity:.07; mix-blend-mode:overlay; background-size:128px 128px; will-change:transform}
+#lift3d .grain{position:absolute; inset:-64px; z-index:3; pointer-events:none; opacity:.035; mix-blend-mode:overlay; background-size:128px 128px; will-change:transform}
 #lift3d .vig{position:absolute; inset:0; z-index:2; pointer-events:none;
-  background:radial-gradient(ellipse 125% 105% at 50% 45%,transparent 60%,rgba(0,0,0,.28) 100%)}
+  background:radial-gradient(ellipse 125% 105% at 50% 45%,transparent 62%,rgba(0,0,0,.16) 100%)}
 #lift3d .ui{position:absolute; z-index:5; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.85);
   font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase; padding:9px 13px; border-radius:20px; cursor:pointer;
   -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px)}
@@ -205,7 +205,7 @@ const CFG = {
         <div class="ph"></div>` }
   ],
   tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
-  woodTint: 0x94614a,      // deepens the sapele veneer towards the warm red-brown of the references
+  woodTint: 0x8f5a40,      // deepens the sapele veneer towards the warm red-brown of the references
   functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
   contactEmail: '',        // Call button opens an email to this address (blank = just rings)
 
@@ -228,11 +228,12 @@ const CFG = {
   pageZoom: 0.8,           // page content scale through the doorway (1 = normal web size; lower shows more content)
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.3,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
-  exposure: 0.84,
+  exposure: 0.88,
   shaftLight: 0.09,
   shaftRate: 0.3,          // how many light bands drift past per second at full speed (kept slow so it never strobes)         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
-  halation: 0.16,          // strength of the soft glow around bright areas
+  grade: 1,                // cinema grade strength: film contrast, split tone, vignette, grain (0 = off)
+  halation: 0.2,          // strength of the soft glow around bright areas
   halationFrom: 1.15,      // brightness where the glow starts
   fringe: 0.012,           // colour fringing towards the corners
   musicVolume: 0.5,        // lift music during button rides (0 = none)
@@ -249,7 +250,7 @@ const MOBILE = matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, i
 const SHADOWS = !MOBILE;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(MOBILE ? 2 : 1.75, devicePixelRatio));
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.setClearColor(0x000000, 0);
 renderer.toneMapping = THREE.AgXToneMapping;
 renderer.toneMappingExposure = CFG.exposure;
@@ -366,12 +367,13 @@ const lightCurtainTex = canvasTex(32, 1024, (g, w, h) => { g.fillStyle = '#1b1c1
 const M = {
   doorL: steelMat(doorSetL, { color: 0xcdc6ba }), doorR: steelMat(doorSetR, { color: 0xcdc6ba }),
   steel: steelMat(steelSet),
+  steelH: (() => { const m = steelMat(steelSet, { anisotropyRotation: 0 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].center.set(.5, .5); m[k].rotation = Math.PI / 2; m[k].repeat.set(1, 6); m[k].needsUpdate = true; } return m; })(),
   steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xe6dfd3, metalness: 1, roughness: .18 }),
   steelDark: new THREE.MeshPhysicalMaterial({ color: 0x8f8b84, metalness: 1, roughness: .4 }),
   slot: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .85 }),
   curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
   edge: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: .75 }),
-  wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(.6, .6), roughness: .9, clearcoat: .3, clearcoatRoughness: .35 }),
+  wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(1.1, 1.1), roughness: .9, clearcoat: .5, clearcoatRoughness: .24 }),
   lower: new THREE.MeshPhysicalMaterial({ color: 0x17171a, roughness: .55, clearcoat: .22, clearcoatRoughness: .4, normalMap: grainNormal, normalScale: new THREE.Vector2(.5, .5) }),   // dark satin panel below the rail
   ceilGlow: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.55, 1.48, 1.34) }),   // luminous ceiling panels
   floor: new THREE.MeshPhysicalMaterial({ map: terrazzo, roughnessMap: terrazzoRough, roughness: 1, clearcoat: .9, clearcoatRoughness: .12 }),
@@ -516,14 +518,22 @@ const blurMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, d: { 
         if (thr > 0.) { float l = max(c.r, max(c.g, c.b)); c.rgb *= smoothstep(thr, thr * 2.2, l); }
         s += c * w; tw += w; }
       gl_FragColor = s / tw; }` });
-const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { value: null }, bloom: { value: CFG.halation }, ca: { value: CFG.fringe } }, vertexShader: FSV, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
-  fragmentShader: `uniform sampler2D t, b; uniform float bloom, ca; varying vec2 vUv;
+const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { value: null }, bloom: { value: CFG.halation }, ca: { value: CFG.fringe }, time: { value: 0 }, res: { value: new THREE.Vector2(1, 1) }, grade: { value: CFG.grade } }, vertexShader: FSV, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
+  fragmentShader: `uniform sampler2D t, b; uniform float bloom, ca, time, grade; uniform vec2 res; varying vec2 vUv;
     void main(){ vec2 c = vUv - .5; vec2 off = c * dot(c, c) * ca;
       vec4 s = texture2D(t, vUv);
       vec3 col = vec3(texture2D(t, vUv + off).r, s.g, texture2D(t, vUv - off).b);
       col += texture2D(b, vUv).rgb * bloom * vec3(1., .86, .74);   // warm halation
       gl_FragColor = vec4(col, s.a);
       #include <tonemapping_fragment>
+      { vec3 k = gl_FragColor.rgb; float a = gl_FragColor.a, l = dot(k, vec3(.2126, .7152, .0722));
+        k = mix(vec3(l), k, 1. + .16 * grade);                                         // a little more colour than AgX leaves
+        k = max(mix(k, k * k * (3. - 2. * k), .55 * grade), 0.);                       // film S-curve: deeper blacks, firmer highlights
+        k *= mix(vec3(1.), mix(vec3(.93, 1., 1.08), vec3(1.035, 1., .955), smoothstep(.04, .65, l)), grade);   // cool shadows, warm highlights
+        float v = length((vUv - .5) * vec2(1., .92)); k *= 1. - .34 * grade * smoothstep(.32, .8, v);         // optical vignette
+        float n = fract(sin(dot(floor(vUv * res) + time * 61., vec2(12.9898, 78.233))) * 43758.5453) - .5;
+        k += n * .045 * grade * (1. - l * .7) * a;                                    // fine grain, stronger in the shadows
+        gl_FragColor.rgb = k; }
       #include <colorspace_fragment>
     }` });
 const fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), outMat); fsQuad.frustumCulled = false; fsScene.add(fsQuad);
@@ -536,7 +546,7 @@ function renderScene() {
   blurMat.uniforms.t.value = rtA.texture; blurMat.uniforms.d.value.set(0, 1 / rtA.height); blurMat.uniforms.thr.value = 0; renderer.setRenderTarget(rtB); renderer.clear(); renderer.render(fsScene, fsCam);
   blurMat.uniforms.t.value = rtB.texture; blurMat.uniforms.d.value.set(2 / rtA.width, 0); renderer.setRenderTarget(rtA); renderer.clear(); renderer.render(fsScene, fsCam);
   blurMat.uniforms.t.value = rtA.texture; blurMat.uniforms.d.value.set(0, 2 / rtA.height); renderer.setRenderTarget(rtB); renderer.clear(); renderer.render(fsScene, fsCam);
-  fsQuad.material = outMat; outMat.uniforms.t.value = rtScene.texture; outMat.uniforms.b.value = rtB.texture;
+  fsQuad.material = outMat; outMat.uniforms.t.value = rtScene.texture; outMat.uniforms.b.value = rtB.texture; outMat.uniforms.time.value = (performance.now() / 41.7 | 0) % 997; outMat.uniforms.res.value.set(rtScene.width, rtScene.height);
   renderer.setRenderTarget(null); renderer.clear(); renderer.render(fsScene, fsCam);
 }
 
@@ -575,7 +585,7 @@ function wallRun(u0, u1, yTop, seed = 0) {
   const g = new THREE.Group(), w = u1 - u0, uc = (u0 + u1) / 2; cab.add(g);
   plane(w, RAIL_Y - KICK, M.lower, uc, (RAIL_Y + KICK) / 2, 0, 0, 0, g);
   box(w, KICK, .012, M.steelDark, uc, KICK / 2, .006, g);
-  box(w, RAIL_H, .016, M.steel, uc, RAIL_Y + RAIL_H / 2, .008, g);
+  { const r = new THREE.Mesh(new RoundedBoxGeometry(w, RAIL_H, .02, 3, .006), M.steelH); r.position.set(uc, RAIL_Y + RAIL_H / 2, .008); g.add(r); }
   const cuts = [u0]; for (let u = Math.ceil((u0 + .08) / BAY) * BAY; u < u1 - .08; u += BAY) cuts.push(u); cuts.push(u1);
   for (let i = 0; i < cuts.length - 1; i++) {
     const a = cuts[i], b = cuts[i + 1], n = Math.round(a / BAY) + Math.round(seed * 100), flip = n % 2 ? -1 : 1, rnd = Math.abs(Math.sin(n * 12.9898) * 43758.5453) % 1;
@@ -585,6 +595,9 @@ function wallRun(u0, u1, yTop, seed = 0) {
     plane(b - a, yTop - RAIL_Y - RAIL_H, m, (a + b) / 2, (yTop + RAIL_Y + RAIL_H) / 2, 0, 0, 0, g);
     if (i) { box(.006, yTop - KICK, .004, M.steelPolished, a, (yTop + KICK) / 2, .002, g); plane(.02, yTop - RAIL_Y - RAIL_H, shadowLine, a, (yTop + RAIL_Y + RAIL_H) / 2, .0012, 0, 0, g); }
   }
+  // top-light falloff down the veneer; the band under the ceiling shades the top edge
+  { const f = plane(w, yTop - RAIL_Y, aoMat(false, .42), uc, (yTop + RAIL_Y) / 2, .0011, 0, 0, g); f.renderOrder = 1; }
+  plane(w, .1, aoMat(true, .5), uc, yTop - .05, .0013, 0, 0, g);
   // the rail throws a soft shadow onto the dark panel below it
   plane(w, .09, aoMat(true, .5), uc, RAIL_Y - .045, .001, 0, 0, g);
   return g;
@@ -614,11 +627,10 @@ function build() {
   wallRun(xl, -ow / 2 - t + ins, woodTop).position.set(0, 0, FZ);
   wallRun(ow / 2 + t - ins, xr, woodTop).position.set(0, 0, FZ);
   plane(ow + 2 * t, BAND, woodAt(-ow / 2 - t, ow / 2 + t, oh + TRANSOM, woodTop), 0, oh + TRANSOM + BAND / 2, FZ);
-  box(ow + 2 * t - 2 * ins, TRANSOM, .07, M.steel, 0, oh + TRANSOM / 2 - ins, .035);          // transom over the doors
-  box(xr - xl, TOPBAND, .012, M.steel, (xl + xr) / 2, cabH - TOPBAND / 2, FZ + .006);          // band under the ceiling
+  { const m = new THREE.Mesh(new RoundedBoxGeometry(ow + 2 * t - 2 * ins, TRANSOM, .075, 4, .007), M.steelH); m.position.set(0, oh + TRANSOM / 2 - ins, .0375); cab.add(m); }   // transom over the doors
+  { const m = new THREE.Mesh(new RoundedBoxGeometry(xr - xl, TOPBAND, .016, 3, .005), M.steelH); m.position.set((xl + xr) / 2, cabH - TOPBAND / 2, FZ + .006); cab.add(m); }   // band under the ceiling
   // slim polished architrave down each side of the doorway
-  box(t, oh - ins, .06, M.steelPolished, -ow / 2 - t / 2 + ins, (oh - ins) / 2, .03);
-  box(t, oh - ins, .06, M.steelPolished, ow / 2 + t / 2 - ins, (oh - ins) / 2, .03);
+  for (const sx of [-1, 1]) { const m = new THREE.Mesh(new RoundedBoxGeometry(t, oh - ins, .062, 3, .005), M.steelPolished); m.position.set(sx * (ow / 2 + t / 2 - ins), (oh - ins) / 2, .031); cab.add(m); }
   // the slots the doors run in; cab sill with grooves
   box(.006, oh, .06, M.slot, -ow / 2 + .003, oh / 2, -.03);
   box(.006, oh, .06, M.slot, ow / 2 - .003, oh / 2, -.03);
@@ -700,15 +712,21 @@ function build() {
   F.forEach((f, k) => { const { ring, b } = addButton(px + bxs(k % cols), py + bys(Math.floor(k / cols)), numberCap(k + 1), .031, 0x2a2a2a); b.userData.floor = k; btnRings.push(ring); btnMeshes.push(b); });
   fns.forEach((f, k) => { const { ring, b } = addButton(px + fxs(k), py + fy, capTexture(g => { g.scale(1.45, 1.45); FN[f].draw(g); }), .029, f === 'alarm' ? 0x5a1512 : 0x2a2a2a); b.userData.fn = f; b.userData.ring = ring; fnMeshes.push(b); });
   { const pg = new THREE.Group(); pg.position.set(px, py, FZ); for (const o of cab.children.slice(panelStart)) { o.position.x -= px; o.position.y -= py; o.position.z -= FZ; pg.add(o); } pg.scale.setScalar(PS); cab.add(pg); }
+  { const lw = pw * PS * .62, lh = lw * .34, ly = py + ph * PS / 2 + lh / 2 + .05;
+    const tex = canvasTex(512, 174, (g, w, h) => { g.fillStyle = '#c2bfb8'; g.fillRect(0, 0, w, h); for (let x = 0; x < w; x++) { g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .05})`; g.fillRect(x, 0, 1, h); }
+      g.textAlign = 'center'; const eng = (t, y, f) => { g.font = f; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(t, w / 2, y + 2); g.fillStyle = '#2e2f32'; g.fillText(t, w / 2, y); };
+      eng('MAX LOAD 630 kg', 70, '700 44px -apple-system,Helvetica,Arial,sans-serif'); eng('8 PERSONS', 128, '600 38px -apple-system,Helvetica,Arial,sans-serif'); }, { repeat: false });
+    plane(lw + .05, lh + .05, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .3, depthWrite: false }), px + .003, ly - .006, FZ + .0016);
+    const m = new THREE.Mesh(new RoundedBoxGeometry(lw, lh, .004, 2, .0015), [M.steel, M.steel, M.steel, M.steel, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xf3ece0, metalness: .9, roughness: .36 }), M.steel]); m.position.set(px, ly, FZ + .002); cab.add(m); }
   G.panel = new THREE.Vector3(px, py, FZ + .01); G.pd = .5 + ph * PS * .62;   // viewing distance that frames the whole panel
 
   /* --- lights: the luminous ceiling does the work; a soft spot adds gentle shadows --- */
   const lz = D * .5;
-  rectLight(0xfff1de, 3.4, Math.min(xr - xl, 5.5) * .9, depth * .85, (xl + xr) / 2 * .5, cabH - .02, depth / 2);
+  rectLight(0xfff1de, 4.6, Math.min(xr - xl, 5.5) * .9, depth * .85, (xl + xr) / 2 * .5, cabH - .02, depth / 2);
   const spot = new THREE.SpotLight(0xfff0dc, 5, 0, 1.2, 1, 2); spot.position.set(0, cabH - .05, lz);
   spot.target.position.set(0, 0, lz * .8); cab.add(spot, spot.target);
   spot.castShadow = SHADOWS; spot.shadow.mapSize.set(2048, 2048); spot.shadow.bias = -.0008; spot.shadow.normalBias = .04; spot.shadow.radius = 10; spot.shadow.camera.near = .2;
-  cab.add(new THREE.HemisphereLight(0xfff6ea, 0x6b6157, .38));
+  cab.add(new THREE.HemisphereLight(0xfff4e4, 0x3a332c, .16));
   // light from beyond the doors spilling into the cab
   G.landing = new THREE.PointLight(0xfff0dc, 0, 0, 2); G.landing.position.set(0, oh * .8, z1 - .3); cab.add(G.landing);
   G.bounce = new THREE.AmbientLight(0xffffff, 0); cab.add(G.bounce);   // the floor's colour bouncing around the cab once the doors open
