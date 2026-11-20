@@ -229,6 +229,7 @@ const CFG = {
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.3,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 0.84,
+  shaftLight: 0.4,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
   halation: 0.16,          // strength of the soft glow around bright areas
   halationFrom: 1.15,      // brightness where the glow starts
@@ -1056,7 +1057,7 @@ function frame() {
   // light only gets in where it physically can: the hairline between the doors and the slots around them.
   // Between floors the shaft is dark; each landing's light slides past as a band, at a speed that follows the car's.
   if (G.gap) {
-    const k = RM ? 0 : travel, shut = clamp((cVal - .9) / .1, 0, 1);
+    const k = RM ? 0 : travel, shut = clamp((cVal - .9) / .1, 0, 1) * CFG.shaftLight;
     shaftPhase = ((shaftPhase + indDir * k * dt / (CFG.perFloorMs / 1000)) % 1 + 1) % 1;
     const bandY = ((.5 - shaftPhase) % 1 + 1) % 1;                 // where the band's centre sits on the doors (0 = floor, 1 = head)
     for (const m of G.leaks) { m.material.map.offset.y = shaftPhase; m.material.opacity = m.userData.k * k * shut; }
