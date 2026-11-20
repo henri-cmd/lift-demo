@@ -564,7 +564,18 @@
 #lift .door::before{width:.5vh !important; background:linear-gradient(90deg,#121214,#2a2b2e 45%,#0c0c0d) !important; box-shadow:none !important}
 /* the reflection is one picture pinned to the doorway; each door's steel slides through it */
 #lift .door .dsk{box-shadow:none !important; background:none !important}
-#lift .door .dsk > i{mix-blend-mode:hard-light !important; opacity:1 !important; background:url(../assets/2d/door-refl.webp) center/cover no-repeat !important}
+#lift .door{background:#8f8a80 !important}
+#lift .door .dsk{display:block !important}
+#lift .door .dsk > i{mix-blend-mode:normal !important; opacity:1 !important; background:url(../assets/2d/door-refl.webp) center/cover no-repeat !important; will-change:transform}
+/* the steel's grain and marks are a transparent overlay (no blend modes: cheap to move) */
+#lift .door .dsk::after{content:""; position:absolute; inset:0; pointer-events:none}
+#lift .door.l .dsk::after{background:url(../assets/2d/door-l-steel.webp) right center/cover no-repeat}
+#lift .door.r .dsk::after{background:url(../assets/2d/door-r-steel.webp) left center/cover no-repeat}
+/* performance: no full-screen filter pass, and the sliding scene stays on its own layer */
+#lift .cab{filter:none !important}
+#lift.alarm .cab{filter:brightness(.7) !important}
+#lift .room,#lift .flat{will-change:transform}
+#lift .dim{will-change:opacity}
 #lift.ride .door .dsk > i{transition:transform var(--door-ms) cubic-bezier(.6,0,.3,1)}
 #lift.rm .door .dsk > i{transition:none}                 /* reflections, wipe marks and the safety edge are in the door images */
 #lift .door.l{box-shadow:none} #lift .door.r{box-shadow:none}
@@ -633,8 +644,7 @@
 #lift .panel .btn .cap::after{content:""; position:absolute; inset:8.5%; border-radius:50%; box-shadow:inset 0 0 0 .18cqw rgba(40,30,15,.55),inset 0 .5cqw .6cqw rgba(0,0,0,.45); pointer-events:none}
 #lift .panel .btn .ico{isolation:isolate; transition:transform .16s ease-out, box-shadow .16s ease-out !important}
 #lift .panel .btn .ico::after{content:""; position:absolute; inset:0; border-radius:50%; z-index:-1; pointer-events:none;
-  background:conic-gradient(from calc(var(--sheen) - 20deg),rgba(255,255,255,.75),rgba(255,255,255,0) 13%,rgba(60,45,20,.12) 25%,rgba(255,255,255,0) 37%,rgba(255,255,255,.55) 50%,rgba(255,255,255,0) 63%,rgba(60,45,20,.12) 75%,rgba(255,255,255,0) 87%,rgba(255,255,255,.75)),
-             repeating-radial-gradient(circle,rgba(60,45,20,.07) 0 .12cqw,rgba(255,255,255,.05) .12cqw .28cqw);
+  background:conic-gradient(from calc(var(--sheen) - 20deg),rgba(255,255,255,.75),rgba(255,255,255,0) 13%,rgba(60,45,20,.12) 25%,rgba(255,255,255,0) 37%,rgba(255,255,255,.55) 50%,rgba(255,255,255,0) 63%,rgba(60,45,20,.12) 75%,rgba(255,255,255,0) 87%,rgba(255,255,255,.75));
   box-shadow:inset 0 0 0 .14cqw rgba(255,255,255,.5),inset 0 0 0 .3cqw rgba(60,45,20,.14)}
 #lift .panel .btn .num-cap{font-size:5.7cqw !important}
 #lift .panel .btn:hover .ico{transform:translateY(.08cqw) scale(.975); box-shadow:inset 0 .3cqw .25cqw rgba(255,255,255,.9),inset 0 -.6cqw .9cqw rgba(60,45,20,.3),0 .18cqw .28cqw rgba(0,0,0,.68)}
@@ -676,8 +686,8 @@
   background-blend-mode:normal,normal,screen,overlay,normal !important; background-size:auto,auto,52vh 52vh,24vh 24vh,auto !important; background-repeat:no-repeat,no-repeat,repeat,repeat,no-repeat !important;
   box-shadow:0 1vh 1.8vh rgba(0,0,0,.4),0 -.12vh 0 rgba(0,0,0,.35) !important}
 /* plates: same grain and scratches, a bevelled edge that catches the top light, tighter contact shadow */
-#lift .panel{background-image:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 30%,rgba(0,0,0,.05) 70%,rgba(0,0,0,.2)),url(../assets/2d/scratch-soft.webp),url(../assets/2d/grain-v.webp),url(../assets/2d/panel-plate.webp) !important;
-  background-blend-mode:normal,screen,overlay,normal !important; background-size:100% 100%,240% auto,90% auto,100% 100% !important; background-repeat:no-repeat,repeat,repeat,no-repeat !important;
+#lift .panel{background-image:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 30%,rgba(0,0,0,.05) 70%,rgba(0,0,0,.2)),url(../assets/2d/panel-plate.webp) !important;
+  background-blend-mode:normal !important; background-size:100% 100% !important; background-repeat:no-repeat !important;
   box-shadow:0 1.1vh 2.2vh rgba(0,0,0,.42),0 .25vh .45vh rgba(0,0,0,.55),0 0 0 .08vh rgba(30,22,10,.6),inset 0 .16vh 0 rgba(255,252,240,.85),inset .12vh 0 0 rgba(255,252,240,.35),inset 0 -.16vh 0 rgba(40,28,10,.5),inset -.12vh 0 0 rgba(40,28,10,.3) !important}
 #lift .panel::after{display:none !important}
 #lift .ind{background-image:url(../assets/2d/scratch.webp),var(--ind-img) !important; background-blend-mode:screen,normal !important; background-size:70% auto,100% 100% !important; background-repeat:repeat,no-repeat !important;
@@ -826,8 +836,8 @@
     ],
     headerImg: '',         // indicator housing plate (wide strip, blank display window in the centre)
     frameImg: '',          // optional overlay above the doors (reflections/grime), transparent PNG
-    doorL: '../assets/2d/door-l-steel.webp',
-    doorR: '../assets/2d/door-r-steel.webp',
+    doorL: '',
+    doorR: '',
     wallTex: '../assets/2d/wall.webp',      // wood-veneer wall (tiles left↔right)
     indicatorImg: '../assets/2d/indicator.webp',  // photo of the indicator plate (4:1, blank glass window)
     plateImg: '',          // (modern theme: glass panel drawn in code)
@@ -1172,7 +1182,11 @@
   };
   const jolt = () => { if (RM) return; root.classList.remove('jolt'); void root.offsetWidth; root.classList.add('jolt'); };
   let cVal = 1;
-  const setC = v => { cVal = v; root.style.setProperty('--c', v.toFixed(4)); };
+  // door position goes only to the elements that use it (doors, dimmer) — setting it on the root restyled the whole page every frame
+  let cTargets = null, cLast = '';
+  const setC = v => { cVal = v; const t = v.toFixed(4); if (t === cLast) return; cLast = t;
+    cTargets = cTargets || ['.door.l', '.door.r', '.dim'].map(q => root.querySelector(q)).filter(Boolean);
+    cTargets.forEach(el => el.style.setProperty('--c', t)); };
   // door leading-edge thickness as seen from the camera: wider the further the edge is from centre
   const dl = $('.door.l'), dr = $('.door.r');
   function doorEdges() {
@@ -1183,8 +1197,10 @@
     const p = parseFloat(getComputedStyle(root).getPropertyValue('--p')) || 1000;
     const mid = innerWidth / 2, a = dl.getBoundingClientRect(), b = dr.getBoundingClientRect();
     const t = innerWidth * CFG.doorThickness;
-    root.style.setProperty('--edge-l', Math.max(0, (mid - a.right) / p * t) + 'px');
-    root.style.setProperty('--edge-r', Math.max(0, (b.left - mid) / p * t) + 'px');
+    // set on the doors themselves (not the root) and only when it really changes, so the page isn't restyled every frame
+    const el = Math.max(0, (mid - a.right) / p * t), er = Math.max(0, (b.left - mid) / p * t);
+    if (Math.abs(el - (doorEdges.l ?? -9)) > .3) { doorEdges.l = el; dl.style.setProperty('--edge-l', el.toFixed(1) + 'px'); }
+    if (Math.abs(er - (doorEdges.r ?? -9)) > .3) { doorEdges.r = er; dr.style.setProperty('--edge-r', er.toFixed(1) + 'px'); }
     requestAnimationFrame(doorEdges);
   }
   requestAnimationFrame(doorEdges);
