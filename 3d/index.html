@@ -566,7 +566,7 @@ const FSV = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(positio
 const blurMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, d: { value: new THREE.Vector2() }, thr: { value: 0 } }, vertexShader: FSV, depthTest: false, depthWrite: false, toneMapped: false,
   fragmentShader: `uniform sampler2D t; uniform vec2 d; uniform float thr; varying vec2 vUv;
     void main(){ vec4 s = vec4(0.); float tw = 0.;
-      for (int i = -6; i <= 6; i++) { float fi = float(i), w = exp(-fi * fi / 14.); vec4 c = texture2D(t, vUv + d * fi * 1.6);
+      for (int i = -6; i <= 6; i++) { float fi = float(i), w = exp(-fi * fi / 14.); vec4 c = texture2D(t, vUv + d * fi * 1.6); c.rgb = min(c.rgb, vec3(2.2));
         if (thr > 0.) { float l = max(c.r, max(c.g, c.b)); c.rgb *= smoothstep(thr, thr * 2.2, l); }
         s += c * w; tw += w; }
       gl_FragColor = s / tw; }` });
@@ -583,7 +583,7 @@ const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { v
         a += smoothstep(.004, .03, dz) * (1. - smoothstep(.1, .35, dz)); }
       return 1. - aoS * a / 12.; }
     void main(){ vec2 c = vUv - .5; vec2 off = c * dot(c, c) * ca;
-      vec4 s = texture2D(t, vUv);
+      vec4 s = texture2D(t, vUv); s.rgb = min(s.rgb, vec3(6.));
       vec3 col = vec3(texture2D(t, vUv + off).r, s.g, texture2D(t, vUv - off).b);
       if (aoS > 0.) { float ao = ambient(); col *= mix(vec3(.34, .29, .27), vec3(1.), ao); }   // occlusion, slightly warm in the creases
       col += texture2D(b, vUv).rgb * bloom * vec3(1., .86, .74);   // warm halation
@@ -832,7 +832,8 @@ function build() {
     const tex = canvasTex(512, 174, (g, w, h) => { g.fillStyle = '#c2bfb8'; g.fillRect(0, 0, w, h); for (let x = 0; x < w; x++) { g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .05})`; g.fillRect(x, 0, 1, h); }
       g.textAlign = 'center'; const eng = (t, y, f) => { g.font = f; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(t, w / 2, y + 2); g.fillStyle = '#2e2f32'; g.fillText(t, w / 2, y); };
       eng('MAX LOAD 630 kg', 70, '700 44px -apple-system,Helvetica,Arial,sans-serif'); eng('8 PERSONS', 128, '600 38px -apple-system,Helvetica,Arial,sans-serif'); }, { repeat: false });
-    const m = new THREE.Mesh(new RoundedBoxGeometry(lw, lh, .012, 2, .002), [M.steel, M.steel, M.steel, M.steel, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xd9d3c8, metalness: .55, roughness: .68, envMapIntensity: .7 }), M.steelDark]); m.position.set(px, ly, FZ + .006); m.userData.noShadow = true; cab.add(m); }
+    const edge = new THREE.MeshStandardMaterial({ color: 0x9a968f, metalness: .4, roughness: .8 });
+    const m = new THREE.Mesh(new THREE.BoxGeometry(lw, lh, .008), [edge, edge, edge, edge, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xd9d3c8, metalness: .55, roughness: .68, envMapIntensity: .7 }), edge]); m.position.set(px, ly, FZ + .004); m.userData.noShadow = true; cab.add(m); }
   G.panel = new THREE.Vector3(px, py, FZ + .01); G.pd = Math.max((ph * PS * 1.32 / 2) / Math.tan(vfov / 2), (pw * PS * 1.5 / 2) / Math.tan(hfov / 2));   // distance that frames the whole panel, front-on
 
   /* --- lights: the luminous ceiling does the work; a soft spot adds gentle shadows --- */
