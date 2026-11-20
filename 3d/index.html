@@ -206,6 +206,7 @@ const CFG = {
   ],
   tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
   lowerPanel: 0x263645,    // the panel below the rail: a muted, slightly grey blue
+  trimMetal: 0x74767a,     // header, rail, indicator housing and door frame: a darker gunmetal, for contrast against the pale wood
   woodTint: 0xfdf3e3,      // a touch of warmth on the pale maple scan, for a Scandinavian birch look
   functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
   contactEmail: '',        // Call button opens an email to this address (blank = just rings)
@@ -231,13 +232,13 @@ const CFG = {
   pagePush: 5,             // metres the page comes towards you as the camera pushes in to the panel (0 = none)
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.3,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
-  exposure: 0.88,
+  exposure: 0.9,
   shaftLight: 0.5,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
-  keyLight: 2.6,           // strength of the downward key light (the one that casts shadows)
+  keyLight: 3.1,           // strength of the downward key light (the one that casts shadows)
   keyAngle: 0.42,          // how far in front of the wall the key sits (smaller = steeper light, longer shadows)
-  fill: 0.55,              // how much soft, even fill remains (1 = the old evenly-lit look)
-  ao: 0.85,                // ambient occlusion strength: real contact shadows in creases and under edges (0 = off)
+  fill: 0.44,              // how much soft, even fill remains (1 = the old evenly-lit look)
+  ao: 1,                // ambient occlusion strength: real contact shadows in creases and under edges (0 = off)
   aoRadius: 0.16,          // how far (metres) geometry casts that shading
   grade: 1,                // cinema grade strength: film contrast, split tone, vignette, grain (0 = off)
   halation: 0.2,          // strength of the soft glow around bright areas
@@ -386,10 +387,11 @@ const lightCurtainTex = canvasTex(32, 1024, (g, w, h) => { g.fillStyle = '#1b1c1
   g.fillStyle = '#26282b'; g.fillRect(w * .3, 0, w * .4, h);
   for (let y = 14; y < h; y += 22) { g.fillStyle = '#0a0a0b'; g.beginPath(); g.arc(w / 2, y, 4.2, 0, 7); g.fill(); g.fillStyle = 'rgba(0,95,150,.6)'; g.beginPath(); g.arc(w / 2, y, 2, 0, 7); g.fill(); } }, { repeat: false });
 const M = {
-  doorL: steelMat(doorSetL, { color: 0xcdc6ba }), doorR: steelMat(doorSetR, { color: 0xcdc6ba }),
+  doorL: steelMat(doorSetL, { color: 0xb4b2ae }), doorR: steelMat(doorSetR, { color: 0xb4b2ae }),
   steel: steelMat(steelSet),
-  steelH: (() => { const m = steelMat(steelSet, { anisotropyRotation: 0 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].center.set(.5, .5); m[k].rotation = Math.PI / 2; m[k].repeat.set(1, 6); m[k].needsUpdate = true; } return m; })(),
+  steelH: (() => { const m = steelMat(steelSet, { anisotropyRotation: 0, color: CFG.trimMetal }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].center.set(.5, .5); m[k].rotation = Math.PI / 2; m[k].repeat.set(1, 6); m[k].needsUpdate = true; } return m; })(),
   steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xe6dfd3, metalness: 1, roughness: 1, roughnessMap: polishedRough }),
+  frame: new THREE.MeshPhysicalMaterial({ color: CFG.trimMetal, metalness: 1, roughness: 1.5, roughnessMap: polishedRough }),
   steelDark: new THREE.MeshPhysicalMaterial({ color: 0x8f8b84, metalness: 1, roughness: .4 }),
   slot: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .85 }),
   curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
@@ -564,7 +566,7 @@ const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { v
       #include <tonemapping_fragment>
       { vec3 k = gl_FragColor.rgb; float a = gl_FragColor.a, l = dot(k, vec3(.2126, .7152, .0722));
         k = mix(vec3(l), k, 1. + .16 * grade);                                         // a little more colour than AgX leaves
-        k = max(mix(k, k * k * (3. - 2. * k), .55 * grade), 0.);                       // film S-curve: deeper blacks, firmer highlights
+        k = max(mix(k, k * k * (3. - 2. * k), .72 * grade), 0.);                       // film S-curve: deeper blacks, firmer highlights
         k *= mix(vec3(1.), mix(vec3(.93, 1., 1.08), vec3(1.035, 1., .955), smoothstep(.04, .65, l)), grade);   // cool shadows, warm highlights
         float v = length((vUv - .5) * vec2(1., .92)); k *= 1. - .34 * grade * smoothstep(.32, .8, v);         // optical vignette
         vec3 h3 = fract(vec3(floor(vUv * res).xyx) * vec3(.1031, .1030, .0973) + time * .013); h3 += dot(h3, h3.yzx + 33.33);
@@ -639,10 +641,10 @@ function wallRun(u0, u1, yTop, seed = 0) {
     for (const k of ['map', 'normalMap', 'roughnessMap']) m[k].offset.set(flip < 0 ? 1 : 0, rnd);
     m.color.multiplyScalar(.94 + rnd * .1);
     plane(b - a, yTop - RAIL_Y - RAIL_H, m, (a + b) / 2, (yTop + RAIL_Y + RAIL_H) / 2, 0, 0, 0, g);
-    if (i) { box(.006, yTop - KICK, .004, M.steelPolished, a, (yTop + KICK) / 2, .002, g); plane(.02, yTop - RAIL_Y - RAIL_H, shadowLine, a, (yTop + RAIL_Y + RAIL_H) / 2, .0012, 0, 0, g); }
+    if (i) { box(.005, yTop - KICK, .002, M.slot, a, (yTop + KICK) / 2, .001, g); plane(.02, yTop - RAIL_Y - RAIL_H, shadowLine, a, (yTop + RAIL_Y + RAIL_H) / 2, .0012, 0, 0, g); }
   }
   // top-light falloff down the veneer; the band under the ceiling shades the top edge
-  { const f = plane(w, yTop - RAIL_Y, aoMat(false, .42), uc, (yTop + RAIL_Y) / 2, .0011, 0, 0, g); f.renderOrder = 1; }
+  { const f = plane(w, yTop - RAIL_Y, aoMat(false, .52), uc, (yTop + RAIL_Y) / 2, .0011, 0, 0, g); f.renderOrder = 1; }
   plane(w, .1, aoMat(true, .5), uc, yTop - .05, .0013, 0, 0, g);
   // the rail throws a soft shadow onto the dark panel below it
   plane(w, .09, aoMat(true, .5), uc, RAIL_Y - .045, .001, 0, 0, g);
@@ -675,7 +677,7 @@ function build() {
   plane(ow + 2 * t, BAND, woodAt(-ow / 2 - t, ow / 2 + t, oh + TRANSOM, woodTop), 0, oh + TRANSOM + BAND / 2, FZ);
   { const m = new THREE.Mesh(new RoundedBoxGeometry(ow + 2 * t - 2 * ins, TRANSOM, .075, 4, .007), M.steelH); m.position.set(0, oh + TRANSOM / 2 - ins, .0375); cab.add(m); }   // transom over the doors
   // slim polished architrave down each side of the doorway
-  for (const sx of [-1, 1]) { const m = new THREE.Mesh(new RoundedBoxGeometry(t, oh - ins, .062, 3, .005), M.steelPolished); m.position.set(sx * (ow / 2 + t / 2 - ins), (oh - ins) / 2, .031); cab.add(m); }
+  for (const sx of [-1, 1]) { const m = new THREE.Mesh(new RoundedBoxGeometry(t, oh - ins, .062, 3, .005), M.frame); m.position.set(sx * (ow / 2 + t / 2 - ins), (oh - ins) / 2, .031); cab.add(m); }
   // the slots the doors run in; cab sill with grooves
   box(.006, oh, .06, M.slot, -ow / 2 + .003, oh / 2, -.03);
   box(.006, oh, .06, M.slot, ow / 2 - .003, oh / 2, -.03);
