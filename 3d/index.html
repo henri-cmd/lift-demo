@@ -229,8 +229,7 @@ const CFG = {
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.3,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 0.88,
-  shaftLight: 0.5,
-  shaftRate: 0.3,          // how many light bands drift past per second at full speed (kept slow so it never strobes)         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
+  shaftLight: 0.5,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
   grade: 1,                // cinema grade strength: film contrast, split tone, vignette, grain (0 = off)
   halation: 0.2,          // strength of the soft glow around bright areas
@@ -978,7 +977,7 @@ async function go(t) {
   if (cVal < .98) { doorSound(CFG.doorMs, true); await animateDoors(1, CFG.doorMs); bump = .3; }
   await sleep(250);
   musicOn();
-  moving = true; rideDir = dir; indDir = -dir; drawIndicator(); humOn(); lurchV += dir * .11;
+  moving = true; rideDir = dir; indDir = -dir; shaftPhase = .5 - G.eye / G.oh; drawIndicator(); humOn(); lurchV += dir * .11;
   let i = cur;
   while (i !== t) { await sleep(CFG.perFloorMs); i += dir; rollTo(i, dir); bump = 1; }
   await sleep(CFG.perFloorMs * .45);
@@ -1075,8 +1074,15 @@ function frame() {
   // light only gets in where it physically can: the hairline between the doors and the slots around them.
   // Between floors the shaft is dark; each landing's light slides past as a band, at a speed that follows the car's.
   if (G.gap) {
-    const k = RM ? 0 : travel, shut = clamp((cVal - .9) / .1, 0, 1) * CFG.shaftLight;
-    shaftPhase = ((shaftPhase + indDir * Math.min(k, .8) * dt * CFG.shaftRate) % 1 + 1) % 1;   // a slow drift, however fast the car or the scroll
+    const k = RM ? 0 : (moving ? travel : Math.min(1, travel * 2.5)), shut = clamp((cVal - .9) / .1, 0, 1) * CFG.shaftLight;
+    // one band of light per floor: its centre crosses eye level exactly as the floor number changes
+    const centre = .5 - G.eye / G.oh;
+    if (moving) shaftPhase += indDir * dt / (CFG.perFloorMs / 1000);        // button ride: one floor every perFloorMs
+    else if (!busy) {                                                         // scrolling: locked to the scroll position between two floors
+      const v = pageEl.scrollTop; let d = 9; for (const sw of swaps) { const q = (v - sw) / Z; if (Math.abs(q) < Math.abs(d)) d = q; }
+      if (Math.abs(d) <= 1) shaftPhase = centre - d * .5;
+    }
+    shaftPhase = (shaftPhase % 1 + 1) % 1;
     const bandY = ((.5 - shaftPhase) % 1 + 1) % 1;                 // where the band's centre sits on the doors (0 = floor, 1 = head)
     for (const m of G.leaks) { m.material.map.offset.y = shaftPhase; m.material.opacity = m.userData.k * k * shut; }
     G.headLeak.material.opacity = 0;
