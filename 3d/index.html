@@ -745,7 +745,7 @@ function build() {
   }
 
   /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, blue LEDs --- */
-  const sw0 = Math.min(.52, ow * .3), sh0 = sw0 * IND_H / IND_W, iy = oh + TRANSOM + .075;
+  const sw0 = Math.min(.52, ow * .3), sh0 = sw0 * IND_H / IND_W, iy = oh + (TRANSOM + CFG.headroom) / 2;
   { // a horizontally brushed body on a dark gasket (the shadow line where it meets the veneer), glass set back inside a slim
     // polished bezel, and a fixing screw at each end. The body is shallow, so it sits close to the wall.
     const hw = sw0 + .075, hh = sh0 + .024, hd = CFG.indicatorDepth;
@@ -936,7 +936,15 @@ let hoverTimer = 0, hoverArmed = true;
 function overPlate(e) { if (!G.plate) return false; ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObject(G.plate, false).length > 0; }
 root.addEventListener('pointerleave', () => { tLookX = tLookY = 0; });
 const ftab = root.querySelector('.ftab');
-function lookAtPanel(on) { if (!on && turned) hoverArmed = false; turned = on; ftab.textContent = on ? '← Doors' : 'Floors →'; clearTimeout(hoverTimer); hoverTimer = 0; }
+let panelHold = false;   // true while the camera is at the panel: the doors stay shut instead of following the scroll
+function lookAtPanel(on) {
+  if (!on && turned) hoverArmed = false; turned = on; ftab.textContent = on ? '← Doors' : 'Floors →'; clearTimeout(hoverTimer); hoverTimer = 0;
+  if (on && !panelHold) { panelHold = true;
+    if (!busy && cVal < .98) { doorSound(CFG.doorMs, true); animateDoors(1, CFG.doorMs).then(() => { bump = .25; }); } }
+  else if (!on && panelHold) { panelHold = false;
+    if (!busy) { doorAnim = null; const to = scrollTarget();   // glide back to wherever the scroll position has them
+      if (Math.abs(to - cVal) > .02) { doorSound(CFG.doorMs, false); animateDoors(to, CFG.doorMs); } } }
+}
 ftab.addEventListener('click', e => { e.stopPropagation(); lookAtPanel(!turned); });
 
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -1135,7 +1143,7 @@ function frame() {
     const k = clamp((now - doorAnim.t0) / doorAnim.ms, 0, 1);
     cVal = doorAnim.from + (doorAnim.to - doorAnim.from) * doorProfile(k);
     if (k >= 1) { const r = doorAnim.res; doorAnim = null; r(); }
-  } else if (!busy) {
+  } else if (!busy && !panelHold) {
     const target = scrollTarget();
     cVal = RM ? target : cVal + (target - cVal) * (1 - Math.pow(1 - CFG.doorEase, dt * 60));
     const f = floorNow();
