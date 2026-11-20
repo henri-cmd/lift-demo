@@ -229,7 +229,8 @@ const CFG = {
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.3,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 0.84,
-  shaftLight: 0.09,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
+  shaftLight: 0.09,
+  shaftRate: 0.3,          // how many light bands drift past per second at full speed (kept slow so it never strobes)         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
   halation: 0.16,          // strength of the soft glow around bright areas
   halationFrom: 1.15,      // brightness where the glow starts
@@ -477,7 +478,7 @@ function glowTex(rgb) {
 }
 function glowTexDark() { return canvasTex(64, 4, (g) => { const r = g.createLinearGradient(0, 0, 64, 0); r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(.5, 'rgba(0,0,0,1)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 4); }, { repeat: false }); }
 function blobTex() { return canvasTex(128, 128, (g) => { const r = g.createRadialGradient(64, 64, 20, 64, 64, 64); r.addColorStop(0, 'rgba(0,0,0,1)'); r.addColorStop(.55, 'rgba(0,0,0,.55)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); }, { repeat: false }); }
-const shaftTex = canvasTex(4, 512, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 4, 512); const r = g.createLinearGradient(0, 96, 0, 416); [[0, 0], [.3, .12], [.44, .7], [.5, 1], [.56, .7], [.7, .12], [1, 0]].forEach(([p, a]) => r.addColorStop(p, `rgba(255,255,255,${a})`)); g.fillStyle = r; g.fillRect(0, 96, 4, 320); });
+const shaftTex = canvasTex(4, 512, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 4, 512); const r = g.createLinearGradient(0, 0, 0, 512); [[0, .22], [.2, .3], [.38, .62], [.5, 1], [.62, .62], [.8, .3], [1, .22]].forEach(([p, a]) => r.addColorStop(p, `rgba(255,255,255,${a})`)); g.fillStyle = r; g.fillRect(0, 0, 4, 512); });
 let aoTexCache = null;
 function aoMat(flip, strength = .5) {
   if (!aoTexCache) aoTexCache = canvasTex(4, 128, (g) => { const r = g.createLinearGradient(0, 128, 0, 0); r.addColorStop(0, 'rgba(0,0,0,1)'); r.addColorStop(.3, 'rgba(0,0,0,.3)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 4, 128); }, { repeat: false });
@@ -1061,7 +1062,7 @@ function frame() {
   // Between floors the shaft is dark; each landing's light slides past as a band, at a speed that follows the car's.
   if (G.gap) {
     const k = RM ? 0 : travel, shut = clamp((cVal - .9) / .1, 0, 1) * CFG.shaftLight;
-    shaftPhase = ((shaftPhase + indDir * k * dt / (CFG.perFloorMs / 1000)) % 1 + 1) % 1;
+    shaftPhase = ((shaftPhase + indDir * Math.min(k, .8) * dt * CFG.shaftRate) % 1 + 1) % 1;   // a slow drift, however fast the car or the scroll
     const bandY = ((.5 - shaftPhase) % 1 + 1) % 1;                 // where the band's centre sits on the doors (0 = floor, 1 = head)
     for (const m of G.leaks) { m.material.map.offset.y = shaftPhase; m.material.opacity = m.userData.k * k * shut; }
     G.headLeak.material.opacity = 0;
