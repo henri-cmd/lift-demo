@@ -229,7 +229,7 @@ const CFG = {
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
   headroom: 0.3,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 0.88,
-  shaftLight: 0.09,
+  shaftLight: 0.24,
   shaftRate: 0.3,          // how many light bands drift past per second at full speed (kept slow so it never strobes)         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
   grade: 1,                // cinema grade strength: film contrast, split tone, vignette, grain (0 = off)
@@ -373,8 +373,8 @@ const M = {
   slot: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .85 }),
   curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
   edge: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: .75 }),
-  wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(1.1, 1.1), roughness: .9, clearcoat: .5, clearcoatRoughness: .24 }),
-  lower: new THREE.MeshPhysicalMaterial({ color: 0x17171a, roughness: .55, clearcoat: .22, clearcoatRoughness: .4, normalMap: grainNormal, normalScale: new THREE.Vector2(.5, .5) }),   // dark satin panel below the rail
+  wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(.75, .75), roughness: .9, clearcoat: .5, clearcoatRoughness: .24 }),
+  lower: new THREE.MeshPhysicalMaterial({ color: 0x17171a, roughness: .55, clearcoat: .22, clearcoatRoughness: .4, normalMap: grainNormal, normalScale: new THREE.Vector2(.22, .22) }),   // dark satin panel below the rail
   ceilGlow: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.55, 1.48, 1.34) }),   // luminous ceiling panels
   floor: new THREE.MeshPhysicalMaterial({ map: terrazzo, roughnessMap: terrazzoRough, roughness: 1, clearcoat: .9, clearcoatRoughness: .12 }),
   reveal: new THREE.MeshPhysicalMaterial({ color: 0xa6a8ab, metalness: 1, roughness: .45 }),
@@ -531,8 +531,9 @@ const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { v
         k = max(mix(k, k * k * (3. - 2. * k), .55 * grade), 0.);                       // film S-curve: deeper blacks, firmer highlights
         k *= mix(vec3(1.), mix(vec3(.93, 1., 1.08), vec3(1.035, 1., .955), smoothstep(.04, .65, l)), grade);   // cool shadows, warm highlights
         float v = length((vUv - .5) * vec2(1., .92)); k *= 1. - .34 * grade * smoothstep(.32, .8, v);         // optical vignette
-        float n = fract(sin(dot(floor(vUv * res) + time * 61., vec2(12.9898, 78.233))) * 43758.5453) - .5;
-        k += n * .045 * grade * (1. - l * .7) * a;                                    // fine grain, stronger in the shadows
+        vec3 h3 = fract(vec3(floor(vUv * res).xyx) * vec3(.1031, .1030, .0973) + time * .013); h3 += dot(h3, h3.yzx + 33.33);
+        float n = fract((h3.x + h3.y) * h3.z) - .5;
+        k += n * .026 * grade * (1. - l * .7) * a;                                    // fine grain, stronger in the shadows
         gl_FragColor.rgb = k; }
       #include <colorspace_fragment>
     }` });
@@ -717,7 +718,7 @@ function build() {
       g.textAlign = 'center'; const eng = (t, y, f) => { g.font = f; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(t, w / 2, y + 2); g.fillStyle = '#2e2f32'; g.fillText(t, w / 2, y); };
       eng('MAX LOAD 630 kg', 70, '700 44px -apple-system,Helvetica,Arial,sans-serif'); eng('8 PERSONS', 128, '600 38px -apple-system,Helvetica,Arial,sans-serif'); }, { repeat: false });
     plane(lw + .05, lh + .05, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .3, depthWrite: false }), px + .003, ly - .006, FZ + .0016);
-    const m = new THREE.Mesh(new RoundedBoxGeometry(lw, lh, .004, 2, .0015), [M.steel, M.steel, M.steel, M.steel, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xf3ece0, metalness: .9, roughness: .36 }), M.steel]); m.position.set(px, ly, FZ + .002); cab.add(m); }
+    const m = new THREE.Mesh(new RoundedBoxGeometry(lw, lh, .012, 2, .002), [M.steel, M.steel, M.steel, M.steel, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xf3ece0, metalness: .9, roughness: .36 }), M.steel]); m.position.set(px, ly, FZ + .006); m.userData.noShadow = true; cab.add(m); }
   G.panel = new THREE.Vector3(px, py, FZ + .01); G.pd = .5 + ph * PS * .62;   // viewing distance that frames the whole panel
 
   /* --- lights: the luminous ceiling does the work; a soft spot adds gentle shadows --- */
@@ -737,7 +738,7 @@ function build() {
   const fadeDown = m => { const geo = new THREE.PlaneGeometry(m.geometry.parameters.width, m.geometry.parameters.height, 1, 12), pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
     for (let i = 0; i < pos.count; i++) { const v = pos.getY(i) / m.geometry.parameters.height + .5, f = Math.pow(clamp((v - .42) / .48, 0, 1), 2); col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = f; }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); m.geometry.dispose(); m.geometry = geo; m.material.vertexColors = true; m.material.needsUpdate = true; return m; };
-  for (const [x, w, k] of [[0, .003, 1]]) { const m = plane(w, oh, leakMat(), x, oh / 2, x ? -.0235 : -.0195); m.material.map.needsUpdate = true; m.userData.k = k; fadeDown(m); G.leaks.push(m); }
+  for (const [x, w, k] of [[0, .0045, 1]]) { const m = plane(w, oh, leakMat(), x, oh / 2, x ? -.0235 : -.0195); m.material.map.needsUpdate = true; m.userData.k = k; fadeDown(m); G.leaks.push(m); }
   G.headLeak = plane(ow - .02, .004, leakMat({ map: null }), 0, oh - .006, -.0235);
   G.steady = fadeDown(plane(.003, oh, leakMat({ map: null, color: 0xffe9c8 }), 0, oh / 2, -.0195));
   G.gap = G.leaks[0];
@@ -747,7 +748,7 @@ function build() {
   ao(ow, 0, oh - .11, -.022, 0, true, .7, .22);
   for (const sx of [-1, 1]) ao(.1, sx * (ow / 2 - .05), oh / 2, -.0225, 0, false, 0, oh).visible = false;
   ao(depth, xl + .004, .16, depth / 2, Math.PI / 2, false, .4); ao(depth, xr - .004, .16, depth / 2, -Math.PI / 2, false, .4);
-  cab.traverse(o => { if (o.isMesh && !o.material.transparent && !o.material.isMeshBasicMaterial) { o.receiveShadow = SHADOWS; o.castShadow = SHADOWS; } });
+  cab.traverse(o => { if (o.isMesh && !o.userData.noShadow && !Array.isArray(o.material) && !o.material.transparent && !o.material.isMeshBasicMaterial) { o.receiveShadow = SHADOWS; o.castShadow = SHADOWS; } });
   G.envPos = new THREE.Vector3(0, eye, D * .6);
   captureEnv();
 
