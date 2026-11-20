@@ -206,7 +206,7 @@ const CFG = {
   ],
   tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
   lowerPanel: 0x263645,    // the panel below the rail: a muted, slightly grey blue
-  woodTint: 0x8f5a40,      // deepens the sapele veneer towards the warm red-brown of the references
+  woodTint: 0xb6978a,      // deepens the rosewood veneer scan towards the red-brown of the references
   functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
   contactEmail: '',        // Call button opens an email to this address (blank = just rings)
 
@@ -351,10 +351,10 @@ const noiseTex = (base, amt, blotch, size = 512) => canvasTex(size, size, (g, w,
 const plaster = noiseTex('#cdc6bb', 10, 90);
 const concrete = noiseTex('#46423e', 14, 200, 1024);
 
-// scanned textures (CC0): sapele veneer from Poly Haven; a steel patina (roughness) from ambientCG
+// scanned textures (CC0): rosewood veneer from Poly Haven (grain turned to run vertically); a steel patina (roughness) from ambientCG
 const loader = new THREE.TextureLoader();
 const loadTex = (url, srgb) => { const t = loader.load(url, () => captureEnv()); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAXANI; return t; };
-const woodMap = loadTex(CFG.tex + 'sapele-diff.webp', true), woodNormal = loadTex(CFG.tex + 'sapele-normal.webp'), woodRough = loadTex(CFG.tex + 'sapele-rough.webp');
+const woodMap = loadTex(CFG.tex + 'veneer-diff.webp', true), woodNormal = loadTex(CFG.tex + 'veneer-normal.webp'), woodRough = loadTex(CFG.tex + 'veneer-rough.webp');
 // the scanned patina is blended into the generated brushing, so the steel keeps its hairline grain but gains real, uneven wear
 { const im = new Image(); im.onload = () => { for (const set of [steelSet, doorSetL, doorSetR]) { const c = set.rough.image, g = c.getContext('2d');
     g.globalAlpha = .1; g.globalCompositeOperation = 'screen'; g.drawImage(im, 0, 0, c.width, c.height); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; set.rough.needsUpdate = true; } captureEnv(); };
@@ -625,7 +625,7 @@ function woodAt(u0, u1, y0, y1, seed = 0) {
 }
 const shadowLine = new THREE.MeshBasicMaterial({ map: glowTexDark(), transparent: true, opacity: .35, depthWrite: false });
 // one run of wall, built in a group (local x along the wall, y up, facing local +z):
-// dark satin panel below a brushed-steel rail, sapele veneer above in bays split by thin steel reveals, steel kick plate at the floor
+// dark satin panel below a brushed-steel rail, veneer above in bays split by thin steel reveals, steel kick plate at the floor
 const RAIL_Y = .84, RAIL_H = .04, KICK = .1, BAY = .62;
 function wallRun(u0, u1, yTop, seed = 0) {
   const g = new THREE.Group(), w = u1 - u0, uc = (u0 + u1) / 2; cab.add(g);
@@ -721,11 +721,20 @@ function build() {
 
   /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, blue LEDs --- */
   const sw0 = Math.min(.52, ow * .3), sh0 = sw0 * 256 / 1536, iy = oh + TRANSOM + .075;
-  plane(sw0 + .26, sh0 + .2, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .42, depthWrite: false }), 0, iy - .018, FZ + .0015);   // housing's soft shadow on the veneer
-  const house = new THREE.Mesh(new RoundedBoxGeometry(sw0 + .1, sh0 + .034, .034, 4, .012), M.steel); house.position.set(0, iy, FZ + .017); cab.add(house);
-  box(sw0 + .012, sh0 + .012, .004, M.black, 0, iy, FZ + .033);
-  plane(sw0, sh0, screenMat(IND), 0, iy, FZ + .0356);
-  plane(sw0 * 1.5, sh0 * 3.2, new THREE.MeshBasicMaterial({ map: glowTex('0,125,186'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .07 }), 0, iy, FZ + .038);
+  { // a horizontally brushed body on a dark gasket (the shadow line where it meets the veneer), glass set back inside a slim
+    // polished bezel, and a fixing screw at each end. Its shadow comes from the key light, so it sits on the wall.
+    const hw = sw0 + .11, hh = sh0 + .04, hd = .026;
+    box(hw + .006, hh + .006, .003, M.slot, 0, iy, FZ + .0015);
+    const house = new THREE.Mesh(new RoundedBoxGeometry(hw, hh, hd, 4, .007), M.steelH); house.position.set(0, iy, FZ + .003 + hd / 2); cab.add(house);
+    const fz = FZ + .003 + hd, bw = .005;
+    box(sw0 + .004, sh0 + .004, .002, M.black, 0, iy, fz - .0005);
+    plane(sw0, sh0, screenMat(IND), 0, iy, fz + .0008);
+    box(sw0 + 2 * bw, bw, .005, M.steelPolished, 0, iy + sh0 / 2 + bw / 2, fz + .0015); box(sw0 + 2 * bw, bw, .005, M.steelPolished, 0, iy - sh0 / 2 - bw / 2, fz + .0015);
+    box(bw, sh0, .005, M.steelPolished, -sw0 / 2 - bw / 2, iy, fz + .0015); box(bw, sh0, .005, M.steelPolished, sw0 / 2 + bw / 2, iy, fz + .0015);
+    for (const sx of [-1, 1]) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(.0042, .0042, .002, 20), M.steelPolished); sc.rotation.x = Math.PI / 2; sc.position.set(sx * (sw0 / 2 + .03), iy, fz + .0006); cab.add(sc);
+      box(.006, .001, .0006, M.slot, sx * (sw0 / 2 + .03), iy, fz + .0018).rotation.z = .6 * sx; }
+    plane(sw0 * 1.4, sh0 * 2.6, new THREE.MeshBasicMaterial({ map: glowTex('0,125,186'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .05 }), 0, iy, fz + .008);
+  }
 
   /* --- button panel: brushed plate, LED display, engraved buttons with halo rings, lift functions along the bottom --- */
   const panelStart = cab.children.length, PS = CFG.panelScale;
