@@ -635,6 +635,14 @@
 #lift .panel .btn:hover .ico{transform:translateY(.08cqw) scale(.975); box-shadow:inset 0 .3cqw .25cqw rgba(255,255,255,.9),inset 0 -.6cqw .9cqw rgba(60,45,20,.3),0 .18cqw .28cqw rgba(0,0,0,.68)}
 #lift .panel .btn:active .ico{transform:translateY(.1cqw) scale(.95) !important; transition-duration:.06s !important}
 #lift .panel .btn .lbl{transition:color .25s, letter-spacing .35s cubic-bezier(.2,.8,.2,1), text-indent .35s}
+@keyframes liftPress{
+  0%{transform:translateY(.08cqw) scale(.975)}
+  32%{transform:translateY(.28cqw) scale(.9); box-shadow:inset 0 .5cqw .7cqw rgba(60,45,20,.38),inset 0 -.3cqw .5cqw rgba(60,45,20,.3),0 0 .1cqw rgba(0,0,0,.8)}
+  55%{transform:translateY(.28cqw) scale(.9); box-shadow:inset 0 .5cqw .7cqw rgba(60,45,20,.38),inset 0 -.3cqw .5cqw rgba(60,45,20,.3),0 0 .1cqw rgba(0,0,0,.8)}
+  82%{transform:translateY(-.05cqw) scale(1.012)}
+  100%{transform:translateY(.08cqw) scale(.975)}}
+#lift .panel .btn.press .ico{animation:liftPress .42s cubic-bezier(.3,.7,.3,1) !important}
+#lift .panel .btn:active .ico{transform:translateY(.28cqw) scale(.9) !important}
 @media (prefers-reduced-motion:reduce){#lift .panel .btn,#lift .panel .btn .ico,#lift .panel .btn .lbl{transition:none !important}}
 /* --- door frame: satin stainless header and jambs with a bright chamfer and a dark return --- */
 #lift .trim{filter:none !important}
@@ -979,6 +987,10 @@
     b.addEventListener('click', () => liftFn(fn, b));
     $('.panel').appendChild(b);
   });
+  // a click plays the whole press: cap goes fully in, then springs back out
+  $('.panel').addEventListener('pointerdown', e => { const b = e.target.closest('.btn'); if (!b) return;
+    b.classList.remove('press'); void b.offsetWidth; b.classList.add('press'); });
+  $('.panel').addEventListener('animationend', e => { if (e.animationName === 'liftPress') e.target.closest('.btn')?.classList.remove('press'); });
   { // lay each button over its place on the rendered panel
     const colX = [18.5, 49.9, 81.7], rowY = [20.45, 34.75, 49.3, 63.95], fnX = [14, 38, 62, 86];
     btns.forEach((b, k) => { b.style.left = colX[k % 3] + '%'; b.style.top = (rowY[Math.floor(k / 3)] ?? 63.95) + '%'; });
