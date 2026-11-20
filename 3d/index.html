@@ -233,6 +233,8 @@ const CFG = {
   exposure: 0.88,
   shaftLight: 0.5,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
+  ao: 0.85,                // ambient occlusion strength: real contact shadows in creases and under edges (0 = off)
+  aoRadius: 0.16,          // how far (metres) geometry casts that shading
   grade: 1,                // cinema grade strength: film contrast, split tone, vignette, grain (0 = off)
   halation: 0.2,          // strength of the soft glow around bright areas
   halationFrom: 1.15,      // brightness where the glow starts
@@ -375,7 +377,7 @@ const grainNormal = (() => { const w = 256, hf = new Float32Array(w * w); for (l
 
 /* ===== MATERIALS ===== */
 const steelMat = (set, o = {}) => new THREE.MeshPhysicalMaterial({ map: set.albedo, roughnessMap: set.rough, normalMap: set.normal, normalScale: new THREE.Vector2(.12, .12),
-  color: 0xf3ece0, metalness: 1, roughness: 1, anisotropy: .75, anisotropyRotation: Math.PI / 2, envMapIntensity: 1, ...o });   // warm, champagne-toned stainless
+  color: 0xddd6ca, metalness: 1, roughness: 1, anisotropy: .75, anisotropyRotation: Math.PI / 2, envMapIntensity: 1, ...o });   // warm, champagne-toned stainless
 const lightCurtainTex = canvasTex(32, 1024, (g, w, h) => { g.fillStyle = '#1b1c1e'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#26282b'; g.fillRect(w * .3, 0, w * .4, h);
   for (let y = 14; y < h; y += 22) { g.fillStyle = '#0a0a0b'; g.beginPath(); g.arc(w / 2, y, 4.2, 0, 7); g.fill(); g.fillStyle = 'rgba(0,95,150,.6)'; g.beginPath(); g.arc(w / 2, y, 2, 0, 7); g.fill(); } }, { repeat: false });
@@ -536,11 +538,22 @@ const blurMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, d: { 
         if (thr > 0.) { float l = max(c.r, max(c.g, c.b)); c.rgb *= smoothstep(thr, thr * 2.2, l); }
         s += c * w; tw += w; }
       gl_FragColor = s / tw; }` });
-const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { value: null }, bloom: { value: CFG.halation }, ca: { value: CFG.fringe }, time: { value: 0 }, res: { value: new THREE.Vector2(1, 1) }, grade: { value: CFG.grade } }, vertexShader: FSV, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
-  fragmentShader: `uniform sampler2D t, b; uniform float bloom, ca, time, grade; uniform vec2 res; varying vec2 vUv;
+const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { value: null }, bloom: { value: CFG.halation }, ca: { value: CFG.fringe }, time: { value: 0 }, res: { value: new THREE.Vector2(1, 1) }, grade: { value: CFG.grade }, dt: { value: null }, near: { value: .02 }, far: { value: 60 }, pk: { value: 1 }, asp: { value: 1 }, aoS: { value: 0 }, aoR: { value: CFG.aoRadius } }, vertexShader: FSV, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
+  fragmentShader: `uniform sampler2D t, b, dt; uniform float bloom, ca, time, grade, near, far, pk, asp, aoS, aoR; uniform vec2 res; varying vec2 vUv;
+    float lin(float d){ return near * far / (far - d * (far - near)); }
+    // contact shadows: how much nearby geometry stands in front of this point's own surface (its slope is taken into account,
+    // so flat walls seen at an angle don't darken themselves)
+    float ambient(){ float d = texture2D(dt, vUv).x; if (d >= .99999) return 1.; float z = lin(d);
+      vec2 grad = vec2(dFdx(z), dFdy(z)); float r = aoR * pk / z, a = 0.;
+      float ang = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715)))) * 6.2831853;
+      for (int i = 0; i < 12; i++) { float fi = float(i); vec2 o = vec2(cos(ang + fi * 2.39996), sin(ang + fi * 2.39996)) * r * sqrt((fi + .5) / 12.); o.x /= asp;
+        float zs = lin(texture2D(dt, vUv + o).x), dz = z + dot(grad, o * res) - zs;
+        a += smoothstep(.004, .03, dz) * (1. - smoothstep(.1, .35, dz)); }
+      return 1. - aoS * a / 12.; }
     void main(){ vec2 c = vUv - .5; vec2 off = c * dot(c, c) * ca;
       vec4 s = texture2D(t, vUv);
       vec3 col = vec3(texture2D(t, vUv + off).r, s.g, texture2D(t, vUv - off).b);
+      if (aoS > 0.) { float ao = ambient(); col *= mix(vec3(.34, .29, .27), vec3(1.), ao); }   // occlusion, slightly warm in the creases
       col += texture2D(b, vUv).rgb * bloom * vec3(1., .86, .74);   // warm halation
       gl_FragColor = vec4(col, s.a);
       #include <tonemapping_fragment>
@@ -556,9 +569,18 @@ const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { v
       #include <colorspace_fragment>
     }` });
 const fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), outMat); fsQuad.frustumCulled = false; fsScene.add(fsQuad);
-function sizePost() { const v = renderer.getDrawingBufferSize(new THREE.Vector2()); rtScene.setSize(v.x, v.y); const w = Math.max(2, v.x >> 2), h = Math.max(2, v.y >> 2); rtA.setSize(w, h); rtB.setSize(w, h); }
+const AO = POST && !MOBILE && CFG.ao > 0;
+const rtDepth = new THREE.WebGLRenderTarget(4, 4, { depthTexture: new THREE.DepthTexture(4, 4, THREE.UnsignedIntType) });
+const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+function sizePost() { const v = renderer.getDrawingBufferSize(new THREE.Vector2()); rtScene.setSize(v.x, v.y); rtDepth.setSize(v.x, v.y); const w = Math.max(2, v.x >> 2), h = Math.max(2, v.y >> 2); rtA.setSize(w, h); rtB.setSize(w, h); }
 function renderScene() {
   if (!POST) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
+  if (AO) {   // depth of the solid geometry only (shading/glow overlays are hidden for this pass)
+    for (const o of G.ghost || []) { o.userData.vis = o.visible; o.visible = false; }
+    scene.overrideMaterial = depthOnly; renderer.setRenderTarget(rtDepth); renderer.clear(); renderer.render(scene, camera); scene.overrideMaterial = null;
+    for (const o of G.ghost || []) o.visible = o.userData.vis;
+    const u = outMat.uniforms; u.dt.value = rtDepth.depthTexture; u.near.value = camera.near; u.far.value = camera.far; u.pk.value = .5 * camera.projectionMatrix.elements[5]; u.asp.value = camera.aspect; u.aoS.value = CFG.ao;
+  }
   renderer.setRenderTarget(rtScene); renderer.clear(); renderer.render(scene, camera);
   fsQuad.material = blurMat;
   blurMat.uniforms.t.value = rtScene.texture; blurMat.uniforms.d.value.set(1 / rtA.width, 0); blurMat.uniforms.thr.value = CFG.halationFrom; renderer.setRenderTarget(rtA); renderer.clear(); renderer.render(fsScene, fsCam);
@@ -741,7 +763,7 @@ function build() {
   const spot = new THREE.SpotLight(0xfff0dc, 5, 0, 1.2, 1, 2); spot.position.set(0, cabH - .05, lz);
   spot.target.position.set(0, 0, lz * .8); cab.add(spot, spot.target);
   spot.castShadow = SHADOWS; spot.shadow.mapSize.set(2048, 2048); spot.shadow.bias = -.0008; spot.shadow.normalBias = .04; spot.shadow.radius = 10; spot.shadow.camera.near = .2;
-  cab.add(new THREE.HemisphereLight(0xfff4e4, 0x3a332c, .16));
+  cab.add(new THREE.HemisphereLight(0xfff4e4, 0x5a3626, .2));   // sky = ceiling; ground = warm bounce off the veneer and floor
   // light from beyond the doors spilling into the cab
   G.landing = new THREE.PointLight(0xfff0dc, 0, 0, 2); G.landing.position.set(0, oh * .8, z1 - .3); cab.add(G.landing);
   G.bounce = new THREE.AmbientLight(0xffffff, 0); cab.add(G.bounce);   // the floor's colour bouncing around the cab once the doors open
@@ -763,6 +785,7 @@ function build() {
   for (const sx of [-1, 1]) ao(.1, sx * (ow / 2 - .05), oh / 2, -.0225, 0, false, 0, oh).visible = false;
   ao(depth, xl + .004, .16, depth / 2, Math.PI / 2, false, .4); ao(depth, xr - .004, .16, depth / 2, -Math.PI / 2, false, .4);
   cab.traverse(o => { if (o.isMesh && !o.userData.noShadow && !Array.isArray(o.material) && !o.material.transparent && !o.material.isMeshBasicMaterial) { o.receiveShadow = SHADOWS; o.castShadow = SHADOWS; } });
+  G.ghost = []; cab.traverse(o => { if (o.isMesh && !Array.isArray(o.material) && o.material.transparent) G.ghost.push(o); });
   G.envPos = new THREE.Vector3(0, eye, D * .6);
   captureEnv();
 
