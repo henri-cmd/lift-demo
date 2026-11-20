@@ -234,6 +234,9 @@ const CFG = {
   exposure: 0.88,
   shaftLight: 0.5,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
+  keyLight: 2.6,           // strength of the downward key light (the one that casts shadows)
+  keyAngle: 0.42,          // how far in front of the wall the key sits (smaller = steeper light, longer shadows)
+  fill: 0.55,              // how much soft, even fill remains (1 = the old evenly-lit look)
   ao: 0.85,                // ambient occlusion strength: real contact shadows in creases and under edges (0 = off)
   aoRadius: 0.16,          // how far (metres) geometry casts that shading
   grade: 1,                // cinema grade strength: film contrast, split tone, vignette, grain (0 = off)
@@ -393,7 +396,8 @@ const M = {
   edge: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: .75 }),
   wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(.75, .75), roughness: .9, clearcoat: .5, clearcoatRoughness: .24 }),
   lower: new THREE.MeshPhysicalMaterial({ color: CFG.lowerPanel, roughness: .62, clearcoat: .18, clearcoatRoughness: .45, normalMap: leatherNormal, normalScale: new THREE.Vector2(.85, .85) }),   // dark satin panel below the rail
-  ceilGlow: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.55, 1.48, 1.34) }),   // luminous ceiling panels
+  ceilGlow: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.55, 1.48, 1.34) }),
+  ceilStrip: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 1.05, .95) }),   // luminous ceiling panels
   floor: new THREE.MeshPhysicalMaterial({ map: terrazzo, roughnessMap: terrazzoRough, roughness: 1, clearcoat: .9, clearcoatRoughness: .12 }),
   reveal: new THREE.MeshPhysicalMaterial({ color: 0xa6a8ab, metalness: 1, roughness: .45 }),
   glass: new THREE.MeshPhysicalMaterial({ color: 0x050506, roughness: .08, metalness: 0, clearcoat: 1, clearcoatRoughness: .04 }),
@@ -521,7 +525,7 @@ function doCaptureEnv() {
   cubeCam.update(renderer, scene); scene.remove(cubeCam);
   if (envTex) envTex.dispose();
   envTex = pmrem.fromCubemap(cubeRT.texture).texture;
-  scene.environment = envTex; scene.environmentIntensity = 1;
+  scene.environment = envTex; scene.environmentIntensity = CFG.fill;
 }
 
 /* ===== CAMERA TREATMENT: the scene is rendered off-screen, then finished like a photograph =====
@@ -706,8 +710,9 @@ function build() {
   { const g = wallRun(0, xr - xl, woodTop, .83); g.rotation.y = Math.PI; g.position.set(xr, 0, depth); }
   // ceiling: backlit white panels divided by steel strips (the soft, even light of the reference)
   plane(xr - xl, depth, M.ceilGlow, (xl + xr) / 2, cabH, depth / 2, 0, Math.PI / 2);
-  for (let x = Math.ceil(xl / 1.1) * 1.1; x < xr; x += 1.1) box(.035, .006, depth, M.steel, x + .55, cabH - .003, depth / 2);
-  for (let z = .9; z < depth; z += 1.2) box(xr - xl, .006, .035, M.steel, (xl + xr) / 2, cabH - .003, z);
+  // slim pale dividers between the ceiling panels (pale, so they don't reflect as hard dark lines in the doors)
+  for (let x = Math.ceil(xl / 1.1) * 1.1; x < xr; x += 1.1) box(.016, .004, depth, M.ceilStrip, x + .55, cabH - .002, depth / 2);
+  for (let z = .9; z < depth; z += 1.2) box(xr - xl, .004, .016, M.ceilStrip, (xl + xr) / 2, cabH - .002, z);
   const fl = M.floor.clone(); fl.map = repeatTex(terrazzo, (xr - xl) / 1.6, depth / 1.6); fl.roughnessMap = repeatTex(terrazzoRough, (xr - xl) / 1.6, depth / 1.6);
   plane(xr - xl, depth, fl, (xl + xr) / 2, 0, depth / 2, 0, -Math.PI / 2);
   for (const x of [xl + .06, xr - .06]) {
@@ -760,11 +765,14 @@ function build() {
 
   /* --- lights: the luminous ceiling does the work; a soft spot adds gentle shadows --- */
   const lz = D * .5;
-  rectLight(0xfff1de, 4.6, Math.min(xr - xl, 5.5) * .9, depth * .85, (xl + xr) / 2 * .5, cabH - .02, depth / 2);
-  const spot = new THREE.SpotLight(0xfff0dc, 5, 0, 1.2, 1, 2); spot.position.set(0, cabH - .05, lz);
-  spot.target.position.set(0, 0, lz * .8); cab.add(spot, spot.target);
-  spot.castShadow = SHADOWS; spot.shadow.mapSize.set(2048, 2048); spot.shadow.bias = -.0008; spot.shadow.normalBias = .04; spot.shadow.radius = 10; spot.shadow.camera.near = .2;
-  cab.add(new THREE.HemisphereLight(0xfff4e4, 0x5a3626, .2));   // sky = ceiling; ground = warm bounce off the veneer and floor
+  rectLight(0xfff1de, 4.6 * CFG.fill * .7, Math.min(xr - xl, 5.5) * .9, depth * .85, (xl + xr) / 2 * .5, cabH - .02, depth / 2);
+  // the key: light coming down from the ceiling just in front of the wall, so everything proud of the wall throws a soft
+  // shadow downwards — the header onto the doors, the indicator and panel onto the veneer, the rail onto the panel below
+  const key = new THREE.DirectionalLight(0xfff0dc, CFG.keyLight); const kx = (xl + xr) / 2;
+  key.position.set(kx, cabH / 2 + 4, 4 * CFG.keyAngle); key.target.position.set(kx, cabH / 2, 0); cab.add(key, key.target);
+  key.castShadow = SHADOWS; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -.0004; key.shadow.normalBias = .012; key.shadow.radius = 7;
+  { const c = key.shadow.camera, hw = (xr - xl) / 2 + .3, hh = cabH / 2 + .8; c.left = -hw; c.right = hw; c.top = hh; c.bottom = -hh; c.near = .5; c.far = 12; c.updateProjectionMatrix(); }
+  cab.add(new THREE.HemisphereLight(0xfff4e4, 0x5a3626, .2 * CFG.fill));   // sky = ceiling; ground = warm bounce off the veneer and floor
   // light from beyond the doors spilling into the cab
   G.landing = new THREE.PointLight(0xfff0dc, 0, 0, 2); G.landing.position.set(0, oh * .8, z1 - .3); cab.add(G.landing);
   G.bounce = new THREE.AmbientLight(0xffffff, 0); cab.add(G.bounce);   // the floor's colour bouncing around the cab once the doors open
@@ -782,7 +790,7 @@ function build() {
   G.gapLight = new THREE.PointLight(0xfff0d0, 0, .5, 2); G.gapLight.position.set(0, eye, -.005); cab.add(G.gapLight);
   // soft contact shadows: under the transom onto the doors, and where walls meet floor and ceiling
   const ao = (w, x, y, z, ry, flip, s = .5, h = .32) => { const m = plane(w, h, aoMat(flip, s), x, y, z, ry); m.renderOrder = 1; return m; };
-  ao(ow, 0, oh - .11, -.022, 0, true, .7, .22);
+  ao(ow, 0, oh - .11, -.022, 0, true, .3, .22);
   for (const sx of [-1, 1]) ao(.1, sx * (ow / 2 - .05), oh / 2, -.0225, 0, false, 0, oh).visible = false;
   ao(depth, xl + .004, .16, depth / 2, Math.PI / 2, false, .4); ao(depth, xr - .004, .16, depth / 2, -Math.PI / 2, false, .4);
   cab.traverse(o => { if (o.isMesh && !o.userData.noShadow && !Array.isArray(o.material) && !o.material.transparent && !o.material.isMeshBasicMaterial) { o.receiveShadow = SHADOWS; o.castShadow = SHADOWS; } });
