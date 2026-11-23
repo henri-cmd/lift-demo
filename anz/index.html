@@ -56,9 +56,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .coach .arr i{font-style:normal; opacity:.25; animation:coachArr 1.3s infinite}
 #lift3d .coach .arr i:nth-child(2){animation-delay:.16s} #lift3d .coach .arr i:nth-child(3){animation-delay:.32s}
 #lift3d .coach::after{content:""; position:absolute; right:0; top:-30vh; bottom:-30vh; width:3px; background:linear-gradient(transparent,rgba(255,255,255,.95) 35%,rgba(255,255,255,.95) 65%,transparent); animation:coachEdge 1.6s ease-in-out infinite}
-#lift3d .coach.l{right:auto; left:0; border-radius:0 20px 20px 0; border-right:1px solid rgba(255,255,255,.75); border-left:0; transform:translate(-14px,-50%)}
-#lift3d .coach.l.on,#lift3d.seen-panel .coach.l.on{opacity:1; transform:translate(0,-50%)}
-#lift3d .coach.l::after{right:auto; left:0}
+#lift3d .coach.l{top:auto; bottom:calc(66px + env(safe-area-inset-bottom)); transform:translate(14px,0); transition:opacity .35s,transform .5s cubic-bezier(.16,1,.3,1)}   /* on the right, under the panel, pointing back left */
+#lift3d .coach.l.on,#lift3d.seen-panel .coach.l.on{opacity:1; transform:none}
+#lift3d .coach.l::after{display:none}
 #lift3d .coach.l .arr i{animation-name:coachArrL} #lift3d .coach.l .arr i:nth-child(1){animation-delay:.32s} #lift3d .coach.l .arr i:nth-child(3){animation-delay:0s}
 @keyframes coachArrL{0%,100%{opacity:.25; transform:translateX(0)} 40%{opacity:1; transform:translateX(-4px)}}
 @keyframes coachArr{0%,100%{opacity:.25; transform:translateX(0)} 40%{opacity:1; transform:translateX(4px)}}
@@ -1504,10 +1504,10 @@ if (MOBILE) root.querySelector('.hint').textContent = 'Swipe up ↑';
     if (!soundOn) { sndBtn.classList.add('nudge'); sndBtn.textContent = 'Turn sound on'; tipSnd.classList.add('on');
       await until(() => !sndBtn.classList.contains('nudge'), 8000);
       tipSnd.classList.remove('on'); if (sndBtn.classList.contains('nudge')) { sndBtn.classList.remove('nudge'); sndBtn.textContent = 'Sound off'; } await pause(500); }
-    if (!root.classList.contains('seen-panel') && (G.pan > .08 || MOBILE)) { coach.classList.add('on'); await until(() => root.classList.contains('seen-panel'), 10000); coach.classList.remove('on'); await pause(500);
-      if (root.classList.contains('seen-panel')) {   // they found the panel: now show the way back, so the doors (and the scroll tip) come next
-        await pause(900); if (turned && !busy) { back.classList.add('on'); await until(() => !turned || busy, 15000); back.classList.remove('on'); }
-        await until(() => !turned && !busy, 60000); await pause(700); } }
+    if (!root.classList.contains('seen-panel') && (G.pan > .08 || MOBILE)) { coach.classList.add('on'); await until(() => root.classList.contains('seen-panel'), 10000); coach.classList.remove('on');
+      if (root.classList.contains('seen-panel')) {   // they found the panel: show the way back at once, so the doors (and the scroll tip) come next
+        if (turned && !busy) { back.classList.add('on'); await until(() => !turned || busy, 15000); back.classList.remove('on'); }
+        await until(() => !turned && !busy, 60000); await pause(700); } else await pause(500); }
     if (!root.classList.contains('seen-scroll')) { tipScroll.classList.add('on'); await until(() => root.classList.contains('seen-scroll'), 10000); tipScroll.classList.remove('on'); } })(); }
 build();
 setIndicator(0);
