@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lift — ANZ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavior:none}
+#lift3d{position:fixed; inset:0; overflow:hidden; background:#000; font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif; color:#eee;
+  touch-action:pan-y; user-select:none; -webkit-user-select:none}
+#lift3d .css3d,#lift3d canvas.gl{position:absolute; inset:0}
+#lift3d canvas.gl{z-index:1; pointer-events:none; filter:none}
+#lift3d .css3d{z-index:0; transition:background-color .5s}
+
+/* the floors: one continuous page seen through the doorway (a real DOM page placed in the 3D scene) */
+#lift3d .wall{position:absolute; left:0; top:0; overflow:hidden; background:#111; will-change:transform}
+#lift3d .wlight{display:none; position:absolute; inset:0; pointer-events:none; mix-blend-mode:multiply;
+  background:radial-gradient(ellipse 75% 85% at 50% -5%,#fffaf2 0%,#efe8dd 38%,#b9b2a8 78%,#8f8981 100%),linear-gradient(0deg,rgba(60,55,50,.35),transparent 9%)}
+#lift3d .page{position:absolute; inset:0; box-sizing:border-box; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; scrollbar-width:none; user-select:text; -webkit-user-select:text; background:#111; container-type:size; color:#f2efe9; -webkit-font-smoothing:antialiased}
+#lift3d .page::-webkit-scrollbar{display:none}
+#lift3d.busy .page{overflow:hidden}
+#lift3d .stop{position:relative}
+#lift3d .hold{position:sticky}
+#lift3d .floor{position:sticky; top:0; background-size:cover; background-position:center}
+#lift3d .stop.gone{visibility:hidden}
+#lift3d .copy{max-width:960px; margin:0 auto; padding:14cqh calc(var(--mx,0px) + 5cqw) 22cqh; box-sizing:content-box}
+#lift3d .copy h1{font-size:clamp(34px,7cqw,96px); font-weight:600; letter-spacing:-.03em; line-height:1; margin:0 0 4cqh}
+#lift3d .copy h2{font-size:clamp(19px,2.3cqw,30px); font-weight:500; margin:10cqh 0 2cqh}
+#lift3d .copy p{font-size:clamp(15px,1.3cqw,19px); line-height:1.6; max-width:52ch; margin:0 0 2cqh; opacity:.8}
+#lift3d .copy .ph{aspect-ratio:16/9; background:rgba(255,255,255,.06); border-radius:4px; margin:4cqh 0}
+#lift3d .floor .hero{display:block; width:100%; height:100cqh; object-fit:cover}
+
+/* overlays */
+#lift3d .grain{position:absolute; inset:-64px; z-index:3; pointer-events:none; opacity:.035; mix-blend-mode:overlay; background-size:128px 128px; will-change:transform}
+#lift3d .vig{position:absolute; inset:0; z-index:2; pointer-events:none;
+  background:radial-gradient(ellipse 125% 105% at 50% 45%,transparent 62%,rgba(0,0,0,.16) 100%)}
+#lift3d .ui{position:absolute; z-index:5; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.85);
+  font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase; padding:9px 13px; border-radius:20px; cursor:pointer;
+  -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px)}
+#lift3d .snd{left:calc(16px + env(safe-area-inset-left)); bottom:calc(16px + env(safe-area-inset-bottom))}
+#lift3d .ftab{right:calc(16px + env(safe-area-inset-right)); bottom:calc(16px + env(safe-area-inset-bottom))}
+@media (pointer:coarse){ #lift3d .ui{padding:13px 17px; font-size:12px} }
+#lift3d .hint{left:50%; bottom:calc(18px + env(safe-area-inset-bottom)); transform:translateX(-50%); cursor:default; transition:opacity .6s}
+#lift3d .hint.off{opacity:0}
+#lift3d .tag{left:16px; top:14px; cursor:default; opacity:.55}
+#lift3d.busy .ftab{opacity:.3; pointer-events:none}
+#lift3d .loading{position:absolute; inset:0; z-index:9; display:flex; align-items:center; justify-content:center; background:#000;
+  font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.2em; text-transform:uppercase; color:#888; transition:opacity .8s}
+#lift3d .loading.done{opacity:0; pointer-events:none}
+</style>
+</head><body>
+<div id="lift3d">
+  <div class="vig"></div>
+  <div class="grain"></div>
+  <button class="ui snd" type="button">Sound off</button>
+  <button class="ui ftab" type="button">Floors →</button>
+  <div class="ui hint">Scroll ↓</div>
+  <div class="ui tag">ANZ</div>
+  <div class="loading">Loading</div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+
+/* ===== CONFIG ===== */
+const CFG = {
+  floors: [
+      { n:'Intro', bg:'#0b2a47', img:'', ambience:'', html:`
+        <h1>Intro</h1><p>Scroll down to ride — the doors close between floors and open again as you keep going.</p>
+        <div class="ph"></div>
+        <h2>The idea</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Why now</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>The world</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>In a sentence</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Tone', bg:'#12456e', img:'', hero:'../assets/tone-greenhouse.webp', ambience:'', html:`
+        <h1>Tone</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Feel</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>References</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Colour</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Sound</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Approach', bg:'#0d3557', img:'', hero:'../assets/approach-bakery.webp', ambience:'', html:`
+        <h1>Approach</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Camera</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Lighting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Edit</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Production design</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Characters', bg:'#16293a', img:'', ambience:'', html:`
+        <h1>Characters</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Character one</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Character two</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Character three</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Casting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Script', bg:'#0f3d63', img:'', ambience:'', html:`
+        <h1>Script</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene one</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene two</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene three</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scene four</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Storyboard', bg:'#16324a', img:'', ambience:'', html:`
+        <h1>Storyboard</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Opening</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Turning point</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Climax</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Closing frame</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Locations', bg:'#0a2540', img:'', ambience:'', html:`
+        <h1>Locations</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Interiors</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Exteriors</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Scouting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Permits</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Wardrobe', bg:'#184a73', img:'', ambience:'', html:`
+        <h1>Wardrobe</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Palette</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Lead looks</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Supporting cast</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Hair and make-up</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Music', bg:'#102f4d', img:'', ambience:'', html:`
+        <h1>Music</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Score</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Licensed tracks</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Sound design</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Mix</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Schedule', bg:'#1c3a52', img:'', ambience:'', html:`
+        <h1>Schedule</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Pre-production</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Shoot days</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Post-production</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Delivery</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Budget', bg:'#0c2c48', img:'', ambience:'', html:`
+        <h1>Budget</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Overview</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Above the line</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Below the line</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Contingency</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` },
+      { n:'Conclusion', bg:'#0a1f33', img:'', ambience:'', html:`
+        <h1>Conclusion</h1><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>What we deliver</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Timeline</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>The team</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>
+        <h2>Thank you</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
+        <div class="ph"></div>` }
+  ],
+  tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
+  blueStain: 0x2a6fe8,     // the blue-stained timber (base of the walls and the band above the doors); the wood scan is multiplied by this
+  lowerPanel: 0x263645,
+  indicatorDepth: 0.01,    // how far the indicator's metal body stands off the wall (metres)
+  wallMirror: 1,           // the same reflection on the header, frame, rail, panels and (faintly) the wood and blue walls (0 = doors only)
+  doorMirror: 0.42,         // strength of the real mirror reflection of the room in the doors (0 = off)
+  roomSide: 0.5,           // how far the cab's side walls sit beyond the doorway (metres) — small, like a real lift
+  roomBehind: 0.45,        // how far the back wall is behind the viewer
+  wallSheen: 0.1,          // how strongly the ceiling light glances off the wood and the blue panels (0 = none)
+  trimMetal: 0x8a8c90,     // header, rail, indicator housing and door frame: a darker gunmetal, for contrast against the pale wood
+  woodTint: 0xfff4e6,      // a touch of warmth on the pale maple scan, for a Scandinavian birch look
+  functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
+  contactEmail: '',        // Call button opens an email to this address (blank = just rings)
+
+  // scroll-scrubbed doors (same feel as the 2D version)
+  doorZone: 0.7, closedHold: 0.28, doorEase: 0.22, startClosed: true,
+  // button ride
+  doorMs: 1100, perFloorMs: 750, arriveDwellMs: 300,
+  // camera
+  fov: 54,                 // vertical field of view (degrees)
+  panelScale: 0.8,        // button panel size (1 = the original oversized panel; ~0.5 is a real car panel, about 31 cm wide)
+  doorFill: 0.93,          // share of the screen width the doorway takes on landscape screens (the rest is cab wall)
+  lookYaw: .3, lookPitch: .2, // how far the head turns towards the cursor (degrees)
+  headShift: 0.008,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
+  lookEase: 0.32,          // seconds — how quickly the head follows the cursor
+  revealDistance: 90,      // px — resting the mouse this close to the right edge slides over to the panel (as in the 2D version)
+  panelHoverMs: 260,       // how long the cursor rests on the panel before the camera goes to it
+  panelTurnMs: 1400,       // glide to/from the button panel
+  vibration: 0.4,
+  // build (metres)
+  openingH: 2.1,           // doorway height; its width follows the screen shape
+  revealDepth: 0.04,       // thickness of the landing wall the doors sit in (kept thin so the page gets the space)
+  pageZoom: 0.8,           // page content scale through the doorway (1 = normal web size; lower shows more content)
+  pagePush: 5,             // metres the page comes towards you as the camera pushes in to the panel (0 = none)
+  vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
+  headroom: 0.255,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
+  exposure: 1.02,
+  shaftLight: 0.5,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
+  post: true,              // camera treatment (halation + lens fringing); false = plain render
+  keyLight: 3.1,           // strength of the downward key light (the one that casts shadows)
+  keyAngle: 0.42,          // how far in front of the wall the key sits (smaller = steeper light, longer shadows)
+  fill: 0.44,              // how much soft, even fill remains (1 = the old evenly-lit look)
+  ao: 1,                // ambient occlusion strength: real contact shadows in creases and under edges (0 = off)
+  aoRadius: 0.16,          // how far (metres) geometry casts that shading
+  grade: 1,                // cinema grade strength: film contrast, split tone, vignette, grain (0 = off)
+  halation: 0.2,          // strength of the soft glow around bright areas
+  halationFrom: 1.15,      // brightness where the glow starts
+  fringe: 0,           // colour fringing towards the corners
+  musicVolume: 0.5,        // lift music during button rides (0 = none)
+};
+
+/* ===== SETUP ===== */
+const root = document.getElementById('lift3d');
+const F = CFG.floors;
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = ms => new Promise(r => setTimeout(r, RM ? 0 : ms));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const smooth = x => x * x * (3 - 2 * x);
+const MOBILE = matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 600;
+const SHADOWS = !MOBILE;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+// Quality steps down by itself if the frame rate drops (see the governor in the frame loop); it never steps back up, so it can't flicker.
+let qLevel = 0;
+const Q_SCALE = [1, .82, .66, .52];
+const pixelRatioNow = () => Math.max(.5, Math.min(2, devicePixelRatio, Math.sqrt((MOBILE ? 2.2e6 : 3.6e6) / Math.max(1, innerWidth * innerHeight))) * Q_SCALE[qLevel]);
+renderer.setPixelRatio(pixelRatioNow());
+renderer.setClearColor(0x000000, 0);
+renderer.toneMapping = THREE.AgXToneMapping;
+renderer.toneMappingExposure = CFG.exposure;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = SHADOWS; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.domElement.className = 'gl';
+root.prepend(renderer.domElement);
+RectAreaLightUniformsLib.init();
+
+const pageLayer = document.createElement('div'); pageLayer.className = 'css3d';   // holds the page, under the lift's canvas
+root.prepend(pageLayer);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(CFG.fov, innerWidth / innerHeight, 0.02, 60);
+camera.rotation.order = 'YXZ';
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const roomEnv = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environment = roomEnv;
+scene.environmentIntensity = 0.5;
+const MAXANI = renderer.capabilities.getMaxAnisotropy();
+
+/* ===== GENERATED TEXTURES ===== */
+function canvasTex(w, h, draw, { srgb = true, repeat = true } = {}) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h, c);
+  const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAXANI; return t;
+}
+// a height field → tangent-space normal map
+function normalFromHeight(hf, w, h, strength) {
+  return canvasTex(w, h, (g) => {
+    const d = g.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const hx = hf[y * w + (x + 1) % w] - hf[y * w + (x - 1 + w) % w], hy = hf[((y + 1) % h) * w + x] - hf[((y - 1 + h) % h) * w + x];
+      let nx = -hx * strength, ny = hy * strength, nz = 1; const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+      const i = (y * w + x) * 4; d.data[i] = (nx * .5 + .5) * 255; d.data[i + 1] = (ny * .5 + .5) * 255; d.data[i + 2] = (nz * .5 + .5) * 255; d.data[i + 3] = 255;
+    }
+    g.putImageData(d, 0, 0);
+  }, { srgb: false });
+}
+// brushed stainless: fine directional grain (albedo, roughness, normal) plus faint smudges where hands go
+function brushedSet(w, h, { smudge = 0, hand = false, wave = 0, grime = 0, strokes: useStrokes = true } = {}) {
+  const col = new Float32Array(w);   // per-column grain (brushing runs vertically)
+  let v = 0; for (let x = 0; x < w; x++) { v = v * .25 + (Math.random() - .5) * .8; col[x] = v; }
+  const hf = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) hf[y * w + x] = useStrokes ? col[x] * .35 + (Math.random() - .5) * .2 : col[x] + (Math.random() - .5) * .25;
+  const strokes = []; for (let i = 0, n = useStrokes ? Math.round(w * h / 55) : 0; i < n; i++) strokes.push([Math.random() * w, Math.random() * h, h * (.02 + Math.pow(Math.random(), 2.2) * .55), .45 + Math.random() * 1.1, Math.random() < .5, .25 + Math.random() * .75]);
+  const drawStrokes = (g, amt) => { g.lineCap = 'round'; for (const [x, y, len, lw, light, a] of strokes) { g.strokeStyle = light ? `rgba(255,255,255,${a * amt})` : `rgba(0,0,0,${a * amt})`; g.lineWidth = lw;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + len); g.stroke(); if (y + len > h) { g.beginPath(); g.moveTo(x, y - h); g.lineTo(x, y + len - h); g.stroke(); } } };
+  if (useStrokes) { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.fillStyle = 'rgb(128,128,128)'; g.fillRect(0, 0, w, h); drawStrokes(g, .5);
+    const d = g.getImageData(0, 0, w, h).data; for (let i = 0; i < w * h; i++) hf[i] += (d[i * 4] - 128) / 128 * .9; }
+  // large soft undulations across the sheet: real door skins are never perfectly flat, so reflections wobble slightly
+  for (let i = 0; i < wave; i++) {
+    const cx = Math.random() * w, cy = Math.random() * h, r = w * (.12 + Math.random() * .2), a = (Math.random() - .5) * w * .05;
+    const x0 = Math.max(0, cx - 3.2 * r | 0), x1 = Math.min(w, cx + 3.2 * r | 0), y0 = Math.max(0, cy - 3.2 * r | 0), y1 = Math.min(h, cy + 3.2 * r | 0);
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const d = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r); hf[y * w + x] += a * Math.exp(-d); }
+  }
+  const blobs = []; for (let i = 0; i < smudge; i++) {
+    const y = hand ? h * (.35 + Math.random() * .3) : Math.random() * h, x = hand ? (Math.random() < .7 ? w * (.82 + Math.random() * .16) : Math.random() * w) : Math.random() * w;
+    blobs.push([x, y, 8 + Math.random() * 22, .04 + Math.random() * .08]);
+  }
+  const albedo = canvasTex(w, h, (g) => {
+    g.fillStyle = '#c3c5c8'; g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x++) { const k = col[x]; const m = useStrokes ? .015 : .03; g.fillStyle = k > 0 ? `rgba(255,255,255,${Math.min(m, k * m)})` : `rgba(0,0,0,${Math.min(m, -k * m)})`; g.fillRect(x, 0, 1, h); }
+    drawStrokes(g, .03);
+    if (grime) { const gr = g.createLinearGradient(0, h, 0, h * .7); gr.addColorStop(0, `rgba(40,32,24,${grime})`); gr.addColorStop(1, 'rgba(40,32,24,0)'); g.fillStyle = gr; g.fillRect(0, h * .7, w, h * .3);
+      const ge = g.createLinearGradient(w, 0, w * .96, 0); ge.addColorStop(0, `rgba(30,26,22,${grime * .8})`); ge.addColorStop(1, 'rgba(30,26,22,0)'); g.fillStyle = ge; g.fillRect(w * .96, 0, w * .04, h); }
+  });
+  const rough = canvasTex(w, h, (g) => {
+    g.fillStyle = 'rgb(78,78,78)'; g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x++) { const k = col[x]; const m = useStrokes ? .025 : .05; g.fillStyle = k > 0 ? `rgba(255,255,255,${Math.min(m, k * m)})` : `rgba(0,0,0,${Math.min(m, -k * m)})`; g.fillRect(x, 0, 1, h); }
+    drawStrokes(g, .05);
+    for (const [x, y, r, a] of blobs) { const rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, `rgba(170,170,170,${a})`); rg.addColorStop(1, 'rgba(170,170,170,0)'); g.fillStyle = rg; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  }, { srgb: false });
+  const normal = normalFromHeight(hf, w, h, 1.6);
+  return { albedo, rough, normal };
+}
+const steelSet = brushedSet(512, 512);
+const doorSetL = brushedSet(1024, 1024, { smudge: 12, hand: true, wave: 5, grime: .16, strokes: false });
+const doorSetR = brushedSet(1024, 1024, { smudge: 12, hand: true, wave: 5, grime: .16, strokes: false });
+// terrazzo: dark base with chips; normal from chip edges (very subtle)
+const terrazzo = canvasTex(1024, 1024, (g) => {
+  g.fillStyle = '#3a3632'; g.fillRect(0, 0, 1024, 1024);
+  for (let i = 0; i < 2600; i++) { const n = Math.random() * 1024, m = Math.random() * 1024; g.fillStyle = `rgba(${Math.random() < .5 ? '255,250,240' : '0,0,0'},${Math.random() * .05})`; g.beginPath(); g.arc(n, m, 8 + Math.random() * 40, 0, 7); g.fill(); }
+  for (let i = 0; i < 16000; i++) { const p = Math.random(); g.fillStyle = p < .4 ? `rgba(18,16,14,${.4 + Math.random() * .5})` : p < .85 ? `rgba(${190 + Math.random() * 50},${180 + Math.random() * 50},${165 + Math.random() * 45},${.35 + Math.random() * .5})` : `rgba(${120 + Math.random() * 40},${90 + Math.random() * 30},${70 + Math.random() * 30},.6)`;
+    const x = Math.random() * 1024, y = Math.random() * 1024, r = Math.random() * 3.2 + .5; g.beginPath(); g.ellipse(x, y, r, r * (.5 + Math.random() * .5), Math.random() * 3, 0, 7); g.fill(); }
+});
+const terrazzoRough = canvasTex(512, 512, (g) => { g.fillStyle = 'rgb(70,70,70)'; g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 260; i++) { const x = Math.random() * 512, y = Math.random() * 512, r = 20 + Math.random() * 90; const rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, `rgba(140,140,140,${Math.random() * .35})`); rg.addColorStop(1, 'rgba(140,140,140,0)'); g.fillStyle = rg; g.fillRect(x - r, y - r, 2 * r, 2 * r); } }, { srgb: false });
+// plaster for the landing walls; polished concrete for its floor
+const noiseTex = (base, amt, blotch, size = 512) => canvasTex(size, size, (g, w, h) => {
+  g.fillStyle = base; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < blotch; i++) { const x = Math.random() * w, y = Math.random() * h, r = 30 + Math.random() * 120; const rg = g.createRadialGradient(x, y, 0, x, y, r); const c = Math.random() < .5 ? '255,255,255' : '0,0,0'; rg.addColorStop(0, `rgba(${c},${Math.random() * .05})`); rg.addColorStop(1, `rgba(${c},0)`); g.fillStyle = rg; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  const d = g.getImageData(0, 0, w, h); for (let i = 0; i < d.data.length; i += 4) { const n = (Math.random() - .5) * amt; d.data[i] += n; d.data[i + 1] += n; d.data[i + 2] += n; } g.putImageData(d, 0, 0);
+});
+const plaster = noiseTex('#cdc6bb', 10, 90);
+const concrete = noiseTex('#46423e', 14, 200, 1024);
+
+// scanned textures (CC0): white maple veneer from Poly Haven (pale, birch-like; grain turned to run vertically); a steel patina (roughness) from ambientCG
+const loader = new THREE.TextureLoader();
+const loadTex = (url, srgb) => { const t = loader.load(url, () => captureEnv()); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAXANI; return t; };
+const woodMap = loadTex(CFG.tex + 'veneer-diff.webp', true), woodNormal = loadTex(CFG.tex + 'veneer-normal.webp'), woodRough = loadTex(CFG.tex + 'veneer-rough.webp');
+// the scanned patina is blended into the generated brushing, so the steel keeps its hairline grain but gains real, uneven wear
+{ const im = new Image(); im.onload = () => { for (const set of [steelSet, doorSetL, doorSetR]) { const c = set.rough.image, g = c.getContext('2d');
+    g.globalAlpha = .1; g.globalCompositeOperation = 'screen'; g.drawImage(im, 0, 0, c.width, c.height); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; set.rough.needsUpdate = true; } captureEnv(); };
+  im.src = CFG.tex + 'steel-patina.webp'; }
+const polishedRough = canvasTex(512, 512, (g) => { g.fillStyle = 'rgb(44,44,44)'; g.fillRect(0, 0, 512, 512); }, { srgb: false });
+{ const load = src => new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = CFG.tex + src; });
+  Promise.all(['smear.webp', 'scratches.webp'].map(load)).then(([smear, scratches]) => {
+    const layer = (set, im, alpha, tile = 1) => { if (!im) return; const c = set.image, g = c.getContext('2d'); g.globalCompositeOperation = 'screen'; g.globalAlpha = alpha;
+      for (let y = 0; y < tile; y++) for (let x = 0; x < tile; x++) g.drawImage(im, x * c.width / tile, y * c.height / tile, c.width / tile, c.height / tile); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; };
+    [doorSetL, doorSetR].forEach((set, n) => {
+      layer(set.rough, smear, .1);            // vertical wipe marks from cleaning
+      layer(set.rough, scratches, .07, 2);    // fine random scratches
+      set.rough.needsUpdate = true; });
+    layer(steelSet.rough, scratches, .08); steelSet.rough.needsUpdate = true;
+    load('steel-sheen.webp').then(sheen => { if (!sheen) return; for (const t of [steelSet.rough, polishedRough]) { layer(t, sheen, .28); t.needsUpdate = true; } captureEnv(); });
+    layer(polishedRough, scratches, .28, 2); layer(polishedRough, smear, .12); polishedRough.needsUpdate = true;   // polished trim: hairline scratches in the highlights
+    captureEnv();
+  }); }
+const leatherNormal = loadTex(CFG.tex + 'leather-normal.webp');
+
+// fine pebbled grain for the dark lower panels
+const grainNormal = (() => { const w = 256, hf = new Float32Array(w * w); for (let i = 0; i < hf.length; i++) hf[i] = Math.random();
+  for (let p = 0; p < 2; p++) for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) { const i = y * w + x; hf[i] = (hf[i] * 2 + hf[y * w + (x + 1) % w] + hf[((y + 1) % w) * w + x]) / 4; }
+  const t = normalFromHeight(hf, w, w, 3); t.repeat.set(6, 6); return t; })();
+
+/* ===== MATERIALS ===== */
+const steelMat = (set, o = {}) => new THREE.MeshPhysicalMaterial({ map: set.albedo, roughnessMap: set.rough, normalMap: set.normal, normalScale: new THREE.Vector2(.12, .12),
+  color: 0xd6d6d4, metalness: 1, roughness: 1, anisotropy: .75, anisotropyRotation: Math.PI / 2, envMapIntensity: 1, ...o });   // warm, champagne-toned stainless
+const lightCurtainTex = canvasTex(32, 1024, (g, w, h) => { g.fillStyle = '#1b1c1e'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#26282b'; g.fillRect(w * .3, 0, w * .4, h);
+  for (let y = 14; y < h; y += 22) { g.fillStyle = '#0a0a0b'; g.beginPath(); g.arc(w / 2, y, 4.2, 0, 7); g.fill(); g.fillStyle = 'rgba(0,95,150,.6)'; g.beginPath(); g.arc(w / 2, y, 2, 0, 7); g.fill(); } }, { repeat: false });
+const M = {
+  doorL: steelMat(doorSetL, { color: 0xb4b2ae, envMapIntensity: MOBILE || !(CFG.doorMirror > 0) ? 1 : .32 }), doorR: steelMat(doorSetR, { color: 0xb4b2ae, envMapIntensity: MOBILE || !(CFG.doorMirror > 0) ? 1 : .32 }),
+  steel: steelMat(steelSet),
+  steelH: (() => { const m = steelMat(steelSet, { anisotropyRotation: 0, color: CFG.trimMetal, roughness: .62, anisotropy: .85, envMapIntensity: 1.2 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].center.set(.5, .5); m[k].rotation = Math.PI / 2; m[k].repeat.set(1, 6); m[k].needsUpdate = true; } return m; })(),
+  steelPolished: new THREE.MeshPhysicalMaterial({ color: 0xe4e3e0, metalness: 1, roughness: .85, roughnessMap: polishedRough, envMapIntensity: 1.15 }),
+  frame: (() => { const m = steelMat(steelSet, { color: CFG.trimMetal, roughness: .62, anisotropy: .85, envMapIntensity: 1.2 }); for (const k of ['map', 'roughnessMap', 'normalMap']) { m[k] = m[k].clone(); m[k].repeat.set(.12, 4); m[k].needsUpdate = true; } return m; })(),   // door frame: the same hairline finish as the header, brushed along its length
+  steelDark: steelMat(steelSet, { color: 0x8c8c8a, roughness: 1.25 }),   // sills, kick plates: a duller brushed finish
+  slot: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .85 }),
+  curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
+  edge: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: .75 }),
+  wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(.75, .75), roughness: 1, clearcoat: .16, clearcoatRoughness: .42, envMapIntensity: 1 }),   // pale oak veneer, matt oiled finish
+  blueWood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.blueStain, normalScale: new THREE.Vector2(.9, .9), roughness: 1, clearcoat: .2, clearcoatRoughness: .38, envMapIntensity: 1 }),   // the same timber, stained blue: the grain shows through
+  kick: new THREE.MeshStandardMaterial({ color: 0x101112, metalness: .25, roughness: .5 }),   // black powder-coated skirting
+  ceil: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .92 }),   // black ceiling
+  lamp: new THREE.MeshBasicMaterial({ color: new THREE.Color(9, 8.5, 7.6) }),   // downlight lenses
+  lampTrim: new THREE.MeshStandardMaterial({ color: 0x050505, roughness: .6 }),
+  lower: new THREE.MeshPhysicalMaterial({ color: CFG.lowerPanel, roughness: .58, clearcoat: .45, clearcoatRoughness: .26, envMapIntensity: 1.2, normalMap: leatherNormal, normalScale: new THREE.Vector2(.85, .85) }),   // dark satin panel below the rail
+  ceilGlow: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.55, 1.48, 1.34) }),
+  ceilStrip: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 1.05, .95) }),   // luminous ceiling panels
+  floor: new THREE.MeshPhysicalMaterial({ map: terrazzo, roughnessMap: terrazzoRough, roughness: 1, clearcoat: .9, clearcoatRoughness: .12 }),
+  reveal: steelMat(steelSet, { color: 0x9c9da0, roughness: 1.3 }),
+  glass: new THREE.MeshPhysicalMaterial({ color: 0x050506, roughness: .08, metalness: 0, clearcoat: 1, clearcoatRoughness: .04 }),
+  black: new THREE.MeshBasicMaterial({ color: 0x050505 }),
+};
+
+/* ===== SCREENS: ANZ-blue LED matrix behind smoked glass (indicator above the doors + display on the panel) ===== */
+const GLYPH = {A:'.###.#...##...#######...##...##...#',B:'####.#...##...#####.#...##...#####.',C:'.###.#...##....#....#....#...#.###.',D:'####.#...##...##...##...##...#####.',
+E:'######....#....####.#....#....#####',F:'######....#....####.#....#....#....',G:'.###.#...##....#.####...##...#.####',H:'#...##...##...#######...##...##...#',
+I:'.###...#....#....#....#....#...###.',J:'..###...#....#....#....#.#..#..##..',K:'#...##..#.#.#..##...#.#..#..#.#...#',L:'#....#....#....#....#....#....#####',
+M:'#...###.###.#.##.#.##...##...##...#',N:'#...##...###..##.#.##..###...##...#',O:'.###.#...##...##...##...##...#.###.',P:'####.#...##...#####.#....#....#....',
+Q:'.###.#...##...##...##.#.##..#..##.#',R:'####.#...##...#####.#.#..#..#.#...#',S:'.#####....#.....###.....#....#####.',T:'#####..#....#....#....#....#....#..',
+U:'#...##...##...##...##...##...#.###.',V:'#...##...##...##...##...#.#.#...#..',W:'#...##...##...##.#.##.#.##.#.#.#.#.',X:'#...##...#.#.#...#...#.#.#...##...#',
+Y:'#...##...#.#.#...#....#....#....#..',Z:'#####....#...#...#...#...#....#####',
+0:'.###.#...##..###.#.###..##...#.###.',1:'..#...##....#....#....#....#...###.',2:'.###.#...#....#...#...#...#...#####',3:'#####...#...#.....#....##...#.###.',
+4:'...#...##..#.#.#..#.#####...#....#.',5:'######....####.....#....##...#.###.',6:'..##..#...#....####.#...##...#.###.',7:'#####....#...#...#...#....#....#...',
+8:'.###.#...##...#.###.#...##...#.###.',9:'.###.#...##...#.####....#...#..##..'};
+const GL_EXTRA = { ' ': '.'.repeat(35), '-': '..........#####..........'.padEnd(35, '.') };
+const LED_BLUE = '#0a8fd4';   // ANZ blue (#007DBA) lifted slightly so it glows like an LED
+function makeScreen(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = MAXANI; return { c, tex, g: c.getContext('2d') }; }
+function textDots(grid, text, rowOff = 0) {   // → Set of lit dot indices, text centred in the grid
+  const lit = new Set(), w = text.length * 6 - 1, top = Math.floor((grid.rows - 7) / 2), x0 = Math.floor((grid.cols - w) / 2);
+  [...text].forEach((ch, n) => { const gl = GLYPH[ch] || GL_EXTRA[ch]; if (!gl) return;
+    for (let i = 0; i < 35; i++) if (gl[i] === '#') { const x = x0 + n * 6 + (i % 5), y = top + Math.floor(i / 5) + rowOff; if (x >= 0 && x < grid.cols && y >= 0 && y < grid.rows) lit.add(y * grid.cols + x); } });
+  return lit;
+}
+// one LED: a small rounded-square die with a hot centre and a soft bloom; unlit ones barely show through the glass
+function drawMatrix(g, grid, lit, ox, oy, p) {
+  for (let r = 0; r < grid.rows; r++) for (let k = 0; k < grid.cols; k++) {
+    const on = lit.has(r * grid.cols + k), x = ox + k * p, y = oy + r * p, s = p * .7, o = (p - s) / 2;
+    if (!on) { g.fillStyle = 'rgba(6,30,46,.6)'; g.fillRect(x + o, y + o, s, s); continue; }
+    g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = p * 1.1; g.fillStyle = LED_BLUE; g.beginPath(); g.roundRect(x + o, y + o, s, s, s * .28); g.fill();
+    g.shadowBlur = 0; g.fillStyle = 'rgba(170,222,255,.85)'; g.fillRect(x + o + s * .3, y + o + s * .3, s * .4, s * .4);
+  }
+  g.shadowBlur = 0;
+}
+function lampTri(g, x, y, s, up, on) {   // direction lamp: a backlit white triangle
+  g.beginPath(); if (up) { g.moveTo(x, y - s * .55); g.lineTo(x + s * .6, y + s * .45); g.lineTo(x - s * .6, y + s * .45); } else { g.moveTo(x - s * .6, y - s * .45); g.lineTo(x + s * .6, y - s * .45); g.lineTo(x, y + s * .55); } g.closePath();
+  if (on) { g.shadowColor = 'rgba(200,228,255,.8)'; g.shadowBlur = s * .45; g.fillStyle = '#cfe2f2'; g.fill(); g.shadowBlur = 0; }
+  else { g.fillStyle = 'rgba(255,255,255,.07)'; g.fill(); }
+}
+const maxName = Math.max(...F.map((f, i) => `${i + 1} ${f.n.toUpperCase()}`.length), 8);
+const IND_W = 1536, IND_H = 256;
+const IND = makeScreen(IND_W, IND_H), PSC = makeScreen(512, 256);
+const IGRID = { cols: maxName * 6 + 1, rows: 9 }, PGRID = { cols: 13, rows: 9 };
+let indText = '', indDir = 0, curShown = 0, flashText = null;
+function drawIndicator(now = performance.now()) {
+  const kRoll = roll ? clamp((now - roll.t0) / 280, 0, 1) : 1;
+  const dots = (grid, from, to) => { if (!roll) return textDots(grid, to); const off = Math.round(kRoll * grid.rows), lit = textDots(grid, from, -roll.dir * off); for (const d of textDots(grid, to, roll.dir * (grid.rows - off))) lit.add(d); return lit; };
+  const blinkOk = typeof blinkOn === 'undefined' ? true : blinkOn, up = indDir > 0 && blinkOk, down = indDir < 0 && blinkOk;
+  // --- indicator: [▼]  1 INTRO  [▲], with a lamp per floor underneath
+  { const g = IND.g, W = IND_W, H = IND_H; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
+    const p = Math.min((W - 330) / IGRID.cols, 150 / IGRID.rows), mw = p * IGRID.cols;
+    drawMatrix(g, IGRID, flashText ? textDots(IGRID, flashText) : dots(IGRID, roll ? roll.from : '', indText), (W - mw) / 2, 30, p);
+    lampTri(g, 82, 98, 62, false, down); lampTri(g, W - 82, 98, 62, true, up);
+    const n = F.length, gap = Math.min(46, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
+    for (let i = 0; i < n; i++) { const on = i === curShown, x = x0 + i * gap; g.beginPath(); g.arc(x, 214, 9, 0, 7);
+      if (on) { g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = 16; g.fillStyle = LED_BLUE; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(180,226,255,.9)'; g.beginPath(); g.arc(x - 2, 212, 3.2, 0, 7); g.fill(); }
+      else { g.fillStyle = 'rgba(8,40,60,.6)'; g.fill(); } }
+    IND.tex.needsUpdate = true; }
+  // --- panel display: floor number + travel arrow
+  { const g = PSC.g, W = 512, H = 256; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
+    const p = 21, mw = p * PGRID.cols;
+    drawMatrix(g, PGRID, dots(PGRID, roll ? (roll.from.split(' ')[0] || '') : '', String(curShown + 1)), W - mw - 46, (H - p * PGRID.rows) / 2, p);
+    lampTri(g, 96, 128, 74, indDir > 0, indDir !== 0 && blinkOk);
+    PSC.tex.needsUpdate = true; }
+  if (roll && kRoll >= 1) roll = null;
+}
+const setIndicator = i => { curShown = i; indText = `${i + 1} ${F[i].n.toUpperCase()}`; drawIndicator(); markHere(i); };
+function markHere(i) { btnRings.forEach((r, k) => { const here = k === i, cap = btnMeshes[k] && btnMeshes[k].userData.cap;
+  if (cap) { cap.material.emissive.setHex(here ? 0x8fd0f5 : 0); cap.material.emissiveIntensity = here ? .85 : 0; }
+  if (r.userData.lit) return; r.material.emissive.setHex(here ? 0x35b4f2 : 0); r.material.emissiveIntensity = here ? 2.4 : 0; r.material.color.setHex(here ? 0x2aa4e0 : 0x2a2a2a); }); }
+// the screen surface: LEDs glowing from behind smoked glass that still catches the room's reflection
+const screenMat = scr => new THREE.MeshPhysicalMaterial({ color: 0x020202, emissive: 0xffffff, emissiveMap: scr.tex, emissiveIntensity: 3.2, roughness: .4, metalness: 0, specularIntensity: .12, clearcoat: .22, clearcoatRoughness: .06, envMapIntensity: .06 });
+
+/* ===== PANEL (floor buttons on the front wall, right of the doors) ===== */
+const btnMeshes = [], btnRings = [], fnMeshes = [];
+function capTexture(draw) {
+  return canvasTex(256, 256, (g) => {
+    const r = g.createRadialGradient(110, 100, 10, 128, 128, 128); r.addColorStop(0, '#ecebe8'); r.addColorStop(.75, '#b9b7b2'); r.addColorStop(1, '#93918c'); g.fillStyle = r; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 300; i++) { g.strokeStyle = `rgba(255,255,255,${Math.random() * .08})`; g.beginPath(); g.arc(128, 128, Math.random() * 128, 0, 7); g.stroke(); }  // spun finish
+    g.translate(128, 128); for (const [dx, dy, col] of [[1.5, 3, 'rgba(255,255,255,.55)'], [0, 0, '#26272a']]) { g.save(); g.translate(dx, dy); g.fillStyle = g.strokeStyle = col; draw(g); g.restore(); }   // engraved: light edge under dark fill
+  }, { repeat: false });
+}
+const numberCap = n => capTexture(g => { g.font = '700 118px -apple-system,Helvetica,Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(n, 0, 8); });
+const tri = (g, x, dir, s = 34) => { g.beginPath(); g.moveTo(x - dir * s * .5, -s * .62); g.lineTo(x + dir * s * .5, 0); g.lineTo(x - dir * s * .5, s * .62); g.closePath(); g.fill(); };
+const FN = {
+  open: { label: 'OPEN', draw: g => { g.fillRect(-4, -44, 8, 88); tri(g, -40, -1); tri(g, 40, 1); } },             // ◀|▶
+  close: { label: 'CLOSE', draw: g => { g.fillRect(-4, -44, 8, 88); tri(g, -34, 1); tri(g, 34, -1); } },           // ▶|◀
+  alarm: { label: 'ALARM', draw: g => { g.beginPath(); g.moveTo(-46, 30); g.quadraticCurveTo(-30, 18, -30, -8); g.arc(0, -8, 30, Math.PI, 0); g.quadraticCurveTo(30, 18, 46, 30); g.closePath(); g.fill(); g.beginPath(); g.arc(0, 42, 11, 0, Math.PI); g.fill(); g.fillRect(-5, -50, 10, 14); } },
+  call: { label: 'CALL', draw: g => { g.rotate(Math.PI / 4); g.beginPath(); g.roundRect(-52, -30, 104, 22, 11); g.fill(); g.beginPath(); g.roundRect(-52, -30, 32, 52, 11); g.fill(); g.beginPath(); g.roundRect(20, -30, 32, 52, 11); g.fill(); } },
+};
+function plateBase(g, w, h) {
+  g.fillStyle = '#bdbab4'; g.fillRect(0, 0, w, h);
+  for (let x = 0; x < w; x++) { g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .035})`; g.fillRect(x, 0, 1, h); }
+  g.lineCap = 'round'; for (let i = 0, n = Math.round(w * h / 60); i < n; i++) { const x = Math.random() * w, y = Math.random() * h, len = 20 + Math.pow(Math.random(), 2) * 320;   // short hairline strokes
+    g.strokeStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${.02 + Math.random() * .05})`; g.lineWidth = .5 + Math.random(); g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + len); g.stroke(); }
+  const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, 'rgba(255,255,255,.14)'); lg.addColorStop(.35, 'rgba(255,255,255,0)'); lg.addColorStop(1, 'rgba(0,0,0,.2)'); g.fillStyle = lg; g.fillRect(0, 0, w, h);   // lit from above
+}
+const plateMat = map => new THREE.MeshPhysicalMaterial({ map, color: 0xeceae6, normalMap: steelSet.normal, normalScale: new THREE.Vector2(.1, .1), roughnessMap: steelSet.rough, metalness: .72, roughness: 1.15, envMapIntensity: 1.15, anisotropy: .35, anisotropyRotation: Math.PI / 2 });
+function plateTexture(pw, ph, labels) {
+  const s = 1024 / pw;
+  return canvasTex(1024, Math.round(ph * s), (g, w, h) => {
+    plateBase(g, w, h);
+    g.font = '700 34px -apple-system,Helvetica,Arial,sans-serif'; g.textAlign = 'center';
+    for (const [t, x, y] of labels) { g.fillStyle = 'rgba(255,255,255,.6)'; g.fillText(t, x * s, (ph / 2 - y) * s + 2); g.fillStyle = '#2b2c2f'; g.fillText(t, x * s, (ph / 2 - y) * s); }
+  }, { repeat: false });
+}
+
+/* ===== LOOK HELPERS ===== */
+function glowTex(rgb) {
+  return canvasTex(256, 256, (g) => { const r = g.createRadialGradient(128, 128, 0, 128, 128, 128); r.addColorStop(0, `rgba(${rgb},1)`); r.addColorStop(.35, `rgba(${rgb},.3)`); r.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = r; g.fillRect(0, 0, 256, 256); }, { repeat: false });
+}
+const sheenTex = canvasTex(4, 256, (g) => { const r = g.createLinearGradient(0, 0, 0, 256); [[0, 0], [.06, .5], [.14, 1], [.3, .55], [.6, .12], [1, 0]].forEach(([p, a]) => r.addColorStop(p, `rgba(255,255,255,${a})`)); g.fillStyle = r; g.fillRect(0, 0, 4, 256); }, { repeat: false });
+const sheenMat = (color, opacity) => new THREE.MeshBasicMaterial({ map: sheenTex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+function glowTexDark() { return canvasTex(64, 4, (g) => { const r = g.createLinearGradient(0, 0, 64, 0); r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(.5, 'rgba(0,0,0,1)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 4); }, { repeat: false }); }
+function blobTex() { return canvasTex(128, 128, (g) => { const r = g.createRadialGradient(64, 64, 20, 64, 64, 64); r.addColorStop(0, 'rgba(0,0,0,1)'); r.addColorStop(.55, 'rgba(0,0,0,.55)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); }, { repeat: false }); }
+const shaftTex = canvasTex(4, 512, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 4, 512); const r = g.createLinearGradient(0, 0, 0, 512); [[0, .22], [.2, .3], [.38, .62], [.5, 1], [.62, .62], [.8, .3], [1, .22]].forEach(([p, a]) => r.addColorStop(p, `rgba(255,255,255,${a})`)); g.fillStyle = r; g.fillRect(0, 0, 4, 512); });
+let aoTexCache = null;
+function aoMat(flip, strength = .5) {
+  if (!aoTexCache) aoTexCache = canvasTex(4, 128, (g) => { const r = g.createLinearGradient(0, 128, 0, 0); r.addColorStop(0, 'rgba(0,0,0,1)'); r.addColorStop(.3, 'rgba(0,0,0,.3)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 4, 128); }, { repeat: false });
+  const m = new THREE.MeshBasicMaterial({ map: aoTexCache, transparent: true, opacity: strength, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  if (flip) { m.map = aoTexCache.clone(); m.map.flipY = false; m.map.needsUpdate = true; }
+  return m;
+}
+// reflections: a snapshot of the cab itself (walls, luminous ceiling, doors), so the metal reflects the real room
+const cubeRT = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType });
+const cubeCam = new THREE.CubeCamera(.05, 40, cubeRT);
+let envTex = null, envDirty = 0;
+function captureEnv() { envDirty = 3; }
+function doCaptureEnv() {
+  if (!G.envPos) return;
+  cubeCam.position.copy(G.envPos); scene.add(cubeCam);
+  scene.environment = roomEnv; scene.environmentIntensity = .5;
+  cubeCam.update(renderer, scene); scene.remove(cubeCam);
+  if (envTex) envTex.dispose();
+  envTex = pmrem.fromCubemap(cubeRT.texture).texture;
+  scene.environment = envTex; scene.environmentIntensity = CFG.fill;
+}
+
+/* ===== CAMERA TREATMENT: the scene is rendered off-screen, then finished like a photograph =====
+   soft halation around bright areas (the luminous ceiling, LEDs, highlights on steel), a trace of lens fringing towards
+   the corners, then filmic tone mapping. Transparency is kept, so the page still shows through the doorway. */
+const POST = CFG.post && renderer.capabilities.isWebGL2;
+const rtScene = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: MOBILE ? 0 : 4 });
+const rtA = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType }), rtB = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType });
+const fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), fsScene = new THREE.Scene();
+const FSV = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }';
+const blurMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, d: { value: new THREE.Vector2() }, thr: { value: 0 } }, vertexShader: FSV, depthTest: false, depthWrite: false, toneMapped: false,
+  fragmentShader: `uniform sampler2D t; uniform vec2 d; uniform float thr; varying vec2 vUv;
+    void main(){ vec4 s = vec4(0.); float tw = 0.;
+      for (int i = -6; i <= 6; i++) { float fi = float(i), w = exp(-fi * fi / 14.); vec4 c = texture2D(t, vUv + d * fi * 1.6); c.rgb = min(c.rgb, vec3(2.2));
+        if (thr > 0.) { float l = max(c.r, max(c.g, c.b)); c.rgb *= smoothstep(thr, thr * 2.2, l); }
+        s += c * w; tw += w; }
+      gl_FragColor = s / tw; }` });
+const outMat = new THREE.ShaderMaterial({ uniforms: { t: { value: null }, b: { value: null }, bloom: { value: CFG.halation }, ca: { value: CFG.fringe }, time: { value: 0 }, res: { value: new THREE.Vector2(1, 1) }, grade: { value: CFG.grade }, lens: { value: 1 }, dt: { value: null }, near: { value: .02 }, far: { value: 60 }, pk: { value: 1 }, asp: { value: 1 }, aoS: { value: 0 }, aoR: { value: CFG.aoRadius } }, vertexShader: FSV, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
+  fragmentShader: `uniform sampler2D t, b, dt; uniform float bloom, ca, time, grade, lens, near, far, pk, asp, aoS, aoR; uniform vec2 res; varying vec2 vUv;
+    float lin(float d){ return near * far / (far - d * (far - near)); }
+    // contact shadows: how much nearby geometry stands in front of this point's own surface (its slope is taken into account,
+    // so flat walls seen at an angle don't darken themselves)
+    float ambient(){ float d = texture2D(dt, vUv).x; if (d >= .99999) return 1.; float z = lin(d);
+      vec2 grad = vec2(dFdx(z), dFdy(z)); float r = aoR * pk / z, a = 0.;
+      float ang = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715)))) * 6.2831853;
+      for (int i = 0; i < 12; i++) { float fi = float(i); vec2 o = vec2(cos(ang + fi * 2.39996), sin(ang + fi * 2.39996)) * r * sqrt((fi + .5) / 12.); o.x /= asp;
+        float zs = lin(texture2D(dt, vUv + o).x), dz = z + dot(grad, o * res) - zs;
+        a += smoothstep(.004, .03, dz) * (1. - smoothstep(.1, .35, dz)); }
+      return 1. - aoS * a / 12.; }
+    void main(){ vec2 c = vUv - .5; vec2 off = c * dot(c, c) * ca;
+      vec4 s = texture2D(t, vUv); s.rgb = min(s.rgb, vec3(6.));
+      vec3 col = vec3(texture2D(t, vUv + off).r, s.g, texture2D(t, vUv - off).b);
+      if (aoS > 0.) { float ao = ambient(); col *= mix(vec3(.34, .29, .27), vec3(1.), ao); }   // occlusion, slightly warm in the creases
+      col += texture2D(b, vUv).rgb * bloom * vec3(1., .94, .88);   // warm halation
+      gl_FragColor = vec4(col, s.a);
+      #include <tonemapping_fragment>
+      { vec3 k = gl_FragColor.rgb; float a = gl_FragColor.a, l = dot(k, vec3(.2126, .7152, .0722));
+        k = mix(vec3(l), k, 1. + .16 * grade);                                         // a little more colour than AgX leaves
+        k = max(mix(k, k * k * (3. - 2. * k), .72 * grade), 0.);                       // film S-curve: deeper blacks, firmer highlights
+        k *= mix(vec3(1.), mix(vec3(.97, 1., 1.04), vec3(1.012, 1., .985), smoothstep(.04, .65, l)), grade);   // cool shadows, warm highlights
+        float v = length((vUv - .5) * vec2(1., .92)); k *= 1. - .2 * grade * lens * smoothstep(.32, .8, v);         // optical vignette
+        vec3 h3 = fract(vec3(floor(vUv * res).xyx) * vec3(.1031, .1030, .0973) + time * .013); h3 += dot(h3, h3.yzx + 33.33);
+        float n = fract((h3.x + h3.y) * h3.z) - .5;
+        k += n * .016 * grade * lens * (1. - l * .7) * a;                                    // fine grain, stronger in the shadows
+        gl_FragColor.rgb = k; }
+      #include <colorspace_fragment>
+    }` });
+const fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), outMat); fsQuad.frustumCulled = false; fsScene.add(fsQuad);
+let AO = POST && !MOBILE && CFG.ao > 0;
+const rtDepth = new THREE.WebGLRenderTarget(4, 4, { depthTexture: new THREE.DepthTexture(4, 4, THREE.UnsignedIntType) });
+const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+function sizePost() { const v = renderer.getDrawingBufferSize(new THREE.Vector2()); rtScene.setSize(v.x, v.y); rtDepth.setSize(v.x, v.y); const w = Math.max(2, v.x >> 2), h = Math.max(2, v.y >> 2); rtA.setSize(w, h); rtB.setSize(w, h); }
+function renderScene() {
+  if (!POST) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
+  if (!AO) outMat.uniforms.aoS.value = 0;
+  if (AO) {   // depth of the solid geometry only (shading/glow overlays are hidden for this pass)
+    for (const o of G.ghost || []) { o.userData.vis = o.visible; o.visible = false; }
+    scene.overrideMaterial = depthOnly; renderer.setRenderTarget(rtDepth); renderer.clear(); renderer.render(scene, camera); scene.overrideMaterial = null;
+    for (const o of G.ghost || []) o.visible = o.userData.vis;
+    const u = outMat.uniforms; u.dt.value = rtDepth.depthTexture; u.near.value = camera.near; u.far.value = camera.far; u.pk.value = .5 * camera.projectionMatrix.elements[5]; u.asp.value = camera.aspect; u.aoS.value = CFG.ao;
+  }
+  renderer.setRenderTarget(rtScene); renderer.clear(); renderer.render(scene, camera);
+  fsQuad.material = blurMat;
+  blurMat.uniforms.t.value = rtScene.texture; blurMat.uniforms.d.value.set(1 / rtA.width, 0); blurMat.uniforms.thr.value = CFG.halationFrom; renderer.setRenderTarget(rtA); renderer.clear(); renderer.render(fsScene, fsCam);
+  blurMat.uniforms.t.value = rtA.texture; blurMat.uniforms.d.value.set(0, 1 / rtA.height); blurMat.uniforms.thr.value = 0; renderer.setRenderTarget(rtB); renderer.clear(); renderer.render(fsScene, fsCam);
+  blurMat.uniforms.t.value = rtB.texture; blurMat.uniforms.d.value.set(2 / rtA.width, 0); renderer.setRenderTarget(rtA); renderer.clear(); renderer.render(fsScene, fsCam);
+  blurMat.uniforms.t.value = rtA.texture; blurMat.uniforms.d.value.set(0, 2 / rtA.height); renderer.setRenderTarget(rtB); renderer.clear(); renderer.render(fsScene, fsCam);
+  fsQuad.material = outMat; outMat.uniforms.t.value = rtScene.texture; outMat.uniforms.b.value = rtB.texture; outMat.uniforms.time.value = (performance.now() / 41.7 | 0) % 997; outMat.uniforms.res.value.set(rtScene.width, rtScene.height);
+  renderer.setRenderTarget(null); renderer.clear(); renderer.render(fsScene, fsCam);
+}
+
+// What the doors' mirror layer does with the reflected image: brushed steel doesn't give a sharp mirror, it drags the
+// reflection out along the brushing. So the image is softened and smeared vertically, tinted by the steel, and added on top.
+const MIRROR_SHADER = { name: 'DoorMirror',
+  uniforms: { color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null }, gap: { value: 0 }, strength: { value: .5 }, halfH: { value: 1 } },
+  vertexShader: 'uniform mat4 textureMatrix; varying vec4 vUv4; varying vec3 vP; void main(){ vUv4 = textureMatrix * vec4(position, 1.); vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float gap, strength, halfH; varying vec4 vUv4; varying vec3 vP;
+    void main(){ if (abs(vP.x) < gap + .014) discard;
+      vec2 uv = vUv4.xy / vUv4.w; vec3 c = vec3(0.); float tw = 0.;
+      for (int i = -8; i <= 8; i++) { float fi = float(i), w = exp(-fi * fi / 22.);
+        c += texture2D(tDiffuse, uv + vec2(0., fi * .011), 2.2).rgb * w; c += texture2D(tDiffuse, uv + vec2(.006, fi * .011), 2.2).rgb * w * .5; c += texture2D(tDiffuse, uv + vec2(-.006, fi * .011), 2.2).rgb * w * .5; tw += w * 2.; }
+      c = min(c / tw, vec3(1.25));
+      float shade = mix(.3, 1., smoothstep(.02, .24, halfH - vP.y));   // the header's shadow still falls across the top of the doors
+      gl_FragColor = vec4(c * vec3(.92, .9, .87) * strength * shade, 1.); }` };
+
+// The same mirror image laid on the other surfaces of the front wall (they're all in nearly the same plane as the doors).
+// Each surface sets how strong it is, which way its finish drags the reflection, and how soft it is.
+const reflMat = (mir, strength, dx, dy, lod, tint = [.92, .9, .87]) => new THREE.ShaderMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+  uniforms: { tDiffuse: { value: mir.getRenderTarget().texture }, textureMatrix: mir.material.uniforms.textureMatrix, mirPos: { value: mir.position }, strength: { value: strength }, dir: { value: new THREE.Vector2(dx, dy) }, lod: { value: lod }, tint: { value: new THREE.Vector3(...tint) } },
+  vertexShader: 'uniform mat4 textureMatrix; uniform vec3 mirPos; varying vec4 vUv4; void main(){ vec4 wp = modelMatrix * vec4(position, 1.); vUv4 = textureMatrix * vec4(wp.xyz - mirPos, 1.); gl_Position = projectionMatrix * viewMatrix * wp; }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float strength, lod; uniform vec2 dir; uniform vec3 tint; varying vec4 vUv4;
+    void main(){ vec2 uv = vUv4.xy / vUv4.w, side = vec2(dir.y, dir.x) * .006; vec3 c = vec3(0.); float tw = 0.;
+      for (int i = -6; i <= 6; i++) { float fi = float(i), w = exp(-fi * fi / 14.); vec2 o = dir * fi * .012;
+        c += texture2D(tDiffuse, clamp(uv + o, 0., 1.), lod).rgb * w; c += texture2D(tDiffuse, clamp(uv + o + side, 0., 1.), lod).rgb * w * .5; c += texture2D(tDiffuse, clamp(uv + o - side, 0., 1.), lod).rgb * w * .5; tw += w * 2.; }
+      gl_FragColor = vec4(min(c / tw, vec3(1.25)) * tint * strength, 1.); }` });
+
+// The page sits directly behind the doorway, as in the 2D version: an ordinary element, laid out at the size the doorway
+// has on screen and moved in step with the camera's small shifts so it always sits exactly in the opening.
+function placePage(cx, cy) {
+  const x = innerWidth / 2 + (-G.ow / 2 - cx) * G.pk, y = innerHeight / 2 - (G.oh - cy) * G.pk;
+  wallEl.style.transform = `translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0)`;
+}
+
+/* ===== BUILD ===== */
+const cab = new THREE.Group(); scene.add(cab);
+const doors = { l: null, r: null }, ldoors = { l: new THREE.Group(), r: new THREE.Group() };
+let G = {};            // live geometry numbers
+const wallEl = document.createElement('div'); wallEl.className = 'wall';
+const pageEl = document.createElement('div'); pageEl.className = 'page';
+const lightEl = document.createElement('div'); lightEl.className = 'wlight';
+wallEl.append(pageEl, lightEl);
+
+function box(w, h, d, mat, x, y, z, parent = cab) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m;
+}
+function plane(w, h, mat, x, y, z, ry = 0, rx = 0, parent = cab) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); parent.add(m); return m;
+}
+function rectLight(color, intensity, w, h, x, y, z) {   // ceiling area light facing down
+  const l = new THREE.RectAreaLight(color, intensity, w, h); l.position.set(x, y, z); l.rotation.set(-Math.PI / 2, 0, 0); cab.add(l); return l;
+}
+const repeatTex = (t, rx, ry) => { const c = t.clone(); c.repeat.set(rx, ry); c.needsUpdate = true; return c; };
+// veneer mapped by position, so the grain runs on continuously from panel to panel
+const WOOD_M = 1.15;   // metres covered by one tile of the scan
+function woodAt(u0, u1, y0, y1, seed = 0, base = M.wood) {
+  const m = base.clone();
+  for (const k of ['map', 'normalMap', 'roughnessMap']) { m[k] = base[k].clone(); m[k].repeat.set((u1 - u0) / WOOD_M, (y1 - y0) / WOOD_M); m[k].offset.set(u0 / WOOD_M + seed, y0 / WOOD_M); m[k].needsUpdate = true; }
+  return m;
+}
+const shadowLine = new THREE.MeshBasicMaterial({ map: glowTexDark(), transparent: true, opacity: .35, depthWrite: false });
+// one run of wall, built in a group (local x along the wall, y up, facing local +z):
+// dark satin panel below a brushed-steel rail, veneer above in bays split by thin steel reveals, steel kick plate at the floor
+const RAIL_Y = .84, RAIL_H = .04, KICK = .1, BAY = .62, TOPB = .2;
+function wallRun(u0, u1, yTop, seed = 0) {
+  const g = new THREE.Group(), w = u1 - u0, uc = (u0 + u1) / 2; cab.add(g);
+  const yB = yTop - TOPB;
+  box(w, KICK, .012, M.kick, uc, KICK / 2, .006, g);
+  { const r = new THREE.Mesh(new RoundedBoxGeometry(w, RAIL_H, .02, 3, .006), M.steelH); r.position.set(uc, RAIL_Y + RAIL_H / 2, .008); g.add(r); }
+  const cuts = [u0]; for (let u = Math.ceil((u0 + .08) / BAY) * BAY; u < u1 - .08; u += BAY) cuts.push(u); cuts.push(u1);
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const a = cuts[i], b = cuts[i + 1], n = Math.round(a / BAY) + Math.round(seed * 100), flip = n % 2 ? -1 : 1, rnd = Math.abs(Math.sin(n * 12.9898) * 43758.5453) % 1;
+    const bay = (y0, y1, base, k2) => { const r2 = (rnd * (3 + k2 * 4.7)) % 1, m = woodAt(0, (b - a) * flip, y0, y1, 0, base);
+      for (const k of ['map', 'normalMap', 'roughnessMap']) m[k].offset.set(flip < 0 ? 1 : 0, r2);
+      m.color.multiplyScalar(.94 + r2 * .1);
+      plane(b - a, y1 - y0, m, (a + b) / 2, (y0 + y1) / 2, 0, 0, 0, g); };
+    bay(KICK, RAIL_Y, M.blueWood, 1); bay(RAIL_Y + RAIL_H, yB, M.wood, 0); bay(yB, yTop, M.blueWood, 2);
+    if (i) { box(.005, yTop - KICK, .002, M.slot, a, (yTop + KICK) / 2, .001, g); plane(.02, yTop - RAIL_Y - RAIL_H, shadowLine, a, (yTop + RAIL_Y + RAIL_H) / 2, .0012, 0, 0, g); }
+  }
+  box(w, .005, .002, M.slot, uc, yB, .001, g);   // shadow gap between the oak and the blue band
+  // top-light falloff down the veneer; the band under the ceiling shades the top edge
+  { const f = plane(w, yTop - RAIL_Y, aoMat(false, .52), uc, (yTop + RAIL_Y) / 2, .0011, 0, 0, g); f.renderOrder = 1; }
+  plane(w, .1, aoMat(true, .5), uc, yTop - .05, .0013, 0, 0, g);
+  // the rail throws a soft shadow onto the dark panel below it
+  plane(w, .09, aoMat(true, .5), uc, RAIL_Y - .045, .001, 0, 0, g);
+  // the ceiling light glancing off the lacquered veneer and the satin panel below the rail
+  plane(w, yTop - RAIL_Y - RAIL_H, sheenMat(0xfff6ea, CFG.wallSheen), uc, (yTop + RAIL_Y + RAIL_H) / 2, .0016, 0, 0, g);
+  plane(w, RAIL_Y - KICK - .06, sheenMat(0xbfd6ff, CFG.wallSheen * .8), uc, (RAIL_Y + KICK) / 2 - .03, .0016, 0, 0, g);
+  return g;
+}
+
+function build() {
+  cab.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  cab.clear(); btnMeshes.length = 0; btnRings.length = 0; fnMeshes.length = 0;
+  const aspect = innerWidth / innerHeight;
+  const vfov = CFG.fov * Math.PI / 180, hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
+  // framing matches the 2D version: the doorway fills the screen width, a strip of wall with the indicator sits on top,
+  // and the doors run off the bottom of the screen (no floor in view, with some margin for looking down)
+  const oh = CFG.openingH, viewTop = oh + CFG.headroom, floorMargin = .45;
+  const Hvis = viewTop - floorMargin;                   // wall height in view at the doors
+  const ow = Hvis * aspect * (aspect < 1 ? .92 : CFG.doorFill);   // doorway width; the rest of the width shows the cab wall either side
+  const D = (Hvis / 2) / Math.tan(vfov / 2);
+  const eye = viewTop - Hvis / 2;
+  // header above the doors, as in the references: steel transom, a band of veneer carrying the indicator, steel band, luminous ceiling
+  const TRANSOM = .07, BAND = .2, TOPBAND = 0, cabH = oh + TRANSOM + BAND, woodTop = cabH;
+  const pocket = ow / 2 + 0.25, panelSide = 1.3;
+  const xl = -ow / 2 - pocket, xr = ow / 2 + pocket + panelSide;
+  const depth = D + CFG.roomBehind;
+  const rl = -ow / 2 - CFG.roomSide, rr = ow / 2 + .2 + .6 * CFG.panelScale * 1.45 + CFG.roomSide * .7;   // the room's own side walls (the front wall runs on behind them, where the doors park)
+  G = { ow, oh, D, eye, cabH, xl, xr, depth };
+
+  /* --- front wall: veneer bays either side of the doorway, header bands above --- */
+  const FZ = .05, t = .028, ins = .003;
+  wallRun(xl, -ow / 2 - t + ins, woodTop).position.set(0, 0, FZ);
+  wallRun(ow / 2 + t - ins, xr, woodTop).position.set(0, 0, FZ);
+  plane(ow + 2 * t, BAND, woodAt(-ow / 2 - t, ow / 2 + t, oh + TRANSOM, woodTop, .27, M.blueWood), 0, oh + TRANSOM + BAND / 2, FZ);
+  { const m = new THREE.Mesh(new RoundedBoxGeometry(ow + 2 * t - 2 * ins, TRANSOM, .075, 4, .007), M.steelH); m.position.set(0, oh + TRANSOM / 2 - ins, .0375); cab.add(m); }   // transom over the doors
+  // slim polished architrave down each side of the doorway
+  for (const sx of [-1, 1]) { const m = new THREE.Mesh(new RoundedBoxGeometry(t, oh - ins, .058, 3, .005), M.frame); m.position.set(sx * (ow / 2 + t / 2 - ins), (oh - ins) / 2, .029); cab.add(m); }
+  // the slots the doors run in; cab sill with grooves
+  box(.006, oh, .05, M.slot, -ow / 2 + .003, oh / 2, -.025);
+  box(.006, oh, .05, M.slot, ow / 2 - .003, oh / 2, -.025);
+  box(ow, .008, .05, M.slot, 0, oh - .004, -.025);
+  box(ow + .1, .014, .15, M.steelDark, 0, .007, -.06);
+  for (let k = 0; k < 4; k++) box(ow + .1, .003, .006, M.black, 0, .0145, -.11 + k * .025);
+
+  /* --- cab doors: brushed steel leaves with folded edges and a light-curtain safety edge --- */
+  const dw = ow / 2 + .012, dt = .022;
+  for (const side of ['l', 'r']) {
+    const g = new THREE.Group(); cab.add(g);
+    const s = side === 'l' ? -1 : 1, lh = oh - .008;
+    const leaf = new THREE.Mesh(new RoundedBoxGeometry(dw - .012, lh, dt, 4, .005), side === 'l' ? M.doorL : M.doorR); leaf.position.set(s * (dw / 2 + .006), lh / 2, 0);
+    if (side === 'r') { const uv = leaf.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i)); }
+    g.add(leaf);
+    const cur = new THREE.Mesh(new RoundedBoxGeometry(.012, lh - .02, dt + .006, 3, .003), [M.edge, M.edge, M.edge, M.edge, M.curtain, M.edge]);
+    cur.position.set(s * .006, lh / 2, .001); g.add(cur);
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(.004, lh - .03, dt * .6), M.edge); nose.position.set(s * .0005, lh / 2, 0); g.add(nose);
+    { const f = new THREE.Mesh(new THREE.PlaneGeometry(dw, oh * .75), aoMat(false, .3)); f.position.set(s * dw / 2, oh * .375, dt / 2 + .009); f.renderOrder = 2; g.add(f); }   // light falls off down the leaf
+    g.position.z = -.035; doors[side] = g;
+  }
+  if (CFG.doorMirror > 0 && !MOBILE) {
+    const mir = new Reflector(new THREE.PlaneGeometry(ow, oh - .012), { textureWidth: 1024, textureHeight: 1024, clipBias: .001, shader: MIRROR_SHADER });
+    mir.position.set(0, (oh - .012) / 2, -.035 + dt / 2 + .0008); mir.material.transparent = true; mir.material.blending = THREE.AdditiveBlending; mir.material.depthWrite = false; mir.material.toneMapped = false;
+    const rt = mir.getRenderTarget(); rt.texture.generateMipmaps = true; rt.texture.minFilter = THREE.LinearMipmapLinearFilter;
+    mir.material.uniforms.strength.value = CFG.doorMirror; mir.material.uniforms.halfH.value = (oh - .012) / 2; mir.renderOrder = 1; cab.add(mir); G.mirror = mir;
+  }
+
+  /* --- the doorway's (thin) depth beyond the doors --- */
+  const rd = .004, z0 = -.049, z1 = z0 - rd;
+  plane(rd, oh, M.reveal, -ow / 2, oh / 2, (z0 + z1) / 2, Math.PI / 2);
+  plane(rd, oh, M.reveal, ow / 2, oh / 2, (z0 + z1) / 2, -Math.PI / 2);
+  plane(ow, rd, M.reveal, 0, oh, (z0 + z1) / 2, 0, Math.PI / 2);
+
+  /* --- cab interior: side and back walls in the same scheme, luminous ceiling, terrazzo floor, handrails --- */
+  { const g = wallRun(0, depth, woodTop, .37); g.rotation.y = Math.PI / 2; g.position.set(rl, 0, depth); }
+  { const g = wallRun(0, depth, woodTop, .61); g.rotation.y = -Math.PI / 2; g.position.set(rr, 0, 0); }
+  { const g = wallRun(0, rr - rl, woodTop, .83); g.rotation.y = Math.PI; g.position.set(rr, 0, depth); }
+  // ceiling: backlit white panels divided by steel strips (the soft, even light of the reference)
+  plane(rr - rl, depth, M.ceil, (rl + rr) / 2, cabH, depth / 2, 0, Math.PI / 2);
+  { const nx = Math.max(2, Math.round((rr - rl) / .6)), nz = Math.max(2, Math.round(depth / .6)), lens = new THREE.CircleGeometry(.034, 28), trim = new THREE.RingGeometry(.034, .05, 28);
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) { const x = rl + (i + .5) * (rr - rl) / nx, z = (j + .5) * depth / nz;
+      const l = new THREE.Mesh(lens, M.lamp); l.rotation.x = Math.PI / 2; l.position.set(x, cabH - .003, z); cab.add(l);
+      const r = new THREE.Mesh(trim, M.lampTrim); r.rotation.x = Math.PI / 2; r.position.set(x, cabH - .003, z); cab.add(r); } }
+  const fl = M.floor.clone(); fl.map = repeatTex(woodMap, (rr - rl) / 1.2, depth / 1.2); fl.roughnessMap = repeatTex(woodRough, (rr - rl) / 1.2, depth / 1.2); fl.color.setHex(0xf0dcc2); fl.clearcoat = .25; fl.clearcoatRoughness = .35;
+  plane(rr - rl, depth, fl, (rl + rr) / 2, 0, depth / 2, 0, -Math.PI / 2);
+  for (const x of [rl + .06, rr - .06]) {
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(.019, .019, depth - .4, 24), M.steelPolished); rail.rotation.x = Math.PI / 2; rail.position.set(x, RAIL_Y + .1, depth / 2 + .1); cab.add(rail);
+  }
+
+  /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, blue LEDs --- */
+  const sw0 = Math.min(.52, ow * (aspect < 1 ? .62 : aspect < 1.3 ? .42 : .3)), sh0 = sw0 * IND_H / IND_W, iy = oh + (TRANSOM + CFG.headroom) / 2;
+  { // a horizontally brushed body on a dark gasket (the shadow line where it meets the veneer), glass set back inside a slim
+    // polished bezel, and a fixing screw at each end. The body is shallow, so it sits close to the wall.
+    const hw = sw0 + .075, hh = sh0 + .024, hd = CFG.indicatorDepth;
+    box(hw + .006, hh + .006, .002, M.slot, 0, iy, FZ + .001);
+    const face = plateMat(canvasTex(1024, Math.round(1024 * hh / hw), plateBase, { repeat: false }));
+    const house = new THREE.Mesh(new RoundedBoxGeometry(hw, hh, hd, 4, Math.min(.007, hd * .45)), face); house.position.set(0, iy, FZ + .002 + hd / 2); cab.add(house);
+    const fz = FZ + .002 + hd, bw = .005;
+    box(sw0 + .004, sh0 + .004, .002, M.black, 0, iy, fz - .0006);
+    plane(sw0, sh0, screenMat(IND), 0, iy, fz + .0006);
+    box(sw0 + 2 * bw, bw, .003, M.steelPolished, 0, iy + sh0 / 2 + bw / 2, fz + .0008); box(sw0 + 2 * bw, bw, .003, M.steelPolished, 0, iy - sh0 / 2 - bw / 2, fz + .0008);
+    box(bw, sh0, .003, M.steelPolished, -sw0 / 2 - bw / 2, iy, fz + .0008); box(bw, sh0, .003, M.steelPolished, sw0 / 2 + bw / 2, iy, fz + .0008);
+    for (const sx of [-1, 1]) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(.0042, .0042, .0016, 20), M.steelPolished); sc.rotation.x = Math.PI / 2; sc.position.set(sx * (sw0 / 2 + .02), iy, fz + .0004); cab.add(sc);
+      box(.006, .001, .0006, M.slot, sx * (sw0 / 2 + .02), iy, fz + .0014).rotation.z = .6 * sx; }
+    plane(sw0 * 1.4, sh0 * 2.6, new THREE.MeshBasicMaterial({ map: glowTex('0,125,186'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .05 }), 0, iy, fz + .008);
+  }
+
+  /* --- button panel: brushed plate, LED display, engraved buttons with halo rings, lift functions along the bottom --- */
+  const panelStart = cab.children.length;
+  const cols = 3, rows = Math.ceil(F.length / cols), fns = CFG.functions.filter(f => FN[f]), pw = .6, top = .2, pitch = .185;
+  const ph = top + .1 + rows * pitch + (fns.length ? pitch + .05 : 0);
+  // panel size follows the screen: on narrow screens it grows to about three-quarters of the width (finger-sized buttons),
+  // and it never gets taller than the wall you can see
+  const visW = 2 * Math.tan(hfov / 2) * (D - FZ);
+  const PS = Math.min(aspect < 1 ? clamp(visW * .76 / pw, CFG.panelScale * .7, CFG.panelScale * 1.45) : CFG.panelScale, (viewTop - .05 - (RAIL_Y + RAIL_H + .06)) / ph);
+  const px = ow / 2 + pw * PS / 2 + .2, py = Math.max(1.3, RAIL_Y + RAIL_H + ph * PS / 2 + .05);
+  const bxs = c => -pw / 2 + .11 + c * ((pw - .22) / (cols - 1)), bys = r => ph / 2 - top - .06 - r * pitch;
+  const fy = bys(rows) - .05, fxs = k => -pw / 2 + .085 + k * ((pw - .17) / Math.max(1, fns.length - 1));
+  const labels = F.map((f, k) => [f.n.toUpperCase(), bxs(k % cols) + pw / 2, bys(Math.floor(k / cols)) - .068]).concat(fns.map((f, k) => [FN[f].label, fxs(k) + pw / 2, fy - .062]));
+  plane(pw + .16, ph + .16, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .4, depthWrite: false }), px + .008, py - .02, FZ + .0016);   // plate's soft shadow
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(.007, .007, .003, 20), M.steelPolished); sc.rotation.x = Math.PI / 2; sc.position.set(px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0155); cab.add(sc);
+    box(.009, .0016, .0008, M.slot, px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0172).rotation.z = .5 + sx * sy; }
+  G.plate = box(pw, ph, .014, plateMat(plateTexture(pw, ph, labels)), px, py, FZ + .007);
+  { const m = box(pw - .08, .002, .001, M.steelDark, px, py + fy + pitch * .52, FZ + .0145); m.visible = fns.length > 0; }   // fine line above the function row
+  const psw = .24, psh = psw * 256 / 512;
+  box(psw + .02, psh + .02, .006, M.black, px, py + ph / 2 - top / 2 - .01, FZ + .016);
+  { const s = plane(psw, psh, screenMat(PSC), px, py + ph / 2 - top / 2 - .01, FZ + .0195); }
+  // a button: steel body (the part that's hit-tested and depresses), an upright engraved cap, and a halo ring
+  const addButton = (x, y, capTex, radius, ringColor) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius + .006, .0055, 16, 64), new THREE.MeshStandardMaterial({ color: ringColor, emissive: 0x000000, metalness: .3, roughness: .35 }));
+    ring.position.set(x, y, FZ + .015); cab.add(ring);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius + .002, .016, 48), M.steelPolished); b.rotation.x = Math.PI / 2; b.position.set(x, y, FZ + .019); cab.add(b);
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(radius - .0015, 48), new THREE.MeshPhysicalMaterial({ map: capTex, metalness: .85, roughness: .3, clearcoat: .3 }));
+    cap.rotation.x = -Math.PI / 2; cap.position.y = .0083; b.add(cap);   // child of the body: faces the cab, number the right way up
+    cap.material.emissiveMap = capTex; b.userData.cap = cap;   // the face can light up (its engraving stays dark)
+    return { ring, b };
+  };
+  F.forEach((f, k) => { const { ring, b } = addButton(px + bxs(k % cols), py + bys(Math.floor(k / cols)), numberCap(k + 1), .031, 0x2a2a2a); b.userData.floor = k; btnRings.push(ring); btnMeshes.push(b); });
+  fns.forEach((f, k) => { const { ring, b } = addButton(px + fxs(k), py + fy, capTexture(g => { g.scale(1.45, 1.45); FN[f].draw(g); }), .029, f === 'alarm' ? 0x5a1512 : 0x2a2a2a); b.userData.fn = f; b.userData.ring = ring; fnMeshes.push(b); });
+  { const pg = new THREE.Group(); pg.position.set(px, py, FZ); for (const o of cab.children.slice(panelStart)) { o.position.x -= px; o.position.y -= py; o.position.z -= FZ; pg.add(o); } pg.scale.setScalar(PS); cab.add(pg); }
+  { const lw = pw * PS * .62, lh = lw * .34, ly = py + ph * PS / 2 + lh / 2 + .05;
+    const tex = canvasTex(512, 174, (g, w, h) => { g.fillStyle = '#c2bfb8'; g.fillRect(0, 0, w, h); for (let x = 0; x < w; x++) { g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .05})`; g.fillRect(x, 0, 1, h); }
+      g.textAlign = 'center'; const eng = (t, y, f) => { g.font = f; g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(t, w / 2, y + 2); g.fillStyle = '#2e2f32'; g.fillText(t, w / 2, y); };
+      eng('MAX LOAD 630 kg', 70, '700 44px -apple-system,Helvetica,Arial,sans-serif'); eng('8 PERSONS', 128, '600 38px -apple-system,Helvetica,Arial,sans-serif'); }, { repeat: false });
+    const edge = new THREE.MeshStandardMaterial({ color: 0x9a968f, metalness: .4, roughness: .8 });
+    const m = new THREE.Mesh(new THREE.BoxGeometry(lw, lh, .008), [edge, edge, edge, edge, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xd9d3c8, metalness: .55, roughness: .68, envMapIntensity: .7 }), edge]); m.position.set(px, ly, FZ + .004); m.userData.noShadow = true; cab.add(m); }
+  G.panel = new THREE.Vector3(px, py, FZ + .01); { const gapW = (px - pw * PS / 2) - (ow / 2 + t), visHalf = Math.tan(hfov / 2) * (D - FZ); G.pan = Math.max(0, px + pw * PS / 2 + gapW - visHalf); }
+   G.pd = Math.max((ph * PS * 1.32 / 2) / Math.tan(vfov / 2), (pw * PS * 1.5 / 2) / Math.tan(hfov / 2));   // distance that frames the whole panel, front-on
+
+  /* --- lights: the luminous ceiling does the work; a soft spot adds gentle shadows --- */
+  const lz = D * .5;
+  rectLight(0xfff6ec, 8.5 * CFG.fill * .7, (rr - rl) * .9, depth * .85, (rl + rr) / 2, cabH - .02, depth / 2);
+  // the key: light coming down from the ceiling just in front of the wall, so everything proud of the wall throws a soft
+  // shadow downwards — the header onto the doors, the indicator and panel onto the veneer, the rail onto the panel below
+  const key = G.key = new THREE.DirectionalLight(0xfff5ea, CFG.keyLight); const kx = (xl + xr) / 2;
+  key.position.set(kx, cabH / 2 + 4, 4 * CFG.keyAngle); key.target.position.set(kx, cabH / 2, 0); cab.add(key, key.target);
+  key.castShadow = SHADOWS; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -.0004; key.shadow.normalBias = .012; key.shadow.radius = 7;
+  { const c = key.shadow.camera, hw = (xr - xl) / 2 + .3, hh = cabH / 2 + .8; c.left = -hw; c.right = hw; c.top = hh; c.bottom = -hh; c.near = .5; c.far = 12; c.updateProjectionMatrix(); }
+  cab.add(new THREE.HemisphereLight(0xfff7ee, 0x8a7458, .75 * CFG.fill));   // sky = ceiling; ground = warm bounce off the veneer and floor
+  // light from beyond the doors spilling into the cab
+  G.landing = new THREE.PointLight(0xfff0dc, 0, 0, 2); G.landing.position.set(0, oh * .8, z1 - .3); cab.add(G.landing);
+  G.bounce = new THREE.AmbientLight(0xffffff, 0); cab.add(G.bounce);   // the floor's colour bouncing around the cab once the doors open
+  G.alarm = new THREE.PointLight(0xff2a1a, 0, 0, 1.6); G.alarm.position.set(0, cabH - .3, D * .5); cab.add(G.alarm);
+  // light leaking in from the shaft: the hairline between the doors (strongest), the side slots, the head slot
+  const leakMat = (o) => new THREE.MeshBasicMaterial({ map: shaftTex.clone(), color: 0xfff1d6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, ...o });
+  G.leaks = [];
+  const fadeDown = m => { const geo = new THREE.PlaneGeometry(m.geometry.parameters.width, m.geometry.parameters.height, 1, 12), pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) { const v = pos.getY(i) / m.geometry.parameters.height + .5, f = Math.pow(clamp((v - .42) / .48, 0, 1), 2); col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = f; }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); m.geometry.dispose(); m.geometry = geo; m.material.vertexColors = true; m.material.needsUpdate = true; return m; };
+  for (const [x, w, k] of [[0, .0045, 1]]) { const m = plane(w, oh, leakMat(), x, oh / 2, x ? -.0235 : -.0195); m.material.map.needsUpdate = true; m.userData.k = k; fadeDown(m); G.leaks.push(m); }
+  G.headLeak = plane(ow - .02, .004, leakMat({ map: null }), 0, oh - .006, -.0235);
+  G.steady = fadeDown(plane(.003, oh, leakMat({ map: null, color: 0xffe9c8 }), 0, oh / 2, -.0195));
+  G.gap = G.leaks[0];
+  G.gapLight = new THREE.PointLight(0xfff0d0, 0, .5, 2); G.gapLight.position.set(0, eye, -.005); cab.add(G.gapLight);
+  // soft contact shadows: under the transom onto the doors, and where walls meet floor and ceiling
+  const ao = (w, x, y, z, ry, flip, s = .5, h = .32) => { const m = plane(w, h, aoMat(flip, s), x, y, z, ry); m.renderOrder = 1; return m; };
+  ao(ow, 0, oh - .11, -.022, 0, true, .3, .22);
+  for (const sx of [-1, 1]) ao(.1, sx * (ow / 2 - .05), oh / 2, -.0225, 0, false, 0, oh).visible = false;
+  ao(depth, rl + .004, .16, depth / 2, Math.PI / 2, false, .4); ao(depth, rr - .004, .16, depth / 2, -Math.PI / 2, false, .4);
+  cab.traverse(o => { if (o.isMesh && !o.userData.noShadow && !Array.isArray(o.material) && !o.material.transparent && !o.material.isMeshBasicMaterial) { o.receiveShadow = SHADOWS; o.castShadow = SHADOWS; } });
+  if (G.mirror) {
+    const S = CFG.wallMirror, over = G.over = [], add = (w, h, x, y, z, k, dx, dy, lod, tint) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), reflMat(G.mirror, k * S, dx, dy, lod, tint)); m.position.set(x, y, z); m.renderOrder = 2; cab.add(m); over.push(m); };
+    const hwI = sw0 + .075, hhI = sh0 + .024, pwS = pw * PS, phS = ph * PS;
+    add(ow + 2 * t, TRANSOM - .012, 0, oh + TRANSOM / 2 - ins, .0755, .5, 1, 0, 2.2);                                    // header over the doors (brushed along its length)
+    for (const sx of [-1, 1]) add(t - .008, oh - .02, sx * (ow / 2 + t / 2 - ins), oh / 2, .0585, .45, 0, 1, 2);          // door frame
+    for (const [a, b] of [[rl, -ow / 2 - t], [ow / 2 + t, rr]]) {
+      add(b - a, RAIL_H - .01, (a + b) / 2, RAIL_Y + RAIL_H / 2, FZ + .0185, .45, 1, 0, 2.2);                              // rail
+      add(b - a, woodTop - RAIL_Y - RAIL_H, (a + b) / 2, (woodTop + RAIL_Y + RAIL_H) / 2, FZ + .0021, .13, 0, 1, 3.4, [1, .95, .86]);   // lacquered veneer: faint and soft
+      add(b - a, RAIL_Y - KICK, (a + b) / 2, (RAIL_Y + KICK) / 2, FZ + .0021, .2, 0, 1, 3, [.8, .88, 1]);                  // satin blue panel
+    }
+    add(ow + 2 * t, woodTop - oh - TRANSOM, 0, (woodTop + oh + TRANSOM) / 2, FZ + .0021, .13, 0, 1, 3.4, [1, .95, .86]);  // veneer above the header
+    add(pwS - .004, phS - .004, px, py, FZ + .014 * PS + .0004, .3, 0, 1, 2.4);                                            // button panel plate
+    add(hwI - .006, hhI - .006, 0, iy, FZ + .002 + CFG.indicatorDepth + .0002, .3, 0, 1, 2.4);                             // indicator body
+    const base = G.mirror.onBeforeRender;   // hide them while the mirror image itself is drawn (they'd be sampling the image being rendered)
+    G.mirror.onBeforeRender = function (r, sc, c) { for (const m of over) m.visible = false; base.call(this, r, sc, c); for (const m of over) m.visible = true; };
+  }
+  G.ghost = []; cab.traverse(o => { if (o.isMesh && !Array.isArray(o.material) && o.material.transparent) G.ghost.push(o); });
+  G.envPos = new THREE.Vector3(0, eye, D * .6);
+  captureEnv();
+
+  /* --- the page: an ordinary web page directly behind the doorway (the 2D set-up) --- */
+  G.pk = (innerHeight / 2) / Math.tan(vfov / 2) / (D - z1);                    // screen pixels per metre at the back of the doorway
+  const pageTop = innerHeight / 2 - (oh - eye) * G.pk;
+  wallEl.style.width = Math.ceil(ow * G.pk) + 'px'; wallEl.style.height = Math.ceil(innerHeight - pageTop + 14) + 'px';
+  wallEl.style.setProperty('--mx', '0px');
+  if (!wallEl.parentNode) pageLayer.appendChild(wallEl);
+  placePage(0, eye);
+
+  camera.aspect = aspect; camera.updateProjectionMatrix();
+  renderer.setPixelRatio(pixelRatioNow()); renderer.setSize(innerWidth, innerHeight); sizePost();
+  layout();
+}
+
+/* ===== FLOORS (DOM page) ===== */
+const stops = [], holds = [], floorEls = [];
+F.forEach((f, i) => {
+  const stop = document.createElement('div'); stop.className = 'stop'; stop.style.zIndex = F.length - i;
+  const hold = document.createElement('div'); hold.className = 'hold';
+  const d = document.createElement('section'); d.className = 'floor'; d.style.backgroundColor = f.bg || '#111';
+  if (f.img) d.style.backgroundImage = `url(${f.img})`;
+  d.innerHTML = (f.hero ? `<img class="hero" src="${f.hero}" alt="" decoding="async">` : '') + `<div class="copy">${f.html || ''}</div>`;
+  hold.appendChild(d); stop.appendChild(hold); pageEl.appendChild(stop);
+  stops.push(stop); holds.push(hold); floorEls.push(d);
+});
+let swaps = [], starts = [], Z = 0;
+function layout() {
+  const H = pageEl.clientHeight, n = F.length;
+  if (!H) return;
+  Z = Math.round(H * CFG.doorZone);
+  let o = 0; swaps = []; starts = [CFG.startClosed ? Z : 0];
+  for (let i = 0; i < n; i++) {
+    const zs = i > 0 || CFG.startClosed ? Z : 0, ze = i < n - 1 ? Z : 0;
+    floorEls[i].style.minHeight = H + 'px';
+    const h = floorEls[i].offsetHeight, hHold = h + zs, hStop = hHold + ze;
+    holds[i].style.height = hHold + 'px'; holds[i].style.top = (H - hHold) + 'px';
+    stops[i].style.height = hStop + 'px'; stops[i].style.marginTop = i > 0 ? -H + 'px' : '0';
+    if (i < n - 1) { o += hStop - H; swaps.push(o); starts.push(o + Z); }
+  }
+  if (busy) return;
+  // keep the visitor on the same floor after a resize
+  if (scrollY < 0) scrollY = 0;
+}
+function scrollTarget() {
+  const v = pageEl.scrollTop; let c = 0;
+  for (const s of (CFG.startClosed ? [0, ...swaps] : swaps)) {
+    const d = Math.abs(v - s);
+    if (d < Z) c = Math.max(c, Math.min(1, (1 - d / Z) / (1 - CFG.closedHold)));
+  }
+  return smooth(c);
+}
+function floorNow() { const v = pageEl.scrollTop; let f = 0; swaps.forEach((s, i) => { if (v > s) f = i + 1; }); return f; }
+function updateVisibility() { const v = pageEl.scrollTop; stops.forEach((st, i) => st.classList.toggle('gone', i < swaps.length && v > swaps[i])); }
+
+/* ===== INPUT: the page scrolls natively (wheel, trackpad, touch, with the browser's own momentum).
+   Scrolling while the pointer is over the lift's walls is passed on to it. ===== */
+let arrowTimer = 0, scrollY = 0, scrolled = false, lastTop = 0;
+function nudge(dy) { if (busy) return; if (turned) lookAtPanel(false); pageEl.scrollTop += dy; }
+pageEl.addEventListener('scroll', () => {
+  const top = pageEl.scrollTop, dy = top - lastTop; lastTop = top; if (busy || !dy) return;
+  scrollY = top; if (turned) lookAtPanel(false);
+  const d = dy > 0 ? -1 : 1; if (d !== indDir) { indDir = d; drawIndicator(); }   // direction arrows light while you scroll
+  clearTimeout(arrowTimer); arrowTimer = setTimeout(() => { if (!busy) { indDir = 0; drawIndicator(); } }, 450);
+  if (!scrolled) { scrolled = true; root.querySelector('.hint').classList.add('off'); }
+}, { passive: true });
+root.addEventListener('wheel', e => {
+  if (busy) { e.preventDefault(); return; }
+  if (!pageEl.contains(e.target)) { e.preventDefault(); nudge(e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY); }
+}, { passive: false });
+addEventListener('keydown', e => {
+  const H = pageEl.clientHeight, k = { ArrowDown: 60, ArrowUp: -60, PageDown: H * .9, PageUp: -H * .9, ' ': H * .9, End: 1e9, Home: -1e9 }[e.key];
+  if (k !== undefined) { e.preventDefault(); nudge(k); }
+});
+
+/* ===== CURSOR LOOK + PANEL TURN ===== */
+let tLookX = 0, tLookY = 0, lookX = 0, lookY = 0, turned = false, turnT = 0;   // turnT: 0 = facing doors, 1 = facing panel
+root.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
+  tLookX = (e.clientX / innerWidth - .5) * 2; tLookY = (e.clientY / innerHeight - .5) * 2;
+  root.style.cursor = hitButton(e) !== null ? 'pointer' : '';
+  // resting the cursor on the panel glides you over to it. It re-arms only once the cursor has left the panel,
+  // so coming back to the doors with the mouse still parked there doesn't send you straight back.
+  if (e.target.closest('.ui')) return;
+  const over = overPlate(e) || (!turned && e.clientX > innerWidth - CFG.revealDistance);
+  if (!over) { hoverArmed = true; clearTimeout(hoverTimer); hoverTimer = 0; }
+  else if (hoverArmed && !turned && !busy && turnT < .05 && !hoverTimer) hoverTimer = setTimeout(() => { hoverTimer = 0; if (!turned && !busy) { hoverArmed = false; lookAtPanel(true); } }, CFG.panelHoverMs);
+});
+let hoverTimer = 0, hoverArmed = true;
+function overPlate(e) { if (!G.plate) return false; ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObject(G.plate, false).length > 0; }
+root.addEventListener('pointerleave', () => { tLookX = tLookY = 0; });
+const ftab = root.querySelector('.ftab');
+const panelHold = false;
+function lookAtPanel(on) { if (!on && turned) hoverArmed = false; turned = on; ftab.textContent = on ? '← Doors' : 'Floors →'; clearTimeout(hoverTimer); hoverTimer = 0; }
+ftab.addEventListener('click', e => { e.stopPropagation(); lookAtPanel(!turned); });
+
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function hitButton(e) {
+  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const h = ray.intersectObjects([...btnMeshes, ...fnMeshes], false)[0];
+  return h ? h.object : null;
+}
+root.addEventListener('click', e => {
+  if (e.target.closest('.ui')) return;
+  const o = hitButton(e);
+  if (o) { initAudio(); o.userData.fn ? liftFn(o.userData.fn, o) : go(o.userData.floor); }
+  else if (turned && !busy && !overPlate(e)) lookAtPanel(false);   // clicking away from the panel takes you back to the doors
+});
+
+/* ===== SOUND (only the ding plays while scrolling; everything else belongs to button rides) ===== */
+let ac = null, soundOn = false, hum = null, master = null, noiseBuf = null, mus = null, musTimer = 0;
+function initAudio() {
+  if (ac || !soundOn) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  master = ac.createGain(); master.gain.value = .9; master.connect(ac.destination);
+  noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  // lift music bus: through a small 'cab speaker' band-pass
+  const g = ac.createGain(); g.gain.value = 0; const spk = ac.createBiquadFilter(); spk.type = 'bandpass'; spk.frequency.value = 1700; spk.Q.value = .32;
+  g.connect(spk).connect(master); mus = { gain: g, next: 0, step: 0 };
+}
+const sndBtn = root.querySelector('.snd');
+sndBtn.addEventListener('click', e => { e.stopPropagation(); soundOn = !soundOn; initAudio(); if (ac && ac.state === 'suspended') ac.resume(); sndBtn.textContent = soundOn ? 'Sound on' : 'Sound off'; if (!soundOn) { humOff(); musicOff(); } });
+const noise = (t, dur) => { const n = ac.createBufferSource(); n.buffer = noiseBuf; n.start(t, Math.random()); n.stop(t + dur); return n; };
+function ding(dir, vol = .3) {   // once going up, twice going down — like real car lanterns
+  if (!soundOn || !ac) return;
+  const strike = t0 => [[1, 1], [2.76, .35], [5.4, .12], [8.9, .04]].forEach(([m, g]) => {
+    const o = ac.createOscillator(), e = ac.createGain(); o.frequency.value = 1046.5 * m;
+    e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g * vol, t0 + .004); e.gain.exponentialRampToValueAtTime(.0001, t0 + 1.8 / Math.sqrt(m));
+    o.connect(e).connect(master); o.start(t0); o.stop(t0 + 1.9);
+  });
+  const t = ac.currentTime; strike(t); if (dir < 0) strike(t + .45);
+}
+function clickSound() {   // button: a short mechanical tick
+  if (!soundOn || !ac) return;
+  const t = ac.currentTime, n = noise(t, .03), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 1.2;
+  g.gain.setValueAtTime(.16, t); g.gain.exponentialRampToValueAtTime(.0001, t + .03); n.connect(f).connect(g).connect(master);
+  const o = ac.createOscillator(), og = ac.createGain(); o.frequency.value = 170; og.gain.setValueAtTime(.1, t); og.gain.exponentialRampToValueAtTime(.0001, t + .05); o.connect(og).connect(master); o.start(t); o.stop(t + .06);
+}
+function doorSound(ms, closing) {   // rollers on the track, the operator motor, and a soft thud when the leaves meet / park
+  if (!soundOn || !ac) return;
+  const t = ac.currentTime, d = ms / 1000;
+  const n = noise(t, d + .1), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.Q.value = .7;
+  f.frequency.setValueAtTime(260, t); f.frequency.linearRampToValueAtTime(620, t + d * .35); f.frequency.linearRampToValueAtTime(300, t + d);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.075, t + d * .2); g.gain.setValueAtTime(.075, t + d * .7); g.gain.linearRampToValueAtTime(0, t + d);
+  n.connect(f).connect(g).connect(master);
+  const m = ac.createOscillator(), mg = ac.createGain(), mf = ac.createBiquadFilter(); m.type = 'sawtooth'; mf.type = 'lowpass'; mf.frequency.value = 420;
+  m.frequency.setValueAtTime(70, t); m.frequency.linearRampToValueAtTime(128, t + d * .3); m.frequency.setValueAtTime(128, t + d * .7); m.frequency.linearRampToValueAtTime(64, t + d);
+  mg.gain.setValueAtTime(0, t); mg.gain.linearRampToValueAtTime(.022, t + d * .15); mg.gain.setValueAtTime(.022, t + d * .8); mg.gain.linearRampToValueAtTime(0, t + d);
+  m.connect(mf).connect(mg).connect(master); m.start(t); m.stop(t + d + .05);
+  const th = ac.createOscillator(), tg = ac.createGain(), tt = t + d * (closing ? .97 : .98);   // the thud
+  th.frequency.setValueAtTime(closing ? 92 : 70, tt); th.frequency.exponentialRampToValueAtTime(42, tt + .12);
+  tg.gain.setValueAtTime(0, tt); tg.gain.linearRampToValueAtTime(closing ? .2 : .1, tt + .006); tg.gain.exponentialRampToValueAtTime(.0001, tt + .22);
+  th.connect(tg).connect(master); th.start(tt); th.stop(tt + .25);
+}
+function alarmSound() {   // old-school alarm bell: fast repeated strikes
+  if (!soundOn || !ac) return; const t = ac.currentTime;
+  for (let i = 0; i < 26; i++) [[1, .5], [2.4, .25], [4.1, .1]].forEach(([m, g]) => { const o = ac.createOscillator(), e = ac.createGain(), t0 = t + i * .095; o.frequency.value = 1480 * m;
+    e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g * .12, t0 + .003); e.gain.exponentialRampToValueAtTime(.0001, t0 + .16); o.connect(e).connect(master); o.start(t0); o.stop(t0 + .18); });
+}
+function callSound() {    // intercom ring: two short bursts
+  if (!soundOn || !ac) return; const t = ac.currentTime;
+  [0, .55].forEach(d => { const o = ac.createOscillator(), m = ac.createOscillator(), g = ac.createGain(), mg = ac.createGain(); o.frequency.value = 440; m.frequency.value = 20; mg.gain.value = .04;
+    g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(.08, t + d + .02); g.gain.setValueAtTime(.08, t + d + .35); g.gain.linearRampToValueAtTime(0, t + d + .38);
+    m.connect(mg).connect(g.gain); o.connect(g).connect(master); o.start(t + d); m.start(t + d); o.stop(t + d + .4); m.stop(t + d + .4); });
+}
+function humOn() {   // traction motor: pitch rises as the car gets up to speed, with a wash of air in the shaft
+  if (!soundOn || !ac) return;
+  const t = ac.currentTime, g = ac.createGain(), f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 190;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.11, t + .7); f.connect(g).connect(master);
+  const os = [1, 1.503, 2.01].map((m, i) => { const o = ac.createOscillator(); o.type = i ? 'triangle' : 'sawtooth';
+    o.frequency.setValueAtTime(30 * m, t); o.frequency.exponentialRampToValueAtTime(52 * m, t + .9); const og = ac.createGain(); og.gain.value = [1, .35, .2][i]; o.connect(og).connect(f); o.start(t); return o; });
+  const n = ac.createBufferSource(); n.buffer = noiseBuf; n.loop = true; const nf = ac.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 380; const ng = ac.createGain();
+  ng.gain.setValueAtTime(0, t); ng.gain.linearRampToValueAtTime(.035, t + .9); n.connect(nf).connect(ng).connect(master); n.start(t);
+  hum = { os, g, n, ng };
+}
+function humOff() {
+  if (!hum || !ac) return; const { os, g, n, ng } = hum, t = ac.currentTime; hum = null;
+  os.forEach((o, i) => { o.frequency.cancelScheduledValues(t); o.frequency.setValueAtTime(o.frequency.value, t); o.frequency.exponentialRampToValueAtTime(26 * [1, 1.503, 2.01][i], t + .8); o.stop(t + 1); });
+  g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + .85);
+  ng.gain.cancelScheduledValues(t); ng.gain.setValueAtTime(ng.gain.value, t); ng.gain.linearRampToValueAtTime(0, t + .8); n.stop(t + 1);
+}
+// lift music (button rides only): breezy bossa in C — vibraphone melody, soft keys, bass, shaker
+const CHORDS = [[523.25, 659.25, 783.99, 987.77, 130.81], [440, 523.25, 659.25, 783.99, 110], [587.33, 698.46, 880, 1046.5, 146.83], [392, 493.88, 587.33, 698.46, 98]];
+const MEL = [783.99, 0, 659.25, 783.99, 880, 0, 783.99, 0, 1046.5, 0, 880, 0, 783.99, 659.25, 0, 0, 698.46, 0, 880, 0, 1046.5, 0, 987.77, 880, 783.99, 0, 698.46, 0, 587.33, 0, 659.25, 0];
+const EIGHTH = 60 / 124 / 2;
+function vib(f, t, v, dur = 1.4) {
+  const o = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain(), g2 = ac.createGain(), tr = ac.createOscillator(), tg = ac.createGain();
+  o.frequency.value = f; o2.frequency.value = f * 4; g2.gain.value = .08; tr.frequency.value = 5.5; tg.gain.value = v * .25;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  tr.connect(tg).connect(g.gain); o.connect(g); o2.connect(g2).connect(g); g.connect(mus.gain);
+  o.start(t); o2.start(t); tr.start(t); o.stop(t + dur + .05); o2.stop(t + dur + .05); tr.stop(t + dur + .05);
+}
+function bassNote(f, t) { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.3, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + .42); o.connect(g).connect(mus.gain); o.start(t); o.stop(t + .45); }
+function shaker(t, v) { const s = noise(t, .07), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'highpass'; f.frequency.value = 6500; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + .06); s.connect(f).connect(g).connect(mus.gain); }
+function scheduleMuzak() {
+  if (!soundOn || !mus) return;
+  if (mus.next < ac.currentTime) mus.next = ac.currentTime + .05;
+  while (mus.next < ac.currentTime + .35) {
+    const bar = Math.floor(mus.step / 8) % CHORDS.length, st = mus.step % 8, ch = CHORDS[bar], m = MEL[mus.step % MEL.length];
+    if (m) vib(m, mus.next, .085);
+    if (st === 0 || st === 3 || st === 6) ch.slice(0, 4).forEach(f => vib(f / 2, mus.next, .028, .5));
+    if (st === 0 || st === 3 || st === 4 || st === 7) bassNote(ch[4] * (st === 3 || st === 7 ? 1.5 : 1), mus.next);
+    shaker(mus.next, st % 2 ? .012 : .02);
+    mus.next += EIGHTH * (st % 2 ? .86 : 1.14); mus.step++;
+  }
+}
+function musicOn() { if (!soundOn || !mus) return; clearInterval(musTimer); musTimer = setInterval(scheduleMuzak, 100); mus.gain.gain.setTargetAtTime(CFG.musicVolume, ac.currentTime, .3); }
+function musicOff() { if (!mus) return; mus.gain.gain.setTargetAtTime(0, ac.currentTime, .35); setTimeout(() => { if (!busy) clearInterval(musTimer); }, 1600); }
+
+/* ===== DOORS + RIDE ===== */
+let cVal = 1, cTarget = 1, busy = false, cur = 0, moving = false, rideDir = 0, bump = 0;
+let doorAnim = null;   // {from, to, t0, ms} while a button ride drives the doors
+const animateDoors = (to, ms) => new Promise(res => { doorAnim = { from: cVal, to, t0: performance.now(), ms: RM ? 1 : ms, res }; });
+// real door operators run fast through the middle, then creep the last few centimetres
+const doorProfile = k => { const q = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; return k < .78 ? .94 * q(k / .78) : .94 + .06 * (1 - Math.pow(1 - (k - .78) / .22, 2)); };
+let lurchV = 0, lurch = 0;   // the head's lag as the car pulls away and settles (a soft spring)
+let roll = null;             // LED roll animation {from, to, t0, dir}
+let shaftPhase = 0, flk = 0;
+async function go(t) {
+  if (busy || t === cur) { if (t === cur) flashButton(t); return; }
+  busy = true; root.classList.add('busy');
+  const dir = t > cur ? 1 : -1;
+  clickSound(); pressButton(t);
+  btnRings[t].userData.lit = true; btnRings[t].material.emissive.setHex(0x0a8fd4); btnRings[t].material.emissiveIntensity = 1.6; btnRings[t].material.color.setHex(0x2aa4e0);
+  await sleep(550);
+  lookAtPanel(false);
+  if (cVal < .98) { doorSound(CFG.doorMs, true); await animateDoors(1, CFG.doorMs); bump = .3; }
+  await sleep(250);
+  musicOn();
+  moving = true; rideDir = dir; indDir = -dir; shaftPhase = .5 - G.eye / G.oh; drawIndicator(); humOn(); lurchV += dir * .11;
+  let i = cur;
+  while (i !== t) { await sleep(CFG.perFloorMs); i += dir; rollTo(i, dir); bump = 1; }
+  await sleep(CFG.perFloorMs * .45);
+  moving = false; humOff(); lurchV -= dir * .13;
+  scrollY = starts[t]; pageEl.scrollTop = scrollY; updateVisibility(); cur = t;
+  await sleep(CFG.arriveDwellMs + 350);
+  indDir = 0; drawIndicator(); ding(dir);
+  btnRings[t].userData.lit = false; btnRings[t].material.color.setHex(0x2a2a2a); markHere(t);
+  await sleep(450);
+  musicOff();
+  doorSound(CFG.doorMs, false); await animateDoors(0, CFG.doorMs);
+  busy = false; root.classList.remove('busy');
+}
+function flashButton(k) { clickSound(); pressButton(k); const m = btnRings[k].material; m.emissive.setHex(0x0a8fd4); m.emissiveIntensity = 1.6; setTimeout(() => markHere(curShown), 300); }
+function pressButton(k) { const b = typeof k === 'number' ? btnMeshes[k] : k; if (!b) return; const z = b.userData.z0 ?? (b.userData.z0 = b.position.z); b.position.z = z - .006; setTimeout(() => { b.position.z = z; }, 170); }
+function flash(text, ms) { flashText = text; drawIndicator(); setTimeout(() => { flashText = null; drawIndicator(); }, ms); }
+let alarmUntil = 0;
+async function liftFn(fn, b) {
+  clickSound(); pressButton(b);
+  const ring = b.userData.ring.material, lit = () => { ring.emissive.setHex(fn === 'alarm' ? 0xff2a1a : 0x0a8fd4); ring.emissiveIntensity = 1.6; }, off = () => { ring.emissiveIntensity = 0; ring.emissive.setHex(0); };
+  lit();
+  if (fn === 'alarm') { alarmUntil = performance.now() + 2600; alarmSound(); flash('ALARM', 2600); setTimeout(off, 2600); return; }
+  if (fn === 'call') { callSound(); flash('CALLING', 2200); setTimeout(off, 2200); if (CFG.contactEmail) setTimeout(() => { location.href = 'mailto:' + CFG.contactEmail; }, 900); return; }
+  if (busy) { setTimeout(off, 250); return; }
+  busy = true; root.classList.add('busy');
+  await sleep(350); lookAtPanel(false);
+  if (fn === 'open') {          // doors open on the floor you're at
+    if (cVal > .02) { scrollY = starts[cur]; pageEl.scrollTop = scrollY; updateVisibility(); doorSound(CFG.doorMs, false); await animateDoors(0, CFG.doorMs); }
+  } else {                      // close: doors shut briefly, then reopen (nowhere to go)
+    const was = cVal; if (cVal < .98) { doorSound(CFG.doorMs, true); await animateDoors(1, CFG.doorMs); bump = .3; }
+    await sleep(900); if (was < .98) { doorSound(CFG.doorMs, false); await animateDoors(was, CFG.doorMs); }
+  }
+  off(); busy = false; root.classList.remove('busy');
+}
+function rollTo(i, dir) { roll = { from: indText, t0: performance.now(), dir }; curShown = i; indText = `${i + 1} ${F[i].n.toUpperCase()}`; markHere(i); }
+
+/* ===== FLOOR LIGHT: each floor's own colour spills into the cab as the doors open ===== */
+const tints = F.map(f => { const c = new THREE.Color(f.bg || '#222'); return { c, lum: .12 }; });
+F.forEach((f, i) => { if (!f.hero) return; const im = new Image(); im.onload = () => {
+  const c = document.createElement('canvas'); c.width = c.height = 8; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 8, 8);
+  const d = g.getImageData(0, 0, 8, 8).data; let r = 0, gg = 0, b = 0; for (let k = 0; k < d.length; k += 4) { r += d[k]; gg += d[k + 1]; b += d[k + 2]; }
+  const col = new THREE.Color().setRGB(r / 64 / 255, gg / 64 / 255, b / 64 / 255, THREE.SRGBColorSpace);
+  tints[i] = { hero: true, c: col, lum: clamp((r * .3 + gg * .59 + b * .11) / 64 / 255 * 1.6, .12, 1) }; }; im.src = f.hero; });
+const tintNow = new THREE.Color(0x222222); let lumNow = .12;
+
+/* ===== FRAME LOOP ===== */
+// ?test keeps rendering when the tab is in the background (for automated checks only)
+const nextFrame = /[?&]test\b/.test(location.search) ? f => setTimeout(f, 33) : f => requestAnimationFrame(f);
+const clock = new THREE.Clock();
+let shakeX = 0, shakeY = 0, lastScroll = 0, scrollVel = 0, travel = 0, blinkOn = true, backdropFor = -1;
+const TEST = /[?&]test\b/.test(location.search);
+let gAcc = 0, gN = 0, gLast = 0, lastInput = performance.now(), frameNo = 0;
+for (const ev of ['pointermove', 'pointerdown', 'wheel', 'touchstart', 'touchmove', 'keydown']) addEventListener(ev, () => { lastInput = performance.now(); }, { passive: true, capture: true });
+function stepQualityDown() {
+  if (qLevel >= Q_SCALE.length - 1) return; qLevel++;
+  if (qLevel >= 2) { AO = false; if (G.mirror) { G.mirror.visible = false; for (const m of G.over || []) m.visible = false; M.doorL.envMapIntensity = M.doorR.envMapIntensity = 1; } }
+  if (qLevel >= 3 && renderer.shadowMap.enabled) { renderer.shadowMap.enabled = false; if (G.key) G.key.castShadow = false; scene.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) m.needsUpdate = true; }); }
+  renderer.setPixelRatio(pixelRatioNow()); renderer.setSize(innerWidth, innerHeight); sizePost();
+}
+const EXPORT = /[?&]export\b/.test(location.search);
+function frame() {
+  if (EXPORT && window.__liftPause) { setTimeout(frame, 100); return; }
+  const now0 = performance.now();
+  // when nothing has been touched for a few seconds and nothing is moving, draw every other frame (saves battery, no visible change)
+  const idle = !busy && now0 - lastInput > 2500 && travel < .02 && (turnT === 0 || turnT === 1) && !doorAnim && !roll;
+  if (idle && (frameNo++ & 1)) { nextFrame(frame); return; }
+  // quality governor: if frames are taking too long, step the quality down a notch
+  if (!TEST && !document.hidden && gLast) { const ft = now0 - gLast; if (ft < 200) { gAcc += idle ? ft / 2 : ft; gN++; }
+    if (gN >= 90) { if (gAcc / gN > 23 && now0 > 4000) stepQualityDown(); gAcc = 0; gN = 0; } }
+  gLast = now0;
+  const dt = Math.min(.05, clock.getDelta()), now = performance.now();
+  // scroll: apply drag momentum, then move the page
+  if (!busy) scrollY = pageEl.scrollTop;
+  updateVisibility();
+  // doors: follow the scroll, or a ride's animation
+  if (doorAnim) {
+    const k = clamp((now - doorAnim.t0) / doorAnim.ms, 0, 1);
+    cVal = doorAnim.from + (doorAnim.to - doorAnim.from) * doorProfile(k);
+    if (k >= 1) { const r = doorAnim.res; doorAnim = null; r(); }
+  } else if (!busy && !panelHold) {
+    const target = scrollTarget();
+    cVal = RM ? target : cVal + (target - cVal) * (1 - Math.pow(1 - CFG.doorEase, dt * 60));
+    const f = floorNow();
+    if (f !== cur) { const dir = f > cur ? 1 : -1; cur = f; rollTo(f, dir); ding(dir, .14); }
+  }
+  const open = (1 - cVal) * (G.ow / 2 + .02);
+  if (doors.l) { doors.l.position.x = -open; doors.r.position.x = open; ldoors.l.position.x = -open; ldoors.r.position.x = open; }
+  if (G.mirror) G.mirror.material.uniforms.gap.value = open;
+
+  // LED screens: floor names roll like a mechanical display; arrows blink while the car moves
+  const blink = true;   // direction arrows stay steadily lit while moving (no blinking)
+  if (roll || blink !== blinkOn) { blinkOn = blink; drawIndicator(now); }
+
+  { // beyond the page's edges you see the floor's own colour — or, while its opening photo is on screen, that photo's overall colour
+    const heroOn = F[cur] && F[cur].hero && tints[cur].hero && pageEl.scrollTop - (starts[cur] || 0) < pageEl.clientHeight * .7, key = cur + (heroOn ? 'h' : '');
+    if (backdropFor !== key) { backdropFor = key; const bg = heroOn ? '#' + tints[cur].c.clone().multiplyScalar(.8).getHexString() : (F[cur] && F[cur].bg) || '#111'; pageLayer.style.background = bg; wallEl.style.background = bg; root.style.background = bg; } }
+  // the floor's own light: colour and brightness of what's beyond the doors, eased in as they open
+  const tn = tints[cur] || tints[0]; tintNow.lerp(tn.c, 1 - Math.exp(-dt / .25)); lumNow += (tn.lum - lumNow) * (1 - Math.exp(-dt / .25));
+  const openK = 1 - cVal;
+  if (G.bounce) { G.bounce.color.copy(tintNow); G.bounce.intensity = openK * lumNow * 1.3; G.landing.color.copy(tintNow).lerp(WHITE, .5); G.landing.intensity = openK * (.5 + lumNow * 2.2); }
+
+  // travel feel: a ride, or scrolling fast through the shut zone
+  const v = Math.abs(pageEl.scrollTop - lastScroll); lastScroll = pageEl.scrollTop;
+  scrollVel += (Math.min(1, v / 18) - scrollVel) * .15;
+  const tgt = moving ? 1 : clamp((cVal - .45) / .45, 0, 1) * scrollVel;
+  travel += (tgt - travel) * .12; bump *= .85;
+  let vx = 0, vy = 0;
+  if (!RM && CFG.vibration && travel > .01) {
+    const a = travel * CFG.vibration, t = now / 1000;
+    shakeX += ((Math.random() - .5) * 2 - shakeX) * .15; shakeY += ((Math.random() - .5) * 2 - shakeY) * .15;
+    vx = (shakeX * .0015 + Math.sin(t * 23) * .0008) * a; vy = (shakeY * .0022 + Math.sin(t * 31) * .0012) * a;
+  }
+  vy -= bump * .004 * CFG.vibration;
+  // start/stop lurch (spring)
+  lurchV += (-70 * lurch - 10 * lurchV) * dt; lurch += lurchV * dt; if (!RM) vy += lurch;
+  // light only gets in where it physically can: the hairline between the doors and the slots around them.
+  // Between floors the shaft is dark; each landing's light slides past as a band, at a speed that follows the car's.
+  if (G.gap) {
+    const k = RM ? 0 : (moving ? travel : Math.min(1, travel * 2.5)), shut = clamp((cVal - .9) / .1, 0, 1) * CFG.shaftLight;
+    // one band of light per floor: its centre crosses eye level exactly as the floor number changes
+    const centre = .5 - G.eye / G.oh;
+    if (moving) shaftPhase += indDir * dt / (CFG.perFloorMs / 1000);        // button ride: one floor every perFloorMs
+    else if (!busy) {                                                         // scrolling: locked to the scroll position between two floors
+      const v = pageEl.scrollTop; let d = 9; for (const sw of swaps) { const q = (v - sw) / Z; if (Math.abs(q) < Math.abs(d)) d = q; }
+      if (Math.abs(d) <= 1) shaftPhase = centre - d * .5;
+    }
+    shaftPhase = (shaftPhase % 1 + 1) % 1;
+    const bandY = ((.5 - shaftPhase) % 1 + 1) % 1;                 // where the band's centre sits on the doors (0 = floor, 1 = head)
+    for (const m of G.leaks) { m.material.map.offset.y = shaftPhase; m.material.opacity = m.userData.k * k * shut; }
+    G.headLeak.material.opacity = 0;
+    G.steady.material.opacity = .16 * (1 - k) * shut;             // parked at a floor: a faint steady line from the landing
+    G.gapLight.position.y = bandY * G.oh; G.gapLight.intensity = .3 * k * shut * Math.pow(clamp((bandY - .42) / .48, 0, 1), 2);   // the sliver catching the door edges, right at the gap
+  }
+  // eyes adapt a little to a bright floor
+  renderer.toneMappingExposure = CFG.exposure * (1 - .2 * openK * lumNow) * ((now < alarmUntil) ? .55 : 1);
+  if (G.alarm) G.alarm.intensity = now < alarmUntil ? (.5 + .5 * Math.sin(now / 70)) * 9 : 0;
+
+  // camera: head follows the cursor; turns to the panel when asked
+  const le = 1 - Math.exp(-dt / CFG.lookEase);
+  const lk = RM ? 0 : 1;
+  lookX += (tLookX * lk - lookX) * le; lookY += (tLookY * lk - lookY) * le;
+  turnT = clamp(turnT + (turned ? 1 : -1) * dt / (CFG.panelTurnMs / 1000), 0, 1);
+  const sw = now / 1000;
+  // flat-on camera: it never turns or moves in or out. It leans a few millimetres with the cursor (the 2D version's lean),
+  // and slides sideways to the button panel. The page is moved in step, so it always sits exactly in the doorway.
+  const p = turnT * turnT * turnT * (turnT * (turnT * 6 - 15) + 10);
+  const hs = RM ? 0 : CFG.headShift;
+  const camX = G.pan * p + vx + lookX * hs * (1 - p) + Math.sin(sw * .21) * .0015, camY = G.eye + vy - lookY * hs * .5 * (1 - p) + Math.sin(sw * .27 + 1) * .001;
+  camera.position.set(camX, camY, G.D); camera.rotation.set(0, 0, 0);
+  placePage(camX, camY);
+
+  if (envDirty && --envDirty === 0) doCaptureEnv();
+  renderScene();
+  if (grainEl) grainEl.style.transform = `translate(${(Math.random() * 64) | 0}px,${(Math.random() * 64) | 0}px)`;
+  nextFrame(frame);
+}
+const WHITE = new THREE.Color(0xffffff);
+
+/* ===== FILM GRAIN ===== */
+const grainEl = root.querySelector('.grain');
+{ const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), d = g.createImageData(128, 128);
+  for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+  g.putImageData(d, 0, 0); grainEl.style.backgroundImage = `url(${c.toDataURL()})`; }
+
+/* ===== START ===== */
+if (MOBILE) root.querySelector('.hint').textContent = 'Swipe up ↑';
+build();
+setIndicator(0);
+let resizeT = 0, lastW = innerWidth, lastH = innerHeight;
+addEventListener('resize', () => {
+  if (innerWidth === lastW && Math.abs(innerHeight - lastH) < 90 && MOBILE) return;   // a phone's toolbars sliding in and out isn't a real resize
+  clearTimeout(resizeT); resizeT = setTimeout(() => {
+    lastW = innerWidth; lastH = innerHeight;
+    const span = () => { const a = starts[cur] ?? 0, b = cur < swaps.length ? swaps[cur] : pageEl.scrollHeight - pageEl.clientHeight; return [a, Math.max(a, b)]; };
+    const [a, b] = span(), fr = b > a ? clamp((pageEl.scrollTop - a) / (b - a), -.4, 1) : 0;
+    build();
+    const [a2, b2] = span(); pageEl.scrollTop = a2 + fr * (b2 - a2); lastTop = scrollY = pageEl.scrollTop;
+  }, 140);
+});
+addEventListener('orientationchange', () => dispatchEvent(new Event('resize')));
+if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout()); floorEls.forEach(f => ro.observe(f.querySelector('.copy'))); }
+document.fonts && document.fonts.load('900 60px Doto').then(() => drawIndicator());
+nextFrame(frame);
+setTimeout(() => root.querySelector('.loading').classList.add('done'), 600);
+if (EXPORT) window.__lift = { THREE, renderer, scene, camera, cab, doors, M, IND, PSC, renderScene, sizePost, plateBase, outMat, get G() { return G; } };
+</script>
+</body></html>
