@@ -576,42 +576,54 @@ const FIG = { aspect: 315 / 1024, eyes: .09, face: .47, body: 1 };   // body: ho
 const FIG_STEP = { src: '../assets/anz/passenger-step.mp4', aspect: 296 / 720, eyes: .1257, face: .435, body: .9333 };
 const FIG_VIDEO = { src: '../assets/anz/passenger-loop.mp4', aspect: 296 / 720, eyes: .1257, face: .485, body: .9333 };   // framed a little looser than the still, so she has room to move   // the cut-out's shape; how far down her eyes are; where her face sits across it
 // Two clips: the waiting loop, and one sideways step towards the button panel (stepping out in its first half, back again in its second).
-const VID = { mode: 'still', fig: null, half: 0, was: false };
+// They cross-fade into one another. Once she has stepped over, the waiting loop carries on, drawn one step across, so she never freezes.
+const VID = { mode: 'still', A: null, B: null, t0: 0, dur: 0 };
+const STEP_DX = .178;   // how far the step carries her, as a share of the clip's width
 if (CFG.passenger > 0 && !MOBILE) {
   const mk = (src, loop) => { const v = document.createElement('video'); v.muted = true; v.loop = loop; v.playsInline = true; v.preload = 'auto'; v.src = src; const t = new THREE.VideoTexture(v); t.colorSpace = THREE.SRGBColorSpace; return { v, t, ready: false }; };
   const L = mk(FIG_VIDEO.src, true), S = mk(FIG_STEP.src, false), play = v => v.play().catch(() => {});
-  const show = (o, fig) => { figureMat.uniforms.map.value = o.t; figureMat.uniforms.packed.value = 1; VID.fig = fig; };
-  L.v.addEventListener('playing', () => { L.ready = true; if (VID.mode === 'still') { VID.mode = 'loop'; show(L, FIG_VIDEO); } }, { once: true });
+  const HOME = FIG_VIDEO.face, AWAY = FIG_VIDEO.face - STEP_DX;
+  const cut = (o, face) => { VID.A = { o, face }; VID.B = null; figureMat.uniforms.map.value = o.t; figureMat.uniforms.packed.value = 1; figureMat.uniforms.fade.value = 0; };
+  const fadeTo = (o, face, ms, then) => { if (VID.B) cut(VID.B.o, VID.B.face); VID.B = { o, face, then }; figureMat.uniforms.map2.value = o.t; figureMat.uniforms.dx2.value = face - VID.A.face; VID.t0 = performance.now(); VID.dur = ms; };
+  L.v.addEventListener('playing', () => { L.ready = true; if (VID.mode === 'still') { VID.mode = 'loop'; cut(L, HOME); } }, { once: true });
   S.v.addEventListener('loadeddata', () => { S.ready = true; VID.half = S.v.duration / 2; VID.stepReady = true; }, { once: true });
-  play(L.v); addEventListener('pointerdown', () => { if (L.v.paused && VID.mode !== 'out' && VID.mode !== 'held' && VID.mode !== 'back') play(L.v); }, { once: true });
-  VID.turn = on => { if (!S.ready || !L.ready) return; const v = S.v, h = VID.half;
-    if (on) { v.currentTime = VID.mode === 'back' ? clamp(2 * h - v.currentTime, 0, h) : 0; VID.mode = 'out'; show(S, FIG_STEP); L.v.pause(); L.v.currentTime = 0; play(v); }   // the loop waits at its first frame, the pose the step returns to
-    else if (VID.mode === 'out' || VID.mode === 'held') { v.currentTime = VID.mode === 'out' ? clamp(2 * h - v.currentTime, h, 2 * h) : h; VID.mode = 'back'; play(v); } };
-  VID.tick = () => { const v = S.v;
-    if (VID.mode === 'out' && v.currentTime >= VID.half - .04) { v.pause(); VID.mode = 'held'; }
-    else if (VID.mode === 'back' && (v.ended || v.currentTime >= v.duration - .04)) { VID.mode = 'loop'; show(L, FIG_VIDEO); play(L.v); } };
+  play(L.v); addEventListener('pointerdown', () => { if (VID.mode === 'still' || VID.mode === 'loop') play(L.v); }, { once: true });
+  const rest = () => { L.v.pause(); L.v.currentTime = 0; };   // the loop waits on its first frame, ready to fade back in
+  VID.tick = now => { const v = S.v, h = VID.half;
+    if (VID.B) { const k = clamp((now - VID.t0) / VID.dur, 0, 1); figureMat.uniforms.fade.value = k * k * (3 - 2 * k); if (k >= 1) { const B = VID.B; cut(B.o, B.face); if (B.then) B.then(); } }
+    if (!S.ready || !L.ready || VID.mode === 'still') return;
+    // finish a step: back to the waiting loop, one step across while she is at the panel
+    if (VID.mode === 'out' && v.currentTime >= h - .05) { v.pause(); VID.mode = 'away'; play(L.v); fadeTo(L, AWAY, 380); }
+    else if (VID.mode === 'back' && (v.ended || v.currentTime >= v.duration - .05)) { v.pause(); VID.mode = 'loop'; play(L.v); fadeTo(L, HOME, 380); }
+    // start a step whenever the view and she disagree (and no fade is under way), including a change of mind part-way through one
+    if (turned && VID.mode === 'loop' && !VID.B) { v.currentTime = 0; VID.mode = 'out'; play(v); fadeTo(S, FIG_STEP.face, 320, rest); }
+    else if (!turned && VID.mode === 'away' && !VID.B) { v.currentTime = h; VID.mode = 'back'; play(v); fadeTo(S, FIG_STEP.face, 320, rest); }
+    else if (turned && VID.mode === 'back' && !VID.B) { v.currentTime = clamp(2 * h - v.currentTime, 0, h); VID.mode = 'out'; play(v); }
+    else if (!turned && VID.mode === 'out' && !VID.B) { v.currentTime = clamp(2 * h - v.currentTime, h, 2 * h); VID.mode = 'back'; play(v); } };
 }
 // Her reflection is drawn on the door surface itself, placed each frame where a mirror image of someone standing close to the doors
 // would fall for our eye. Drawn this way it covers the doors' own highlights, as a real reflection does, and is smeared a little by the brushing.
 const figureMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
-  uniforms: { map: { value: figure }, packed: { value: 0 }, rect: { value: new THREE.Vector4(0, 0, 1, 1) }, gap: { value: 0 }, opacity: { value: CFG.passenger }, cy: { value: 0 } },
+  uniforms: { map: { value: figure }, map2: { value: figure }, packed: { value: 0 }, fade: { value: 0 }, dx2: { value: 0 }, rect: { value: new THREE.Vector4(0, 0, 1, 1) }, gap: { value: 0 }, opacity: { value: CFG.passenger }, cy: { value: 0 } },
   vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
-  fragmentShader: `uniform sampler2D map; uniform vec4 rect; uniform float gap, opacity, cy, packed; varying vec3 vP;
-    vec4 pick(vec2 u){ if (u.x < 0. || u.x > 1. || u.y < 0. || u.y > 1.) return vec4(0.);
-      if (packed > .5) { u.x = clamp(u.x, .01, .99); return vec4(pow(texture2D(map, vec2(u.x * .5, u.y)).rgb, vec3(2.2)), texture2D(map, vec2(.5 + u.x * .5, u.y)).g); }   // video frames arrive gamma-encoded
-      return texture2D(map, u, 3.1); }
+  fragmentShader: `uniform sampler2D map, map2; uniform vec4 rect; uniform float gap, opacity, cy, packed, fade, dx2; varying vec3 vP;
+    vec4 pick(sampler2D m, float pk, vec2 u){ if (u.x < 0. || u.x > 1. || u.y < 0. || u.y > 1.) return vec4(0.);
+      if (pk > .5) { u.x = clamp(u.x, .01, .99); return vec4(pow(texture2D(m, vec2(u.x * .5, u.y)).rgb, vec3(2.2)), texture2D(m, vec2(.5 + u.x * .5, u.y)).g); }   // video frames arrive gamma-encoded
+      return texture2D(m, u, 3.1); }
+    // the same smear the brushed steel gives the rest of the room: long vertically, short across (result has colour multiplied by coverage)
+    vec4 smear(sampler2D m, float pk, vec2 uv){ vec4 c = vec4(0.); float tw = 0.;
+      for (int i = -8; i <= 8; i++) { float fi = float(i), w = exp(-fi * fi / 22.);
+        for (int j = -2; j <= 2; j++) { float fj = float(j), wj = exp(-fj * fj / 2.2); vec4 t = pick(m, pk, uv + vec2(fj * .013, fi * .0165));
+          c += vec4(t.rgb * t.a, t.a) * w * wj; tw += w * wj; } }
+      return c / tw; }
     void main(){ if (abs(vP.x) < gap + .014) discard;
       vec2 uv = vec2((vP.x - rect.x) / rect.z + .5, (vP.y + cy - rect.y) / rect.w);
       if (uv.x < 0. || uv.x > 1. || uv.y < 0. || uv.y > 1.) discard;
-      uv = (uv - .5) * 1.3 + .5;   // the photo sits inside a margin, so the blur has room to spread past her outline
-      // the same smear the brushed steel gives the rest of the room: long vertically, short across
-      vec4 c = vec4(0.); float tw = 0.;
-      for (int i = -8; i <= 8; i++) { float fi = float(i), w = exp(-fi * fi / 22.);
-        for (int j = -2; j <= 2; j++) { float fj = float(j), wj = exp(-fj * fj / 2.2); vec2 u = uv + vec2(fj * .013, fi * .0165);
-          vec4 t = pick(u);
-          c += vec4(t.rgb * t.a, t.a) * w * wj; tw += w * wj; } }
-      c /= tw; c.rgb /= max(c.a, .001);
-c.rgb = mix(vec3(dot(c.rgb, vec3(.2126, .7152, .0722))), c.rgb, 1.35); c.rgb = max(c.rgb, 0.); c.rgb = mix(c.rgb, vec3(.55, .54, .52), .06);   // the steel's own tone showing through
+      uv = (uv - .5) * 1.3 + .5;   // the picture sits inside a margin, so the blur has room to spread past her outline
+      vec4 c = smear(map, packed, uv);
+      if (fade > 0.) c = mix(c, smear(map2, 1., uv + vec2(dx2, 0.)), fade);   // cross-fade between clips
+      c.rgb /= max(c.a, .001);
+      c.rgb = mix(vec3(dot(c.rgb, vec3(.2126, .7152, .0722))), c.rgb, 1.35); c.rgb = max(c.rgb, 0.); c.rgb = mix(c.rgb, vec3(.55, .54, .52), .06);   // the steel's own tone showing through
       gl_FragColor = vec4(c.rgb * .9, c.a * opacity); 
       #include <colorspace_fragment>
     }` });
@@ -857,11 +869,11 @@ function build() {
     const fig = new THREE.Mesh(new THREE.PlaneGeometry(ow, hh), figureMat); fig.position.set(0, hh / 2, zd); fig.renderOrder = 3; fig.frustumCulled = false; fig.userData.noShadow = true;
     figureMat.uniforms.cy.value = 0;   // the plane's local y runs from -hh/2; converted to world height below
     fig.onBeforeRender = (r, sc, c) => { if (c !== camera) return;
-      if (VID.turn && turned !== VID.was) { VID.was = turned; VID.turn(turned); } if (VID.tick) VID.tick();
-      const F = VID.fig || FIG, cx = c.position.x - (VID.stepReady ? G.panNow || 0 : 0),   // with the step clip she walks herself over; without it she slides with the view
+      if (VID.tick) VID.tick(performance.now());
+      const F = VID.A ? FIG_VIDEO : FIG, face = VID.A ? VID.A.face : FIG.face, cx = c.position.x - (VID.stepReady ? G.panNow || 0 : 0),   // with the step clip she walks herself over; without it she slides with the view
         H = G.eye / (1 - FIG.eyes) / F.body, W = H * F.aspect,   // her own height is the same whichever picture is showing
-       zf = CFG.passengerZ, a = c.position.z - zd, k0 = a / (a + zf - zd), k = k0 * CFG.passengerScale;   // sized so her eyes are at our eye level
-      figureMat.uniforms.cy.value = hh / 2; figureMat.uniforms.rect.value.set(cx + (.5 - F.face) * W * k, c.position.y - (1 - F.eyes) * H * k - .15 * H * k, W * k * 1.3, H * k * 1.3); };   // centred on our own line of sight
+        zf = CFG.passengerZ, a = c.position.z - zd, k0 = a / (a + zf - zd), k = k0 * CFG.passengerScale;
+      figureMat.uniforms.cy.value = hh / 2; figureMat.uniforms.rect.value.set(cx + (.5 - face) * W * k, c.position.y - (1 - F.eyes) * H * k - .15 * H * k, W * k * 1.3, H * k * 1.3); };   // centred on our own line of sight
     cab.add(fig); G.fig = fig; }
 
   /* --- the doorway's (thin) depth beyond the doors --- */
