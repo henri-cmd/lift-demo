@@ -1530,7 +1530,8 @@ if (MOBILE) root.querySelector('.hint').textContent = 'Swipe up ↑';
     if (!soundOn) { sndBtn.classList.add('nudge'); sndBtn.textContent = 'Turn sound on'; tipSnd.classList.add('on');
       await until(() => !sndBtn.classList.contains('nudge'), 8000);
       tipSnd.classList.remove('on'); if (sndBtn.classList.contains('nudge')) { sndBtn.classList.remove('nudge'); sndBtn.textContent = 'Sound off'; } await pause(500); }
-    if (!root.classList.contains('seen-scroll')) { tipScroll.classList.add('on'); await until(() => root.classList.contains('seen-scroll'), 8000); tipScroll.classList.remove('on'); await pause(500); }
+    { tipScroll.classList.add('on'); const y0 = pageEl.scrollTop, t0 = performance.now();   // always shown, even if they have already scrolled by accident; it goes once they scroll on from here
+      await until(() => performance.now() - t0 > 1800 && Math.abs(pageEl.scrollTop - y0) > 140, 9000); tipScroll.classList.remove('on'); await pause(500); }
     if (!root.classList.contains('seen-panel') && (G.pan > .08 || MOBILE)) { coach.classList.add('on'); await until(() => root.classList.contains('seen-panel'), 6e5); coach.classList.remove('on');
       if (turned && !busy) { back.classList.add('on');
         const place = () => { if (!back.classList.contains('on')) return; if (G.plateLeft) back.style.right = Math.max(0, innerWidth - (TMPV.copy(G.plateLeft).project(camera).x * .5 + .5) * innerWidth + 22) + 'px'; requestAnimationFrame(place); }; place();   // keeps to the panel's left edge as the view slides
