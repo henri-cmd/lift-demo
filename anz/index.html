@@ -255,6 +255,7 @@ const CFG = {
   halation: 0.2,          // strength of the soft glow around bright areas
   halationFrom: 1.15,      // brightness where the glow starts
   fringe: 0,           // colour fringing towards the corners
+  passenger: 0.7,          // how solid the passenger's reflection in the doors is (0 = none)
   musicVolume: 0.5,        // lift music during button rides (0 = none)
 };
 
@@ -566,6 +567,21 @@ function aoMat(flip, strength = .5) {
   if (flip) { m.map = aoTexCache.clone(); m.map.flipY = false; m.map.needsUpdate = true; }
   return m;
 }
+// the passenger whose eyes we look through: a woman in a navy suit with long brunette hair. She stands at the camera, so the main view
+// never sees her; only the mirror in the doors does, softly, as a faint reflection.
+const figure = (() => { const tex = canvasTex(512, 1024, (g, w, h) => { g.clearRect(0, 0, w, h); try { g.filter = 'blur(5px)'; } catch (e) {}
+    const cx = w / 2, hair = '#2e1c12', navy = '#141d3a', skin = '#c79f86';
+    g.fillStyle = hair; g.beginPath(); g.ellipse(cx, 96, 82, 96, 0, 0, 7); g.fill();                                  // hair around the head
+    g.beginPath(); g.moveTo(cx - 82, 96); g.bezierCurveTo(cx - 96, 220, cx - 104, 300, cx - 84, 372); g.lineTo(cx + 84, 372); g.bezierCurveTo(cx + 104, 300, cx + 96, 220, cx + 82, 96); g.closePath(); g.fill();   // falling past the shoulders
+    g.fillStyle = navy; g.beginPath(); g.moveTo(cx - 44, 196); g.bezierCurveTo(cx - 150, 204, cx - 168, 250, cx - 172, 330); g.lineTo(cx - 180, 700); g.lineTo(cx - 150, h); g.lineTo(cx + 150, h); g.lineTo(cx + 180, 700); g.lineTo(cx + 172, 330);
+    g.bezierCurveTo(cx + 168, 250, cx + 150, 204, cx + 44, 196); g.closePath(); g.fill();                              // suit: shoulders, jacket, down to the floor
+    g.fillStyle = '#e9e6e0'; g.beginPath(); g.moveTo(cx - 30, 196); g.lineTo(cx + 30, 196); g.lineTo(cx, 300); g.closePath(); g.fill();   // shirt at the collar
+    g.fillStyle = skin; g.fillRect(cx - 21, 150, 42, 56); g.beginPath(); g.ellipse(cx, 100, 50, 66, 0, 0, 7); g.fill();  // neck and face
+    g.fillStyle = hair; g.beginPath(); g.ellipse(cx, 44, 60, 30, 0, 0, 7); g.fill();                                     // hairline
+    for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(cx + sx * 44, 60); g.bezierCurveTo(cx + sx * 66, 150, cx + sx * 62, 260, cx + sx * 78, 372); g.lineTo(cx + sx * 104, 360); g.bezierCurveTo(cx + sx * 100, 240, cx + sx * 96, 130, cx + sx * 70, 50); g.closePath(); g.fill(); }   // lengths of hair in front of the shoulders
+    g.filter = 'none'; }, { repeat: false });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: CFG.passenger, side: THREE.DoubleSide, depthWrite: false }));
+  m.visible = false; m.frustumCulled = false; scene.add(m); return m; })();
 // reflections: a snapshot of the cab itself (walls, luminous ceiling, doors), so the metal reflects the real room
 const cubeRT = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType });
 const cubeCam = new THREE.CubeCamera(.05, 40, cubeRT);
@@ -573,9 +589,9 @@ let envTex = null, envDirty = 0;
 function captureEnv() { envDirty = 3; }
 function doCaptureEnv() {
   if (!G.envPos) return;
-  cubeCam.position.copy(G.envPos); scene.add(cubeCam);
+  cubeCam.position.copy(G.envPos); scene.add(cubeCam); const figVis = figure.visible; figure.visible = false;
   scene.environment = roomEnv; scene.environmentIntensity = .5;
-  cubeCam.update(renderer, scene); scene.remove(cubeCam);
+  cubeCam.update(renderer, scene); scene.remove(cubeCam); figure.visible = figVis;
   if (envTex) envTex.dispose();
   envTex = pmrem.fromCubemap(cubeRT.texture).texture;
   scene.environment = envTex; scene.environmentIntensity = CFG.fill;
@@ -922,7 +938,9 @@ function build() {
     add(pwS - .004, phS - .004, px, py, FZ + .014 * PS + .0004, .3, 0, 1, 2.4);                                            // button panel plate
     add(sw0, sh0, 0, iy, FZ + .012 + .0012, .12, 0, 1, 2.4);                             // indicator body
     const base = G.mirror.onBeforeRender;   // hide them while the mirror image itself is drawn (they'd be sampling the image being rendered)
-    G.mirror.onBeforeRender = function (r, sc, c) { for (const m of over) m.visible = false; base.call(this, r, sc, c); for (const m of over) m.visible = true; };
+    G.mirror.onBeforeRender = function (r, sc, c) { for (const m of over) m.visible = false;
+      const fh = G.eye + .12; figure.scale.set(fh * .5, fh, 1); figure.position.set(c.position.x, fh / 2, c.position.z + .1); figure.visible = CFG.passenger > 0;   // she stands where the camera is, and shows only in the mirror
+      base.call(this, r, sc, c); figure.visible = false; for (const m of over) m.visible = true; };
   }
   G.ghost = []; cab.traverse(o => { if (o.isMesh && !Array.isArray(o.material) && o.material.transparent) G.ghost.push(o); });
   G.envPos = new THREE.Vector3(0, eye, D * .6);
@@ -1152,6 +1170,7 @@ async function go(t) {
   clickSound(); pressButton(t);
   indDir = -dir; drawIndicator();   // the travel arrow lights the moment the button is pressed
   btnRings[t].userData.lit = true; btnRings[t].material.emissive.setHex(0x0064c8); btnRings[t].material.emissiveIntensity = 1.6; btnRings[t].material.color.setHex(0x0b5fb4);
+  markHere(-1);   // the floor you are leaving goes dark at once
   await sleep(550);
   lookAtPanel(false);
   if (cVal < .98) { doorSound(CFG.doorMs, true); await animateDoors(1, CFG.doorMs); bump = .3; }
