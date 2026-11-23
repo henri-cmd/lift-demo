@@ -227,7 +227,7 @@ const CFG = {
   doorMs: 1100, perFloorMs: 750, arriveDwellMs: 300,
   // camera
   fov: 54,                 // vertical field of view (degrees)
-  panelScale: 0.56,        // button panel size (1 = the original oversized panel; ~0.5 is a real car panel, about 31 cm wide)
+  panelScale: 0.81,        // button panel size (1 = the original oversized panel; ~0.5 is a real car panel, about 31 cm wide)
   doorFill: 0.93,          // share of the screen width the doorway takes on landscape screens (the rest is cab wall)
   lookYaw: .3, lookPitch: .2, // how far the head turns towards the cursor (degrees)
   headShift: 0.008,         // metres the head moves with the look — gives real parallax between the doorway and the view beyond
@@ -256,7 +256,8 @@ const CFG = {
   halationFrom: 1.15,      // brightness where the glow starts
   fringe: 0,           // colour fringing towards the corners
   passenger: 0.86,       // how solid the passenger's reflection in the doors is (0 = none)
-  passengerZ: 0.28,         // how far she stands from the doors (metres); closer = a larger reflection
+  passengerZ: 0.15,
+  passengerScale: 1.22,    // her reflection's size against true scale (1 = exact)         // how far she stands from the doors (metres); closer = a larger reflection
   musicVolume: 0.5,        // lift music during button rides (0 = none)
 };
 
@@ -584,8 +585,8 @@ const figureMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: fals
       // the same smear the brushed steel gives the rest of the room: long vertically, short across
       vec4 c = vec4(0.); float tw = 0.;
       for (int i = -8; i <= 8; i++) { float fi = float(i), w = exp(-fi * fi / 22.);
-        for (int j = -1; j <= 1; j++) { float fj = float(j), wj = j == 0 ? 1. : .6; vec2 u = uv + vec2(fj * .035, fi * .0125);
-          vec4 t = texture2D(map, u, 2.6); if (u.x < 0. || u.x > 1. || u.y < 0. || u.y > 1.) t = vec4(0.);
+        for (int j = -1; j <= 1; j++) { float fj = float(j), wj = j == 0 ? 1. : .6; vec2 u = uv + vec2(fj * .04, fi * .0165);
+          vec4 t = texture2D(map, u, 3.1); if (u.x < 0. || u.x > 1. || u.y < 0. || u.y > 1.) t = vec4(0.);
           c += vec4(t.rgb * t.a, t.a) * w * wj; tw += w * wj; } }
       c /= tw; c.rgb /= max(c.a, .001);
 c.rgb = mix(c.rgb, vec3(.55, .54, .52), .12);   // the steel's own tone showing through
@@ -833,8 +834,8 @@ function build() {
   if (CFG.passenger > 0) { const zd = -.035 + dt / 2 + .0014, hh = oh - .012;
     const fig = new THREE.Mesh(new THREE.PlaneGeometry(ow, hh), figureMat); fig.position.set(0, hh / 2, zd); fig.renderOrder = 3; fig.frustumCulled = false; fig.userData.noShadow = true;
     figureMat.uniforms.cy.value = 0;   // the plane's local y runs from -hh/2; converted to world height below
-    fig.onBeforeRender = (r, sc, c) => { if (c !== camera) return; const H = G.eye / (1 - FIG.eyes), W = H * FIG.aspect, zf = CFG.passengerZ, a = c.position.z - zd, k = a / (a + zf - zd);   // sized so her eyes are at our eye level
-      figureMat.uniforms.cy.value = hh / 2; figureMat.uniforms.rect.value.set(c.position.x + (.5 - FIG.face) * W * k, c.position.y * (1 - k) - .15 * H * k, W * k * 1.3, H * k * 1.3); };   // centred on our own line of sight
+    fig.onBeforeRender = (r, sc, c) => { if (c !== camera) return; const H = G.eye / (1 - FIG.eyes), W = H * FIG.aspect, zf = CFG.passengerZ, a = c.position.z - zd, k0 = a / (a + zf - zd), k = k0 * CFG.passengerScale;   // sized so her eyes are at our eye level
+      figureMat.uniforms.cy.value = hh / 2; figureMat.uniforms.rect.value.set(c.position.x + (.5 - FIG.face) * W * k, c.position.y - (1 - FIG.eyes) * H * k - .15 * H * k, W * k * 1.3, H * k * 1.3); };   // centred on our own line of sight
     cab.add(fig); G.fig = fig; }
 
   /* --- the doorway's (thin) depth beyond the doors --- */
@@ -876,7 +877,8 @@ function build() {
   // panel size follows the screen: on narrow screens it grows to about three-quarters of the width (finger-sized buttons),
   // and it never gets taller than the wall you can see
   const visW = 2 * Math.tan(hfov / 2) * (D - FZ);
-  const PS = Math.min(aspect < 1 ? clamp(visW * .76 / pw, CFG.panelScale * .7, CFG.panelScale * 1.45) : CFG.panelScale, (viewTop - .05 - (RAIL_Y + RAIL_H + .1)) / ph);
+  const PS = Math.min(CFG.panelScale,   // one real-world size, whatever the window's shape
+     (viewTop - .05 - (RAIL_Y + RAIL_H + .1)) / ph);
   const px = ow / 2 + pw * PS / 2 + .2, py = Math.max(1.3, RAIL_Y + RAIL_H + ph * PS / 2 + .09);   // clear of the handrail below
   const bxs = c => -pw / 2 + .11 + c * ((pw - .22) / (cols - 1)), bys = r => ph / 2 - top - .06 - r * pitch;
   const fy = bys(rows) - .05, fxs = k => -pw / 2 + .085 + k * ((pw - .17) / Math.max(1, fns.length - 1));
@@ -909,7 +911,7 @@ function build() {
     const edge = new THREE.MeshStandardMaterial({ color: 0x9a968f, metalness: .4, roughness: .8 });
     const m = new THREE.Mesh(new THREE.BoxGeometry(lw, lh, .008), [edge, edge, edge, edge, new THREE.MeshPhysicalMaterial({ map: tex, color: 0xd9d3c8, metalness: .55, roughness: .68, envMapIntensity: .7 }), edge]); m.position.set(px, ly, FZ + .004); m.userData.noShadow = true; cab.add(m); }
   G.panel = new THREE.Vector3(px, py, FZ + .01); { const gapW = (px - pw * PS / 2) - (ow / 2 + t), visHalf = Math.tan(hfov / 2) * (D - FZ); G.pan = Math.max(0, px + pw * PS / 2 + gapW - visHalf); }
-   G.pd = Math.max((ph * PS * 1.75 / 2) / Math.tan(vfov / 2), (pw * PS * 1.9 / 2) / Math.tan(hfov / 2));   // distance that frames the whole panel, front-on
+   G.pd = Math.max((ph * PS * 1.75 / 2) / Math.tan(vfov / 2), (pw * PS * 1.2 / 2) / Math.tan(hfov / 2));   // the panel takes the same share of the window's height at any width (closer only if it would not fit across)   // distance that frames the whole panel, front-on
 
   /* --- lights: the luminous ceiling does the work; a soft spot adds gentle shadows --- */
   const lz = D * .5;
