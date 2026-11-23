@@ -591,12 +591,12 @@ function aoMat(flip, strength = .5) {
 const figure = loader.load('../assets/anz/passenger.webp'); figure.colorSpace = THREE.SRGBColorSpace; figure.anisotropy = MAXANI;
 const FIG = { aspect: 315 / 1024, eyes: .09, face: .47, body: 1 };   // body: how much of the picture's height she fills
 // a short looping clip of her waiting (colour on the left half of the frame, cut-out matte on the right); the still stands in until it plays
-const FIG_STEP = { src: '../assets/anz/passenger-step.mp4', aspect: 296 / 720, eyes: .1257, face: .435, body: .9333 };
-const FIG_VIDEO = { src: '../assets/anz/passenger-loop.mp4', aspect: 296 / 720, eyes: .1257, face: .485, body: .9333 };   // framed a little looser than the still, so she has room to move   // the cut-out's shape; how far down her eyes are; where her face sits across it
+const FIG_STEP = { src: '../assets/anz/passenger-step.mp4', aspect: 296 / 720, eyes: .1257, face: .4295, body: .9333 };
+const FIG_VIDEO = { src: '../assets/anz/passenger-loop.mp4', aspect: 296 / 720, eyes: .1257, face: .4935, body: .9333 };   // framed a little looser than the still, so she has room to move   // the cut-out's shape; how far down her eyes are; where her face sits across it
 // Two clips: the waiting loop, and one sideways step towards the button panel (stepping out in its first half, back again in its second).
 // They cross-fade into one another. Once she has stepped over, the waiting loop carries on, drawn one step across, so she never freezes.
 const VID = { mode: 'still', A: null, B: null, t0: 0, dur: 0 };
-const STEP_DX = .178;   // how far the step carries her, as a share of the clip's width
+const STEP_DX = .1222, STEP = { split: 74 / 24, end: 158 / 24, land: 2.2, mirror: 2.5 };   // the step clip: stepping out runs to 'split' (she has landed by 'land' and then settles), stepping back runs from there to 'end'   // how far the step carries her, as a share of the clip's width
 if (CFG.passenger > 0 && !MOBILE) {
   const mk = (src, loop) => { const v = document.createElement('video'); v.muted = true; v.loop = loop; v.playsInline = true; v.preload = 'auto'; v.src = src; const t = new THREE.VideoTexture(v); t.colorSpace = THREE.SRGBColorSpace; return { v, t, ready: false }; };
   const L = mk(FIG_VIDEO.src, true), S = mk(FIG_STEP.src, false), play = v => v.play().catch(() => {});
@@ -604,20 +604,22 @@ if (CFG.passenger > 0 && !MOBILE) {
   const cut = (o, face) => { VID.A = { o, face }; VID.B = null; figureMat.uniforms.map.value = o.t; figureMat.uniforms.packed.value = 1; figureMat.uniforms.fade.value = 0; };
   const fadeTo = (o, face, ms, then) => { if (VID.B) cut(VID.B.o, VID.B.face); VID.B = { o, face, then }; figureMat.uniforms.map2.value = o.t; figureMat.uniforms.dx2.value = face - VID.A.face; VID.t0 = performance.now(); VID.dur = ms; };
   L.v.addEventListener('playing', () => { L.ready = true; if (VID.mode === 'still') { VID.mode = 'loop'; cut(L, HOME); } }, { once: true });
-  S.v.addEventListener('loadeddata', () => { S.ready = true; VID.half = S.v.duration / 2; VID.stepReady = true; }, { once: true });
+  S.v.addEventListener('loadeddata', () => { S.ready = true; VID.stepReady = true; }, { once: true });
   play(L.v); addEventListener('pointerdown', () => { if (VID.mode === 'still' || VID.mode === 'loop') play(L.v); }, { once: true });
   const rest = () => { L.v.pause(); L.v.currentTime = 0; };   // the loop waits on its first frame, ready to fade back in
-  VID.tick = now => { const v = S.v, h = VID.half;
+  VID.tick = now => { const v = S.v, T = STEP;
     if (VID.B) { const k = clamp((now - VID.t0) / VID.dur, 0, 1); figureMat.uniforms.fade.value = k * k * (3 - 2 * k); if (k >= 1) { const B = VID.B; cut(B.o, B.face); if (B.then) B.then(); } }
     if (!S.ready || !L.ready || VID.mode === 'still') return;
-    // finish a step: back to the waiting loop, one step across while she is at the panel
-    if (VID.mode === 'out' && v.currentTime >= h - .05) { v.pause(); VID.mode = 'away'; play(L.v); fadeTo(L, AWAY, 380); }
-    else if (VID.mode === 'back' && (v.ended || v.currentTime >= v.duration - .05)) { v.pause(); VID.mode = 'loop'; play(L.v); fadeTo(L, HOME, 380); }
+    if (!v.paused && VID.mode !== 'back' && v.currentTime >= T.split - .05) v.pause();   // never run on from the step out into the step back
+    // As she lands, the waiting loop fades in over the step clip while that clip is still moving (her settling into the new spot),
+    // so there is no frozen frame. Stepping back, the clip ends on the very pose the loop begins with.
+    if (VID.mode === 'out' && !VID.B && v.currentTime >= T.land) { VID.mode = 'away'; play(L.v); fadeTo(L, AWAY, 800, () => v.pause()); }
+    else if (VID.mode === 'back' && !VID.B && (v.ended || v.currentTime >= T.end - .75)) { VID.mode = 'loop'; play(L.v); fadeTo(L, HOME, 700, () => v.pause()); }
     // start a step whenever the view and she disagree (and no fade is under way), including a change of mind part-way through one
-    if (turned && VID.mode === 'loop' && !VID.B) { v.currentTime = 0; VID.mode = 'out'; play(v); fadeTo(S, FIG_STEP.face, 320, rest); }
-    else if (!turned && VID.mode === 'away' && !VID.B) { v.currentTime = h; VID.mode = 'back'; play(v); fadeTo(S, FIG_STEP.face, 320, rest); }
-    else if (turned && VID.mode === 'back' && !VID.B) { v.currentTime = clamp(2 * h - v.currentTime, 0, h); VID.mode = 'out'; play(v); }
-    else if (!turned && VID.mode === 'out' && !VID.B) { v.currentTime = clamp(2 * h - v.currentTime, h, 2 * h); VID.mode = 'back'; play(v); } };
+    if (turned && VID.mode === 'loop' && !VID.B) { v.currentTime = 0; VID.mode = 'out'; play(v); fadeTo(S, FIG_STEP.face, 360, rest); }
+    else if (!turned && VID.mode === 'away' && !VID.B) { v.currentTime = T.split; VID.mode = 'back'; play(v); fadeTo(S, FIG_STEP.face, 360, rest); }
+    else if (turned && VID.mode === 'back' && !VID.B) { v.currentTime = clamp(T.mirror - (v.currentTime - T.split), 0, T.split); VID.mode = 'out'; play(v); }
+    else if (!turned && VID.mode === 'out' && !VID.B) { v.currentTime = clamp(T.split + T.mirror - v.currentTime, T.split, T.end); VID.mode = 'back'; play(v); } };
 }
 // Her reflection is drawn on the door surface itself, placed each frame where a mirror image of someone standing close to the doors
 // would fall for our eye. Drawn this way it covers the doors' own highlights, as a real reflection does, and is smeared a little by the brushing.
