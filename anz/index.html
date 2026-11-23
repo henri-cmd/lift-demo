@@ -255,7 +255,7 @@ const CFG = {
   halation: 0.2,          // strength of the soft glow around bright areas
   halationFrom: 1.15,      // brightness where the glow starts
   fringe: 0,           // colour fringing towards the corners
-  passenger: 0.7,          // how solid the passenger's reflection in the doors is (0 = none)
+  passenger: 1,          // how solid the passenger's reflection in the doors is (0 = none)
   musicVolume: 0.5,        // lift music during button rides (0 = none)
 };
 
@@ -569,8 +569,8 @@ function aoMat(flip, strength = .5) {
 }
 // the passenger whose eyes we look through: a woman in a navy suit with long brunette hair. She stands at the camera, so the main view
 // never sees her; only the mirror in the doors does, softly, as a faint reflection.
-const figure = (() => { const tex = canvasTex(512, 1024, (g, w, h) => { g.clearRect(0, 0, w, h); try { g.filter = 'blur(5px)'; } catch (e) {}
-    const cx = w / 2, hair = '#2e1c12', navy = '#141d3a', skin = '#c79f86';
+const figure = (() => { const tex = canvasTex(512, 1024, (g, w, h) => { g.clearRect(0, 0, w, h); try { g.filter = 'blur(2px)'; } catch (e) {}
+    const cx = w / 2, hair = '#3a2214', navy = '#1b2a5c', skin = '#e6bca0';
     g.fillStyle = hair; g.beginPath(); g.ellipse(cx, 96, 82, 96, 0, 0, 7); g.fill();                                  // hair around the head
     g.beginPath(); g.moveTo(cx - 82, 96); g.bezierCurveTo(cx - 96, 220, cx - 104, 300, cx - 84, 372); g.lineTo(cx + 84, 372); g.bezierCurveTo(cx + 104, 300, cx + 96, 220, cx + 82, 96); g.closePath(); g.fill();   // falling past the shoulders
     g.fillStyle = navy; g.beginPath(); g.moveTo(cx - 44, 196); g.bezierCurveTo(cx - 150, 204, cx - 168, 250, cx - 172, 330); g.lineTo(cx - 180, 700); g.lineTo(cx - 150, h); g.lineTo(cx + 150, h); g.lineTo(cx + 180, 700); g.lineTo(cx + 172, 330);
