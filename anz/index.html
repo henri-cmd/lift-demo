@@ -43,7 +43,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .hint{left:50%; bottom:calc(18px + env(safe-area-inset-bottom)); transform:translateX(-50%); cursor:default; transition:opacity .6s}
 #lift3d .hint.off{opacity:0}
 #lift3d .tag{left:16px; top:14px; cursor:default; opacity:.55}
-#lift3d.busy .ftab{opacity:.3; pointer-events:none}
+#lift3d.busy .ftab{opacity:1}
 /* first-run guide: where the floor buttons are, and that there is sound */
 #lift3d .coach{position:absolute; right:0; top:50%; z-index:6; transform:translate(14px,-50%); display:flex; align-items:center; gap:16px; padding:18px 22px 18px 24px; border-radius:20px 0 0 20px;
   background:rgba(255,255,255,.6); -webkit-backdrop-filter:blur(18px) saturate(1.2); backdrop-filter:blur(18px) saturate(1.2); border:1px solid rgba(255,255,255,.75); border-right:0; color:#141414;
@@ -1166,10 +1166,10 @@ root.addEventListener('pointermove', e => {
   if (e.target.closest('.ui')) return;
   const over = overPlate(e) || (!turned && e.clientX > innerWidth - CFG.revealDistance);
   // once you have been on the panel, moving the cursor off it to the left takes you straight back to the doors
-  if (turned && !busy && G.plateLeft) { const px = (TMPV.copy(G.plateLeft).project(camera).x * .5 + .5) * innerWidth;
+  if (turned && G.plateLeft) { const px = (TMPV.copy(G.plateLeft).project(camera).x * .5 + .5) * innerWidth;
     if (e.clientX >= px) onPanel = true; else if (onPanel && turnT > .7 && e.clientX < px - 40) { onPanel = false; lookAtPanel(false); return; } }
   if (!over) { hoverArmed = true; clearTimeout(hoverTimer); hoverTimer = 0; }
-  else if (hoverArmed && !turned && !busy && turnT < .6 && !hoverTimer) hoverTimer = setTimeout(() => { hoverTimer = 0; if (!turned && !busy) { hoverArmed = false; lookAtPanel(true); } }, CFG.panelHoverMs);
+  else if (hoverArmed && !turned && turnT < .6 && !hoverTimer) hoverTimer = setTimeout(() => { hoverTimer = 0; if (!turned) { hoverArmed = false; lookAtPanel(true); } }, CFG.panelHoverMs);   // also while the lift is travelling
 });
 let hoverTimer = 0, hoverArmed = true;
 function overPlate(e) { if (!G.plate) return false; ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObject(G.plate, false).length > 0; }
@@ -1191,7 +1191,7 @@ root.addEventListener('click', e => {
   if (e.target.closest('.ui')) return;
   const o = hitButton(e);
   if (o) { initAudio(); o.userData.fn ? liftFn(o.userData.fn, o) : go(o.userData.floor); }
-  else if (turned && !busy && !overPlate(e)) lookAtPanel(false);   // clicking away from the panel takes you back to the doors
+  else if (turned && !overPlate(e)) lookAtPanel(false);   // clicking away from the panel takes you back to the doors
 });
 
 /* ===== SOUND (only the ding plays while scrolling; everything else belongs to button rides) ===== */
@@ -1305,7 +1305,7 @@ let roll = null;             // LED roll animation {from, to, t0, dir}
 let shaftPhase = 0, flk = 0, rideFloorMs = 750, rideSpeed = 0;
 const SHAFT_TEST = /[?&]shaft\b/.test(location.search);   // ?shaft holds the landing light on, for checking it
 async function go(t) {
-  if (busy || t === cur) { if (t === cur) flashButton(t); return; }
+  if (busy || t === cur) { if (busy) { clickSound(); pressButton(t); } else flashButton(t); return; }   // mid-ride a press still clicks, but the lift finishes its trip first
   busy = true; root.classList.add('busy');
   const dir = t > cur ? 1 : -1;
   clickSound(); pressButton(t);
