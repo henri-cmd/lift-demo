@@ -568,29 +568,9 @@ function aoMat(flip, strength = .5) {
   if (flip) { m.map = aoTexCache.clone(); m.map.flipY = false; m.map.needsUpdate = true; }
   return m;
 }
-// the passenger whose eyes we look through: a woman in a navy suit with long brunette hair. She stands at the camera, so the main view
-// never sees her; only the mirror in the doors does, softly, as a faint reflection.
-const figure = (() => { const tex = canvasTex(512, 1024, (g, w, h) => { g.clearRect(0, 0, w, h); try { g.filter = 'blur(3px)'; } catch (e) {}
-    const cx = w / 2, hair = '#3b2315', navy = '#192a62', skin = '#e2b499';
-    g.fillStyle = hair; g.beginPath(); g.ellipse(cx, 96, 82, 96, 0, 0, 7); g.fill();                                  // hair around the head
-    g.beginPath(); g.moveTo(cx - 82, 96); g.bezierCurveTo(cx - 96, 220, cx - 104, 300, cx - 84, 372); g.lineTo(cx + 84, 372); g.bezierCurveTo(cx + 104, 300, cx + 96, 220, cx + 82, 96); g.closePath(); g.fill();   // falling past the shoulders
-    g.fillStyle = navy; g.beginPath(); g.moveTo(cx - 44, 196); g.bezierCurveTo(cx - 150, 204, cx - 168, 250, cx - 172, 330); g.lineTo(cx - 170, 690); g.lineTo(cx - 122, h); g.lineTo(cx + 122, h); g.lineTo(cx + 170, 690); g.lineTo(cx + 172, 330);
-    g.bezierCurveTo(cx + 168, 250, cx + 150, 204, cx + 44, 196); g.closePath(); g.fill();                              // suit: shoulders, jacket, down to the floor
-    g.fillStyle = '#e9e6e0'; g.beginPath(); g.moveTo(cx - 30, 196); g.lineTo(cx + 30, 196); g.lineTo(cx, 300); g.closePath(); g.fill();   // shirt at the collar
-    g.fillStyle = skin; g.fillRect(cx - 21, 150, 42, 56); g.beginPath(); g.ellipse(cx, 100, 50, 66, 0, 0, 7); g.fill();  // neck and face
-    g.fillStyle = hair; g.beginPath(); g.ellipse(cx, 44, 60, 30, 0, 0, 7); g.fill();                                     // hairline
-    for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(cx + sx * 44, 60); g.bezierCurveTo(cx + sx * 66, 150, cx + sx * 62, 260, cx + sx * 78, 372); g.lineTo(cx + sx * 104, 360); g.bezierCurveTo(cx + sx * 100, 240, cx + sx * 96, 130, cx + sx * 70, 50); g.closePath(); g.fill(); }   // lengths of hair in front of the shoulders
-    // face: soft features, so she reads as a person rather than a silhouette
-    g.fillStyle = 'rgba(60,36,26,.85)'; for (const sx of [-1, 1]) { g.beginPath(); g.ellipse(cx + sx * 19, 98, 8, 3.6, 0, 0, 7); g.fill(); g.fillRect(cx + sx * 19 - 11, 86, 22, 3); }
-    g.fillStyle = 'rgba(150,100,80,.5)'; g.fillRect(cx - 2, 100, 4, 22);
-    g.fillStyle = '#a5544c'; g.beginPath(); g.ellipse(cx, 136, 12, 4.2, 0, 0, 7); g.fill();
-    // suit details: lapels, the jacket's opening and hem, sleeves, hands, trouser legs
-    g.strokeStyle = 'rgba(8,14,40,.9)'; g.lineWidth = 5; g.beginPath(); g.moveTo(cx - 34, 198); g.lineTo(cx - 2, 318); g.lineTo(cx - 2, 600); g.moveTo(cx + 34, 198); g.lineTo(cx + 2, 318); g.stroke();
-    for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(cx + sx * 128, 290); g.lineTo(cx + sx * 138, 640); g.stroke(); }
-    g.beginPath(); g.moveTo(cx - 140, 610); g.lineTo(cx + 140, 610); g.stroke(); g.lineWidth = 9; g.beginPath(); g.moveTo(cx, 640); g.lineTo(cx, h); g.stroke();
-    g.fillStyle = skin; for (const sx of [-1, 1]) { g.beginPath(); g.ellipse(cx + sx * 158, 672, 17, 30, 0, 0, 7); g.fill(); }
-    g.filter = 'none'; }, { repeat: false });
-  return tex; })();
+// the passenger whose eyes we look through: a photograph (cut out and mirrored, as a reflection is), seen only as her reflection in the doors
+const figure = loader.load('../assets/anz/passenger.webp'); figure.colorSpace = THREE.SRGBColorSpace; figure.anisotropy = MAXANI;
+const FIG = { aspect: 315 / 1024, eyes: .09, face: .47 };   // the cut-out's shape; how far down her eyes are; where her face sits across it
 // Her reflection is drawn on the door surface itself, placed each frame where a mirror image of someone standing close to the doors
 // would fall for our eye. Drawn this way it covers the doors' own highlights, as a real reflection does, and is smeared a little by the brushing.
 const figureMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
@@ -601,9 +581,9 @@ const figureMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: fals
       vec2 uv = vec2((vP.x - rect.x) / rect.z + .5, (vP.y + cy - rect.y) / rect.w);
       if (uv.x < 0. || uv.x > 1. || uv.y < 0. || uv.y > 1.) discard;
       vec4 c = vec4(0.); float tw = 0.;
-      for (int i = -4; i <= 4; i++) { float fi = float(i), w = exp(-fi * fi / 7.); c += texture2D(map, uv + vec2(0., fi * .006)) * w; tw += w; }
-      c /= tw; c.rgb = mix(c.rgb, vec3(.55, .54, .52), .1);   // the steel's own tone showing through
-      gl_FragColor = vec4(c.rgb * .92, c.a * opacity * smoothstep(0., .1, uv.y)); 
+      for (int i = -4; i <= 4; i++) { float fi = float(i), w = exp(-fi * fi / 7.); c += texture2D(map, uv + vec2(0., fi * .0035), 1.2) * w; tw += w; }
+      c /= tw; c.rgb = mix(c.rgb, vec3(.55, .54, .52), .12);   // the steel's own tone showing through
+      gl_FragColor = vec4(c.rgb * .8, c.a * opacity * smoothstep(0., .06, uv.y)); 
       #include <colorspace_fragment>
     }` });
 // reflections: a snapshot of the cab itself (walls, luminous ceiling, doors), so the metal reflects the real room
@@ -847,8 +827,8 @@ function build() {
   if (CFG.passenger > 0) { const zd = -.035 + dt / 2 + .0014, hh = oh - .012;
     const fig = new THREE.Mesh(new THREE.PlaneGeometry(ow, hh), figureMat); fig.position.set(0, hh / 2, zd); fig.renderOrder = 3; fig.frustumCulled = false; fig.userData.noShadow = true;
     figureMat.uniforms.cy.value = 0;   // the plane's local y runs from -hh/2; converted to world height below
-    fig.onBeforeRender = (r, sc, c) => { if (c !== camera) return; const H = G.eye + .12, W = H * .5, zf = CFG.passengerZ, a = c.position.z - zd, k = a / (a + zf - zd);
-      figureMat.uniforms.cy.value = hh / 2; figureMat.uniforms.rect.value.set(c.position.x - .2, c.position.y * (1 - k), W * k, H * k); };
+    fig.onBeforeRender = (r, sc, c) => { if (c !== camera) return; const H = G.eye / (1 - FIG.eyes), W = H * FIG.aspect, zf = CFG.passengerZ, a = c.position.z - zd, k = a / (a + zf - zd);   // sized so her eyes are at our eye level
+      figureMat.uniforms.cy.value = hh / 2; figureMat.uniforms.rect.value.set(c.position.x - .25 + (.5 - FIG.face) * W * k, c.position.y * (1 - k), W * k, H * k); };
     cab.add(fig); G.fig = fig; }
 
   /* --- the doorway's (thin) depth beyond the doors --- */
@@ -943,9 +923,14 @@ function build() {
   const leakMat = (o) => new THREE.MeshBasicMaterial({ map: shaftTex.clone(), color: 0xfff1d6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, ...o });
   G.leaks = [];
   const fadeDown = m => { const geo = new THREE.PlaneGeometry(m.geometry.parameters.width, m.geometry.parameters.height, 1, 12), pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
-    for (let i = 0; i < pos.count; i++) { const v = pos.getY(i) / m.geometry.parameters.height + .5, f = Math.pow(clamp((v - .42) / .48, 0, 1), 2); col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = f; }
+    for (let i = 0; i < pos.count; i++) { const v = pos.getY(i) / m.geometry.parameters.height + .5, f = .55 + .45 * clamp(v / .7, 0, 1); col[i * 3]   // the full height of the doors, a little stronger towards the top
+       = col[i * 3 + 1] = col[i * 3 + 2] = f; }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); m.geometry.dispose(); m.geometry = geo; m.material.vertexColors = true; m.material.needsUpdate = true; return m; };
-  for (const [x, w, k] of [[0, .0045, 1]]) { const m = plane(w, oh, leakMat(), x, oh / 2, x ? -.0235 : -.0195); m.material.map.needsUpdate = true; m.userData.k = k; fadeDown(m); G.leaks.push(m); }
+  for (const [x, w, k] of [[0, .0045, 1]]) { const m = plane(w, oh, leakMat(), x, oh / 2, x ? -.0235 : -.0195); m.material.map.needsUpdate = true; m.userData.k = k; m.material.color.multiplyScalar(5); fadeDown(m); G.leaks.push(m); }   // far brighter than the room, so the camera's glow blooms around it
+  { // a soft bloom around the hairline where each landing's light passes
+    const halo = canvasTex(64, 256, (g, w, h) => { const d = g.createImageData(w, h); for (let y = 0; y < h; y++) { const v = Math.abs(y / h - .5) * 2, band = Math.exp(-v * v * 9);
+        for (let x = 0; x < w; x++) { const u = (x + .5) / w * 2 - 1, a = band * Math.exp(-u * u * 7) * 255, i = (y * w + x) * 4; d.data[i] = d.data[i + 1] = d.data[i + 2] = a; d.data[i + 3] = 255; } } g.putImageData(d, 0, 0); });
+    const m = plane(.2, oh, leakMat({ map: halo }), 0, oh / 2, -.0195); m.userData.k = 1; m.material.color.multiplyScalar(1.5); fadeDown(m); G.leaks.push(m); }
   G.headLeak = plane(ow - .02, .004, leakMat({ map: null }), 0, oh - .006, -.0235);
   G.steady = fadeDown(plane(.003, oh, leakMat({ map: null, color: 0xffe9c8 }), 0, oh / 2, -.0195));
   G.gap = G.leaks[0];
@@ -1192,6 +1177,7 @@ const doorProfile = k => { const q = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 *
 let lurchV = 0, lurch = 0;   // the head's lag as the car pulls away and settles (a soft spring)
 let roll = null;             // LED roll animation {from, to, t0, dir}
 let shaftPhase = 0, flk = 0;
+const SHAFT_TEST = /[?&]shaft\b/.test(location.search);   // ?shaft holds the landing light on, for checking it
 async function go(t) {
   if (busy || t === cur) { if (t === cur) flashButton(t); return; }
   busy = true; root.classList.add('busy');
@@ -1325,7 +1311,7 @@ function frame() {
   // light only gets in where it physically can: the hairline between the doors and the slots around them.
   // Between floors the shaft is dark; each landing's light slides past as a band, at a speed that follows the car's.
   if (G.gap) {
-    const k = RM ? 0 : (moving ? travel : Math.min(1, travel * 2.5)), shut = clamp((cVal - .9) / .1, 0, 1) * CFG.shaftLight;
+    const k = SHAFT_TEST ? 1 : RM ? 0 : (moving ? travel : Math.min(1, travel * 2.5)), shut = clamp((cVal - .985) / .015, 0, 1) * CFG.shaftLight;   // only once the doors have met: no line hanging in the open gap
     // one band of light per floor: its centre crosses eye level exactly as the floor number changes
     const centre = .5 - G.eye / G.oh;
     if (moving) shaftPhase += indDir * dt / (CFG.perFloorMs / 1000);        // button ride: one floor every perFloorMs
@@ -1333,12 +1319,13 @@ function frame() {
       const v = pageEl.scrollTop; let d = 9; for (const sw of swaps) { const q = (v - sw) / Z; if (Math.abs(q) < Math.abs(d)) d = q; }
       if (Math.abs(d) <= 1) shaftPhase = centre - d * .5;
     }
+    if (SHAFT_TEST) shaftPhase = now / 3000;
     shaftPhase = (shaftPhase % 1 + 1) % 1;
     const bandY = ((.5 - shaftPhase) % 1 + 1) % 1;                 // where the band's centre sits on the doors (0 = floor, 1 = head)
     for (const m of G.leaks) { m.material.map.offset.y = shaftPhase; m.material.opacity = m.userData.k * k * shut; }
     G.headLeak.material.opacity = 0;
     G.steady.material.opacity = .16 * (1 - k) * shut;             // parked at a floor: a faint steady line from the landing
-    G.gapLight.position.y = bandY * G.oh; G.gapLight.intensity = .3 * k * shut * Math.pow(clamp((bandY - .42) / .48, 0, 1), 2);   // the sliver catching the door edges, right at the gap
+    G.gapLight.position.y = bandY * G.oh; G.gapLight.intensity = .25 * k * shut;   // the sliver catching the door edges, right at the gap
   }
   // eyes adapt a little to a bright floor
   renderer.toneMappingExposure = CFG.exposure * (1 - .2 * openK * lumNow) * ((now < alarmUntil) ? .55 : 1);
