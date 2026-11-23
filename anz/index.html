@@ -255,7 +255,7 @@ const CFG = {
   halation: 0.2,          // strength of the soft glow around bright areas
   halationFrom: 1.15,      // brightness where the glow starts
   fringe: 0,           // colour fringing towards the corners
-  passenger: 0.95,       // how solid the passenger's reflection in the doors is (0 = none)
+  passenger: 0.72,       // how solid the passenger's reflection in the doors is (0 = none)
   passengerZ: 0.15,
   passengerScale: 1.22,    // her reflection's size against true scale (1 = exact)         // how far she stands from the doors (metres); closer = a larger reflection
   musicVolume: 0.5,        // lift music during button rides (0 = none)
@@ -641,7 +641,7 @@ const figureMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: fals
       vec4 c = smear(map, packed, uv);
       if (fade > 0.) c = mix(c, smear(map2, 1., uv + vec2(dx2, 0.)), fade);   // cross-fade between clips
       c.rgb /= max(c.a, .001);
-      c.rgb = mix(vec3(dot(c.rgb, vec3(.2126, .7152, .0722))), c.rgb, 1.35); c.rgb = max(c.rgb, 0.); c.rgb = mix(c.rgb, vec3(.55, .54, .52), .06);   // the steel's own tone showing through
+      c.rgb = mix(vec3(dot(c.rgb, vec3(.2126, .7152, .0722))), c.rgb, 1.05); c.rgb = max(c.rgb, 0.); c.rgb = mix(c.rgb, vec3(.55, .54, .52), .14);   // the steel's own tone showing through
       gl_FragColor = vec4(c.rgb * .9, c.a * opacity); 
       #include <colorspace_fragment>
     }` });
