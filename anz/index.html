@@ -1237,12 +1237,18 @@ sndBtn.addEventListener('click', e => { e.stopPropagation(); sndBtn.classList.re
 const noise = (t, dur) => { const n = ac.createBufferSource(); n.buffer = noiseBuf; n.start(t, Math.random()); n.stop(t + dur); return n; };
 function ding(dir, vol = .3) {   // once going up, twice going down — like real car lanterns
   if (!soundOn || !ac) return;
-  const strike = t0 => [[1, 1], [2.76, .35], [5.4, .12], [8.9, .04]].forEach(([m, g]) => {
-    const o = ac.createOscillator(), e = ac.createGain(); o.frequency.value = 1046.5 * m;
-    e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g * vol, t0 + .004); e.gain.exponentialRampToValueAtTime(.0001, t0 + 1.8 / Math.sqrt(m));
-    o.connect(e).connect(master); o.start(t0); o.stop(t0 + 1.9);
-  });
-  const t = ac.currentTime; strike(t); if (dir < 0) strike(t + .45);
+  // a warm two-tone lobby chime: a soft-struck bar an octave-ish lower than the old bell, a hum note under it,
+  // quiet upper partials that die quickly, and two slightly detuned fundamentals so the tail shimmers
+  const strike = (t0, f) => {
+    const out = ac.createGain(), lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3600; lp.Q.value = .3;
+    out.gain.value = vol * 1.5; out.connect(lp).connect(master);
+    [[.5, .22, 2.6], [1, .6, 2.9], [1.003, .3, 2.9], [2, .16, 1.5], [3.01, .07, .8], [4.2, .03, .4]].forEach(([m, g, dur]) => {
+      const o = ac.createOscillator(), e = ac.createGain(); o.frequency.value = f * m;
+      e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g, t0 + .012); e.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+      o.connect(e).connect(out); o.start(t0); o.stop(t0 + dur + .05);
+    });
+  };
+  const t = ac.currentTime; strike(t, 659.26); if (dir < 0) strike(t + .5, 523.25);   // E5, then C5 a third below when going down
 }
 function clickSound() {   // button: a short mechanical tick
   if (!soundOn || !ac) return;
@@ -1432,7 +1438,7 @@ function frame() {
     cVal = RM ? target : cVal + (target - cVal) * (1 - Math.pow(1 - CFG.doorEase, dt * 60));
     if (!firstBell && cVal < .97) { firstBell = true; if (cur === 0) ding(1); }   // the lift 'arrives' the first time the doors part after loading
     const f = floorNow();
-    if (f !== cur) { const dir = f > cur ? 1 : -1; cur = f; rollTo(f, dir); ding(dir, .14); }
+    if (f !== cur) { const dir = f > cur ? 1 : -1; cur = f; rollTo(f, dir); }   // no bell: the doors stay open, the lift isn't 'arriving'
   }
   const open = (1 - cVal) * (G.ow / 2 + .02);
   if (doors.l) { doors.l.position.x = -open; doors.r.position.x = open; ldoors.l.position.x = -open; ldoors.r.position.x = open; }
