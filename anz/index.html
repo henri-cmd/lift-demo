@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Lift — ANZ</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap" rel="stylesheet">
 <script src="../assets/finch-gate.js"></script>
 <script>
 /* Safety nets, run before the lift itself: a stand-in for one drawing call older browsers lack, and a plain-English message
@@ -21,8 +19,8 @@
     var gl = null; try { var c = document.createElement('canvas'); gl = c.getContext('webgl2') || c.getContext('webgl'); } catch (e) {}
     if (!gl) return fail('3D graphics (WebGL) are turned off or unavailable in this browser.');
     if (!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('importmap'))) return fail('This browser is too old to run it.');
-    fetch('https://cdn.jsdelivr.net/npm/three@0.170.0/package.json', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; fail(errs.length ? 'Something went wrong while it was loading.' : 'It is taking much longer than expected to load. It may still appear.'); })
-      .catch(function () { fail('Your network is blocking a file the lift needs (from cdn.jsdelivr.net).'); });
+    fetch('../assets/vendor/three/LICENSE', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; fail(errs.length ? 'Something went wrong while it was loading.' : 'It is taking much longer than expected to load. It may still appear.'); })
+      .catch(function () { fail('A file the lift needs could not be downloaded. Check your connection and reload.'); });
   }, 12000);
 })();
 </script>
@@ -130,8 +128,8 @@ body:has(.fg-pill.on) #lift3d .ftab{bottom:calc(64px + env(safe-area-inset-botto
 
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  "three": "../assets/vendor/three/three.module.js",
+  "three/addons/": "../assets/vendor/three/addons/"
 } }
 </script>
 <script type="module">
@@ -1553,7 +1551,6 @@ addEventListener('resize', () => {
 });
 addEventListener('orientationchange', () => dispatchEvent(new Event('resize')));
 if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout()); floorEls.forEach(f => ro.observe(f.querySelector('.copy'))); }
-document.fonts && document.fonts.load('900 60px Doto').then(() => drawIndicator());
 nextFrame(frame);
 setTimeout(() => root.querySelector('.loading').classList.add('done'), 600);
 if (EXPORT) window.__lift = { THREE, renderer, scene, camera, cab, doors, M, IND, PSC, renderScene, sizePost, plateBase, outMat, get G() { return G; } };
