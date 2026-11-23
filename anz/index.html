@@ -1130,34 +1130,37 @@ F.forEach((f, i) => {
   hold.appendChild(d); stop.appendChild(hold); pageEl.appendChild(stop);
   stops.push(stop); holds.push(hold); floorEls.push(d);
 });
-let swaps = [], starts = [], Z = 0;
+let swaps = [], starts = [], shuts = [0], Z = 0;
 function layout() {
   const H = pageEl.clientHeight, n = F.length;
   if (!H) return;
   Z = Math.round(H * CFG.doorZone);
-  let o = 0; swaps = []; starts = [CFG.startClosed ? Z : 0];
+  // the floors run on as one page: the doors only work at the very start (opening) and the very end (closing)
+  let o = 0; swaps = []; starts = [];
   for (let i = 0; i < n; i++) {
-    const zs = i > 0 || CFG.startClosed ? Z : 0, ze = i < n - 1 ? Z : 0;
+    const zs = i === 0 && CFG.startClosed ? Z : 0, ze = i === n - 1 ? Z : 0;
     floorEls[i].style.minHeight = H + 'px';
     const h = floorEls[i].offsetHeight, hHold = h + zs, hStop = hHold + ze;
     holds[i].style.height = hHold + 'px'; holds[i].style.top = (H - hHold) + 'px';
-    stops[i].style.height = hStop + 'px'; stops[i].style.marginTop = i > 0 ? -H + 'px' : '0';
-    if (i < n - 1) { o += hStop - H; swaps.push(o); starts.push(o + Z); }
+    stops[i].style.height = hStop + 'px'; stops[i].style.marginTop = '0';
+    starts.push(o + zs); o += hStop;
+    if (i < n - 1) swaps.push(o - H * .5);          // the floor number changes as the next floor reaches the middle of the doorway
   }
+  shuts = [...(CFG.startClosed ? [0] : []), o - H];
   if (busy) return;
   // keep the visitor on the same floor after a resize
   if (scrollY < 0) scrollY = 0;
 }
 function scrollTarget() {
   const v = pageEl.scrollTop; let c = 0;
-  for (const s of (CFG.startClosed ? [0, ...swaps] : swaps)) {
+  for (const s of shuts) {
     const d = Math.abs(v - s);
     if (d < Z) c = Math.max(c, Math.min(1, (1 - d / Z) / (1 - CFG.closedHold)));
   }
   return smooth(c);
 }
 function floorNow() { const v = pageEl.scrollTop; let f = 0; swaps.forEach((s, i) => { if (v > s) f = i + 1; }); return f; }
-function updateVisibility() { const v = pageEl.scrollTop; stops.forEach((st, i) => st.classList.toggle('gone', i < swaps.length && v > swaps[i])); }
+function updateVisibility() {}
 
 /* ===== INPUT: the page scrolls natively (wheel, trackpad, touch, with the browser's own momentum).
    Scrolling while the pointer is over the lift's walls is passed on to it. ===== */
