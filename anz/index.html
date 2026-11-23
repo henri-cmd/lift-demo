@@ -241,7 +241,7 @@ const CFG = {
   pageZoom: 0.8,           // page content scale through the doorway (1 = normal web size; lower shows more content)
   pagePush: 5,             // metres the page comes towards you as the camera pushes in to the panel (0 = none)
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
-  headroom: 0.255,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
+  headroom: 0.215,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 1.02,
   shaftLight: 0.5,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
@@ -961,7 +961,7 @@ function build() {
   plane(rr - rl, depth, fl, (rl + rr) / 2, 0, depth / 2, 0, -Math.PI / 2);
 
   /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, blue LEDs --- */
-  const sw0 = Math.min(.52, ow * (aspect < 1 ? .62 : aspect < 1.3 ? .42 : .3)), sh0 = sw0 * IND_H / IND_W, iy = oh + (TRANSOM + CFG.headroom) / 2;
+  const sw0 = Math.min(.35, ow * (aspect < 1 ? .44 : aspect < 1.3 ? .3 : .2)), sh0 = sw0 * IND_H / IND_W, iy = oh + (TRANSOM + CFG.headroom) / 2;
   { // a horizontally brushed body on a dark gasket (the shadow line where it meets the veneer), glass set back inside a slim
     // polished bezel, and a fixing screw at each end. The body is shallow, so it sits close to the wall.
     const hw = sw0 + .1, hh = sh0 + .05, hd = .012;   // an oak panel proud of the wall, the screen set into it
