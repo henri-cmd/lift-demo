@@ -43,9 +43,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .flat .leaf.r{left:50%}
 #lift3d .flat img{left:0; top:0; max-width:none}
 #lift3d .flat .fcab > img{width:100%; height:100%}
-#lift3d .flat .fscr{filter:saturate(.9) brightness(.96)}
-#lift3d .flat .flamp{border-radius:50%; opacity:0; background-repeat:no-repeat; -webkit-mask-image:radial-gradient(circle,#000 62%,transparent 100%); mask-image:radial-gradient(circle,#000 62%,transparent 100%)}
-#lift3d .flat .fvig{position:absolute; inset:0; background:radial-gradient(ellipse 100% 108.7% at 50% 50%,rgba(0,0,0,0) 32%,rgba(0,0,0,.1) 56%,rgba(0,0,0,.2) 80%)}
+#lift3d .flat .flamp{border-radius:50%; opacity:0; display:none; background-repeat:no-repeat}
+/* plain mode (no 3D graphics): just the sections, as a normal scrolling page */
+html.plainmode #lift3d{user-select:text; -webkit-user-select:text}
+html.plainmode #lift3d .plainpage{position:absolute; inset:0; z-index:8; overflow-y:auto; -webkit-overflow-scrolling:touch; container-type:size; background:#0b2a47}
+html.plainmode #lift3d .plainpage .floor{position:relative; top:auto}
+html.plainmode #lift3d > :not(.plainpage):not(.loading){display:none !important}
+/* without graphics acceleration every blur and blend is drawn by the processor on every frame, so flat mode uses none */
+html.flatmode #lift3d .grain{display:none}
+html.flatmode #lift3d *,html.flatmode .fg-scrim,html.flatmode .fg-card,html.flatmode .fg-pill{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
+html.flatmode .fg-scrim{background:var(--fg-scrim-solid, rgba(20,22,26,.86)) !important}
+html.flatmode .fg-scrim:after{display:none}
+html.flatmode #lift3d .tip,html.flatmode #lift3d .coach{background:rgba(244,245,247,.94)}
+html.flatmode #lift3d .flat .fdoors,html.flatmode #lift3d .flat .fcab,html.flatmode #lift3d .flat .leaf,html.flatmode #lift3d .wall{will-change:auto}
 
 /* the floors: one continuous page seen through the doorway (a real DOM page placed in the 3D scene) */
 #lift3d .wall{position:absolute; left:0; top:0; overflow:hidden; background:#111; will-change:transform}
@@ -259,13 +269,24 @@ const SHADOWS = !MOBILE;
    still built, so framing, clicks and timing are identical); what you see is assembled from pictures of the real cab that were
    rendered ahead of time at a range of window shapes (assets/anz/flat/). ?flat forces it; ?bake re-renders the pictures. */
 const BAKE = /[?&]bake\b/.test(location.search);
-let FLAT = !!window.__flat && !BAKE;
+let FLAT = /[?&]flat\b/.test(location.search) && !BAKE;   // the picture-built lift is kept, but only on request
+const NOGL = !!window.__flat && !FLAT && !BAKE;
 let renderer = null;   // try gentler settings before giving up on 3D
-if (!FLAT) for (const o of [{ antialias: true, alpha: true }, { antialias: false, alpha: true, powerPreference: 'low-power' }, { antialias: false, alpha: true, failIfMajorPerformanceCaveat: false }]) {
+if (!FLAT && !NOGL) for (const o of [{ antialias: true, alpha: true }, { antialias: false, alpha: true, powerPreference: 'low-power' }, { antialias: false, alpha: true, failIfMajorPerformanceCaveat: false }]) {
   try { renderer = new THREE.WebGLRenderer(o); break; } catch (e) { renderer = null; }
 }
+if (!renderer && !FLAT) {   // no 3D graphics here: show the sections as an ordinary page, with no lift around them
+  document.documentElement.classList.add('plainmode');
+  const pg = document.createElement('div'); pg.className = 'plainpage';
+  CFG.floors.forEach((f, i) => { const d = document.createElement('section'); d.className = 'floor'; d.style.backgroundColor = f.bg || '#111';
+    d.innerHTML = `<div class="herow">` + (f.hero ? `<img class="hero" src="${f.hero}" alt="" decoding="async">` : '<div class="hero"></div>')
+      + `<div class="htitle"><small>${String(i + 1).padStart(3, '0')}</small><h1>${f.n}</h1></div></div><div class="copy">${(f.html || '').replace(/^\s*<h1>.*?<\/h1>/, '')}</div>`;
+    pg.appendChild(d); });
+  root.appendChild(pg); root.querySelector('.loading').classList.add('done');
+  await new Promise(() => {});   // nothing else on this page runs
+}
 if (!renderer) {   // a stand-in that accepts every call and does nothing
-  FLAT = true;
+  FLAT = true; document.documentElement.classList.add('flatmode');
   const dom = document.createElement('canvas'), mk = () => { const f = function () { return px; }, px = new Proxy(f, { get: (t, k) => k === 'domElement' ? dom : k === Symbol.toPrimitive ? () => 0 : k in t ? t[k] : (t[k] = mk()) }); return px; };
   renderer = mk(); dom.style.display = 'none';
 }
@@ -1464,7 +1485,7 @@ function frame() {
 
   if (envDirty && --envDirty === 0) doCaptureEnv();
   renderScene();
-  if (grainEl) grainEl.style.transform = `translate(${(Math.random() * 64) | 0}px,${(Math.random() * 64) | 0}px)`;
+  if (grainEl && !FLAT) grainEl.style.transform = `translate(${(Math.random() * 64) | 0}px,${(Math.random() * 64) | 0}px)`;
   if (!BAKE) nextFrame(frame);
 }
 const WHITE = new THREE.Color(0xffffff);
@@ -1526,25 +1547,21 @@ async function flatBuild() {
   const cabEl = el('fcab', top); box(cabEl, { x: 0, y: 0, w: g.wide, h: g.H });
   img('', cabEl, 'cab.webp');
   for (const [S, r] of [[IND, g.ind], [PSC, g.psc]]) if (r) { S.c.className = 'fscr'; cabEl.appendChild(S.c); box(S.c, r); }
-  const lamps = g.btn.map(b => ['here', 'lit'].map(n => { const d = el('flamp', cabEl); box(d, { x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 });
+  const lamps = g.btn.map(b => ['here', 'lit'].map(n => { const d = el('flamp', cabEl); b.r *= .86; box(d, { x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 });
     Object.assign(d.style, { backgroundImage: `url(${dir}${n}.webp)`, backgroundSize: `${px(g.plate.w)} ${px(g.plate.h)}`, backgroundPosition: `${px(g.plate.x - (b.x - b.r))} ${px(g.plate.y - (b.y - b.r))}` }); return { d, o: -1 }; }));
   for (const n of ['here', 'lit']) { const i = new Image(); loads.push(new Promise(r => { i.onload = i.onerror = r; })); i.src = dir + n + '.webp'; }
-  const vig = el('fvig', top); for (const pfx of ['webkitMask', 'mask']) { vig.style[pfx + 'Image'] = `url(${dir}cab.webp)`; vig.style[pfx + 'Size'] = `${px(g.wide)} ${px(g.H)}`; vig.style[pfx + 'Repeat'] = 'no-repeat'; }
   await Promise.all(loads);
   root.insertBefore(top, pageLayer.nextSibling); if (old) old.remove();
-  FL = { el: top, g, k, doors: doorsEl, ll, lr, cab: cabEl, lamps, vig, pan: -1, open: -1, ex: -1 };
+  FL = { el: top, g, k, doors: doorsEl, ll, lr, cab: cabEl, lamps, pan: -1, open: -1 };
   drawIndicator();
 }
 function flatDraw() {
   if (!FL) return;
   const { g, k } = FL, pan = G.panNow * g.pkF * k, open = (1 - cVal) * (G.ow / 2 + .02) * g.pkD * k;
-  if (pan !== FL.pan) { FL.pan = pan; FL.cab.style.transform = `translate3d(${(-pan).toFixed(2)}px,0,0)`; FL.doors.style.transform = `translate3d(${(-G.panNow * g.pkD * k).toFixed(2)}px,0,0)`;
-    const mp = `${(-pan).toFixed(1)}px 0`; FL.vig.style.webkitMaskPosition = mp; FL.vig.style.maskPosition = mp; }
+  if (pan !== FL.pan) { FL.pan = pan; FL.cab.style.transform = `translate3d(${(-pan).toFixed(2)}px,0,0)`; FL.doors.style.transform = `translate3d(${(-G.panNow * g.pkD * k).toFixed(2)}px,0,0)`; }
   if (open !== FL.open) { FL.open = open; FL.ll.style.transform = `translate3d(${(-open).toFixed(2)}px,0,0)`; FL.lr.style.transform = `translate3d(${open.toFixed(2)}px,0,0)`; }
-  const ex = Math.round((+renderer.toneMappingExposure || CFG.exposure) / CFG.exposure * 200) / 200;   // the cab dims a touch when the doors open on a bright floor, and for the alarm
-  if (ex !== FL.ex) { FL.ex = ex; FL.el.style.filter = ex < .995 ? `brightness(${ex})` : ''; }
   LIGHTS.forEach((L, i) => { const pair = FL.lamps[i]; if (!pair) return; const lit = Math.min(1, L.w * L.c), here = Math.min(1, L.r / .82) * (1 - lit);
-    [here, lit].forEach((v, j) => { v = Math.round(v * 50) / 50; if (v !== pair[j].o) { pair[j].o = v; pair[j].d.style.opacity = v; } }); });
+    [here, lit].forEach((v, j) => { v = Math.round(v * 20) / 20; if (v !== pair[j].o) { pair[j].o = v; pair[j].d.style.opacity = v; pair[j].d.style.display = v ? 'block' : 'none'; } }); });
 }
 
 /* ===== BAKE (?bake, needs WebGL): renders the pictures flat mode uses, one set per window shape, and posts them to a local receiver ===== */
