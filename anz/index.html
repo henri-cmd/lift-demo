@@ -961,7 +961,7 @@ function build() {
   plane(rr - rl, depth, fl, (rl + rr) / 2, 0, depth / 2, 0, -Math.PI / 2);
 
   /* --- indicator: a compact brushed-steel housing proud of the veneer band, black glass window, blue LEDs --- */
-  const sw0 = Math.min(.35, ow * (aspect < 1 ? .44 : aspect < 1.3 ? .3 : .2)), sh0 = sw0 * IND_H / IND_W, iy = oh + (TRANSOM + CFG.headroom) / 2;
+  const sw0 = Math.min(.35, ow * (aspect < 1 ? .44 : aspect < 1.3 ? .3 : .2)), sh0 = sw0 * IND_H / IND_W, iy = (oh + TRANSOM + eye + Hvis / 2 * (D - FZ - .012) / D) / 2;   // midway between the transom and the top edge of the view (measured at the wall's own depth, which is nearer than the doors)
   { // a horizontally brushed body on a dark gasket (the shadow line where it meets the veneer), glass set back inside a slim
     // polished bezel, and a fixing screw at each end. The body is shallow, so it sits close to the wall.
     const hw = sw0 + .1, hh = sh0 + .05, hd = .012;   // an oak panel proud of the wall, the screen set into it
