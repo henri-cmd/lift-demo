@@ -56,9 +56,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .coach .arr i{font-style:normal; opacity:.25; animation:coachArr 1.3s infinite}
 #lift3d .coach .arr i:nth-child(2){animation-delay:.16s} #lift3d .coach .arr i:nth-child(3){animation-delay:.32s}
 #lift3d .coach::after{content:""; position:absolute; right:0; top:-30vh; bottom:-30vh; width:3px; background:linear-gradient(transparent,rgba(255,255,255,.95) 35%,rgba(255,255,255,.95) 65%,transparent); animation:coachEdge 1.6s ease-in-out infinite}
+#lift3d .coach.l{right:auto; left:0; border-radius:0 20px 20px 0; border-right:1px solid rgba(255,255,255,.75); border-left:0; transform:translate(-14px,-50%)}
+#lift3d .coach.l.on,#lift3d.seen-panel .coach.l.on{opacity:1; transform:translate(0,-50%)}
+#lift3d .coach.l::after{right:auto; left:0}
+#lift3d .coach.l .arr i{animation-name:coachArrL} #lift3d .coach.l .arr i:nth-child(1){animation-delay:.32s} #lift3d .coach.l .arr i:nth-child(3){animation-delay:0s}
+@keyframes coachArrL{0%,100%{opacity:.25; transform:translateX(0)} 40%{opacity:1; transform:translateX(-4px)}}
 @keyframes coachArr{0%,100%{opacity:.25; transform:translateX(0)} 40%{opacity:1; transform:translateX(4px)}}
 @keyframes coachEdge{0%,100%{opacity:.25} 50%{opacity:1}}
-@media (pointer:coarse){ #lift3d .coach{top:auto; bottom:calc(72px + env(safe-area-inset-bottom)); transform:translate(14px,0)} #lift3d .coach.on{transform:none} #lift3d .coach::after{display:none} }
+@media (pointer:coarse){ #lift3d .coach.l,#lift3d .coach.l.on,#lift3d.seen-panel .coach.l.on{transform:none} #lift3d .coach{top:auto; bottom:calc(72px + env(safe-area-inset-bottom)); transform:translate(14px,0)} #lift3d .coach.on{transform:none} #lift3d .coach::after{display:none} }
 #lift3d .snd{display:inline-flex; align-items:center; gap:8px; transition:background .4s,color .4s,padding .4s,font-size .4s}
 #lift3d .snd::before{content:""; width:15px; height:15px; background:currentColor;
   -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3 9v6h4l5 4V5L7 9H3z'/><path d='M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'/></svg>") center/contain no-repeat;
@@ -91,6 +96,7 @@ body:has(.fg-pill.on) #lift3d .ftab{bottom:calc(64px + env(safe-area-inset-botto
   <div class="ui hint">Scroll ↓</div>
   <div class="tip t-snd"><div><small>Sound</small>This lift has sound. Turn it on for the full ride.</div></div>
   <div class="tip t-scroll"><div class="wheel"></div><div class="txt"><small>Scroll</small>Scroll down to ride to the next floor</div></div>
+  <div class="coach l"><div class="arr"><i>‹</i><i>‹</i><i>‹</i></div><div class="txt"><small>Back to the doors</small>Move your mouse off the panel</div></div>
   <div class="coach"><div class="txt"><small>Floor buttons</small>Move your mouse to this edge</div><div class="arr"><i>›</i><i>›</i><i>›</i></div></div>
   <div class="ui tag">ANZ</div>
   <div class="loading">Loading</div>
@@ -1488,7 +1494,8 @@ const grainEl = root.querySelector('.grain');
 /* ===== START ===== */
 if (MOBILE) root.querySelector('.hint').textContent = 'Swipe up ↑';
 // first-run guide: once the page is up (and the full-screen prompt, if any, has gone), point out the floor buttons and the sound
-{ const coach = root.querySelector('.coach'); if (matchMedia('(pointer: coarse)').matches) coach.querySelector('.txt').innerHTML = '<small>Floor buttons</small>Tap “Floors →” below';
+{ const coach = root.querySelector('.coach:not(.l)'), back = root.querySelector('.coach.l'); if (matchMedia('(pointer: coarse)').matches) back.querySelector('.txt').innerHTML = '<small>Back to the doors</small>Tap “← Doors” below';
+  if (matchMedia('(pointer: coarse)').matches) coach.querySelector('.txt').innerHTML = '<small>Floor buttons</small>Tap “Floors →” below';
   const tipSnd = root.querySelector('.t-snd'), tipScroll = root.querySelector('.t-scroll'), pause = ms => new Promise(r => setTimeout(r, ms));
   if (MOBILE) { tipScroll.querySelector('.txt').innerHTML = '<small>Swipe</small>Swipe up to ride to the next floor'; tipScroll.querySelector('.wheel').style.display = 'none'; }
   const until = (done, ms) => new Promise(r => { const t0 = performance.now(), iv = setInterval(() => { if (done() || performance.now() - t0 > ms) { clearInterval(iv); r(); } }, 150); });
@@ -1498,7 +1505,9 @@ if (MOBILE) root.querySelector('.hint').textContent = 'Swipe up ↑';
       await until(() => !sndBtn.classList.contains('nudge'), 8000);
       tipSnd.classList.remove('on'); if (sndBtn.classList.contains('nudge')) { sndBtn.classList.remove('nudge'); sndBtn.textContent = 'Sound off'; } await pause(500); }
     if (!root.classList.contains('seen-panel') && (G.pan > .08 || MOBILE)) { coach.classList.add('on'); await until(() => root.classList.contains('seen-panel'), 10000); coach.classList.remove('on'); await pause(500);
-      if (root.classList.contains('seen-panel')) await until(() => !turned, 20000); }   // let them look at the panel before the next tip
+      if (root.classList.contains('seen-panel')) {   // they found the panel: now show the way back, so the doors (and the scroll tip) come next
+        await pause(900); if (turned && !busy) { back.classList.add('on'); await until(() => !turned || busy, 15000); back.classList.remove('on'); }
+        await until(() => !turned && !busy, 60000); await pause(700); } }
     if (!root.classList.contains('seen-scroll')) { tipScroll.classList.add('on'); await until(() => root.classList.contains('seen-scroll'), 10000); tipScroll.classList.remove('on'); } })(); }
 build();
 setIndicator(0);
