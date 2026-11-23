@@ -52,10 +52,10 @@ document.body.insertAdjacentHTML('beforeend', __SKELETON__);
   window.__liftHost = {
     el: magEl,
     floors: mag.pages.map((p, i) => ({ n: String(p.title || '').trim() || 'Page ' + (i + 1), bg: '#111' })),
-    fit(x, y, w) { fitCss.textContent = `main.mag{left:${x.toFixed(1)}px !important; top:${y.toFixed(1)}px !important; width:${w}px !important} html{background:#0b0d10 !important}`; },
+    fit(x, y, w, fixed) { fitCss.textContent = `main.mag{position:${fixed ? 'fixed' : 'absolute'} !important; left:${x.toFixed(1)}px !important; top:${y.toFixed(1)}px !important; width:${w}px !important} html{background:#0b0d10 !important}`; },
     height() { return magEl.offsetHeight; },
     tops() { const out = []; let y = 0; for (const a of magEl.querySelectorAll('article.page')) { const h = a.offsetHeight; if (h) y = a.offsetTop; out.push(y); y += h; } return out; },
-    tail(top, h) { tail.style.top = top + 'px'; tail.style.height = h + 'px'; },
+    tail(h) { tail.style.top = '0'; tail.style.height = h + 'px'; },
   };
   // if the lift has not appeared after a while, take it away again so the site is usable
   setTimeout(() => { const l = document.querySelector('#lift3d .loading'); if (l && !l.classList.contains('done')) { document.getElementById('lift3d').remove(); fitCss.remove(); tail.remove(); dispatchEvent(new Event('resize')); } }, 20000);

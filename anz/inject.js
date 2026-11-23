@@ -21,10 +21,10 @@ document.body.insertAdjacentHTML('beforeend', "<div id=\"lift3d\">\n  <div class
   window.__liftHost = {
     el: magEl,
     floors: mag.pages.map((p, i) => ({ n: String(p.title || '').trim() || 'Page ' + (i + 1), bg: '#111' })),
-    fit(x, y, w) { fitCss.textContent = `main.mag{left:${x.toFixed(1)}px !important; top:${y.toFixed(1)}px !important; width:${w}px !important} html{background:#0b0d10 !important}`; },
+    fit(x, y, w, fixed) { fitCss.textContent = `main.mag{position:${fixed ? 'fixed' : 'absolute'} !important; left:${x.toFixed(1)}px !important; top:${y.toFixed(1)}px !important; width:${w}px !important} html{background:#0b0d10 !important}`; },
     height() { return magEl.offsetHeight; },
     tops() { const out = []; let y = 0; for (const a of magEl.querySelectorAll('article.page')) { const h = a.offsetHeight; if (h) y = a.offsetTop; out.push(y); y += h; } return out; },
-    tail(top, h) { tail.style.top = top + 'px'; tail.style.height = h + 'px'; },
+    tail(h) { tail.style.top = '0'; tail.style.height = h + 'px'; },
   };
   // if the lift has not appeared after a while, take it away again so the site is usable
   setTimeout(() => { const l = document.querySelector('#lift3d .loading'); if (l && !l.classList.contains('done')) { document.getElementById('lift3d').remove(); fitCss.remove(); tail.remove(); dispatchEvent(new Event('resize')); } }, 20000);
@@ -974,20 +974,29 @@ const stops = [], holds = [], floorEls = [];
 });
 let swaps = [], starts = [], shuts = [0], Z = 0;
 // hosted: the site is set into the doorway (left edge, top edge and width in pixels) and told to lay itself out again at that width
-let hostBox = '', hostBusy = false, hostTop = 0;
+let hostBox = '', hostBusy = false, hostTop = 0, hostX = 0, hostW = 0, hostPinned = '';
 function hostFit(x, y, w) {
   const zone = Math.round(VH * CFG.doorZone * .6), key = [x.toFixed(1), y.toFixed(1), w, zone].join();
-  if (key === hostBox) return; hostBox = key; hostTop = y + zone;
-  HOST.fit(x, y + zone, w);   // it starts one door-zone down: at the very top the doors are shut, and it rises into place as they open
+  if (key === hostBox) return; hostBox = key; hostTop = y + zone; hostX = x; hostW = w; hostPinned = '';
+  Z = zone; hostPin();
   hostBusy = true; dispatchEvent(new Event('resize')); hostBusy = false;
   setTimeout(layout, 60); setTimeout(layout, 600);
+}
+// While the doors open (top of the scroll) and close (bottom of it) the site is held still behind them, so you never see
+// above the first page or below the last; in between it scrolls as normal.
+function hostPin() {
+  const s = pageEl.scrollTop, max = shuts[1] || 0;
+  const top = s < Z ? hostTop - Z : max > Z * 2 && s > max - Z ? hostTop - (max - Z) : null, key = top === null ? 'a' : 'f' + top.toFixed(1);
+  if (key === hostPinned) return; hostPinned = key;
+  HOST.fit(hostX, top === null ? hostTop : top, hostW, top !== null);
 }
 function hostLayout() {
   const H = VH, tops = HOST.tops(); if (!tops.length) return;
   Z = Math.round(H * CFG.doorZone * .6);
-  HOST.tail(hostTop + HOST.height() , Z);                                    // room at the bottom for the doors to close on
+  HOST.tail(hostTop + HOST.height() + Z);                                    // the page's full length, with room at the bottom for the doors to close on
   starts = tops.map(t => t + Z); swaps = starts.slice(1).map(t => t - H * .5);
   shuts = [0, Math.max(Z * 2, pageEl.scrollHeight - pageEl.clientHeight)];
+  hostPin();
 }
 function layout() {
   if (HOST) return hostLayout();
@@ -1026,6 +1035,7 @@ function updateVisibility() {}
 let arrowTimer = 0, scrollY = 0, scrolled = false, lastTop = 0;
 function nudge(dy) { if (busy) return; if (turned) lookAtPanel(false); pageEl.scrollTop += dy; }
 (HOST ? window : pageEl).addEventListener('scroll', () => {
+  if (HOST) hostPin();
   const top = pageEl.scrollTop, dy = top - lastTop; lastTop = top; if (busy || !dy) return;
   scrollY = top; if (turned) lookAtPanel(false);
   const d = dy > 0 ? -1 : 1; if (d !== indDir) { indDir = d; drawIndicator(); }   // direction arrows light while you scroll
@@ -1291,6 +1301,7 @@ function frame() {
   const dt = Math.min(.05, clock.getDelta()), now = performance.now();
   // scroll: apply drag momentum, then move the page
   if (!busy) scrollY = pageEl.scrollTop;
+  if (HOST) hostPin();
   updateVisibility();
   // doors: follow the scroll, or a ride's animation
   if (doorAnim) {
