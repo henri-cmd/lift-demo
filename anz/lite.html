@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lift — ANZ</title><script src="../assets/finch-gate.js"></script><style>html,body{margin:0;height:100%;overflow:hidden;background:#000}</style></head><body>
+<!-- LIFT — Readymag code embed. Paste into a Code widget, stretch it to full screen, keep the page one screen tall. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap" rel="stylesheet">
+<style>@font-face{font-family:"DSEG7";src:url(https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG7-Classic/DSEG7Classic-Bold.woff2) format("woff2");font-display:block}
+@font-face{font-family:"DSEG14";src:url(https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG14-Classic/DSEG14Classic-Bold.woff2) format("woff2");font-display:block}</style>
+
+<div id="lift">
+  <div class="cab">
+    <div class="room">
+      <!-- recessed doorway: doors sit behind the front wall -->
+      <div class="front">
+        <div class="shake">
+          <div class="scroller" tabindex="-1"></div>
+          <div class="landing"></div>
+          <div class="door l"><i class="dsk"><i></i></i></div>
+          <div class="door r"><i class="dsk"><i></i></i></div>
+          <div class="frame"></div>
+          <div class="flicker"></div>
+        </div>
+        <div class="shade"></div>
+      </div>
+      <div class="jamb l"></div><div class="jamb r"></div><div class="soffit"></div>
+      <!-- front wall either side of the doors, flush with the header -->
+      <!-- header = top of the front wall, turns with the camera -->
+      <div class="hdr-bg" style="left:0.00%"></div><div class="hdr-bg" style="left:12.50%"></div><div class="hdr-bg" style="left:25.00%"></div><div class="hdr-bg" style="left:37.50%"></div><div class="hdr-bg" style="left:50.00%"></div><div class="hdr-bg" style="left:62.50%"></div><div class="hdr-bg" style="left:75.00%"></div><div class="hdr-bg" style="left:87.50%"></div>
+      <div class="hdr">
+        <div class="ind">
+          <span class="tri d"></span><span class="tri u"></span>
+          <span class="arrow"></span>
+          <span class="digits"><span class="ghost"></span><span class="num"></span></span>
+          <div class="lights"></div>
+        </div>
+      </div>
+      <div class="lintel"></div><div class="trim l"></div><div class="trim r"></div><div class="trim t"></div><div class="strip l"></div><div class="strip r"><div class="panel"></div></div>
+      <!-- cab interior revealed when the camera turns -->
+      <div class="wall l"></div>
+      <div class="wall r"></div>
+      <div class="ceil"></div>
+    </div>
+  </div>
+  <div class="lightfx"></div>
+  <div class="dim"></div>
+  <div class="flick"></div>
+  <div class="grain"></div>
+  <div class="alarmfx"></div>
+  <button class="snd" type="button">Sound off</button>
+  <button class="ftab" type="button" aria-label="Show the floor buttons"><span class="ftab-l"></span><span class="ftab-a">→</span></button>
+  <!-- LOBBY: the site opens outside the lift -->
+  <div class="lobby">
+    <div class="lb-wall"></div>
+    <div class="lb-plaque"><div class="lb-title"></div><div class="lb-sub"></div></div>
+    <div class="lb-frame">
+      <div class="lb-ind"><span class="lb-arrow"></span><span class="lb-num"></span></div>
+      <div class="lb-opening">
+        <div class="lb-cab"><div class="lb-light"></div><div class="lb-rail"></div></div>
+        <div class="lb-door l"></div><div class="lb-door r"></div>
+        <div class="lb-shade"></div>
+      </div>
+    </div>
+    <div class="lb-call"><button class="lb-btn" type="button" aria-label="Call the lift"><span>▼</span></button><div class="lb-cap">Call</div></div>
+  </div>
+  <div class="hint">Scroll <span>↓</span></div>
+</div>
+
+<style>
+#lift{
+  --hdr-h:8.5vh;         /* height of the wall above the doors (indicator lives here) */
+  --ind-size:3.6vh;      /* LED text size */
+  --door-ms:950ms;       /* door speed for the button-panel ride */
+  --led:#ff5a1f;
+  --c:1;                 /* door closure 0 = open, 1 = shut (driven by JS) */
+  position:fixed; inset:0; overflow:hidden; background:#0b0b0c; z-index:1;
+  font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif; color:#eee;
+}
+#lift *{box-sizing:border-box}
+
+/* cab fills everything below the header */
+#lift .cab{position:absolute; inset:0; z-index:0}
+/* 3D cab. Camera sits --p in front of the front wall (z=0). The front wall (header + side strips) is flush;
+   the doorway is recessed --r behind it. Side walls/ceiling/floor run from the front wall towards the camera and
+   only come into view when the camera moves. --pan slides the camera sideways to the button panel. Sizes set by JS. */
+#lift .cab{perspective:var(--p,1000px); perspective-origin:50% 50%; overflow:hidden; filter:contrast(1.06) saturate(1.12); background:linear-gradient(180deg,#5a5c60,#3e4044)}
+#lift .room{position:absolute; inset:0; transform-style:preserve-3d;
+  transform:translateX(calc(-1 * var(--pan,0px)));
+  transition:transform var(--turn-ms,900ms) cubic-bezier(.45,0,.2,1)}
+#lift.rm .room{transition:none}
+/* front wall (header, strips, frame, panel) faces the camera at z=0, so it lives in a flat layer that slides with the
+   camera — identical on screen, and avoids browser glitches with large 3D surfaces. Only the recessed doorway is 3D. */
+#lift .flat{position:absolute; inset:0; pointer-events:none; transform:translateX(calc(-1 * var(--pan,0px)));
+  transition:transform var(--turn-ms,900ms) cubic-bezier(.45,0,.2,1)}
+#lift.rm .flat{transition:none}
+#lift .flat .strip,#lift .flat .panel{pointer-events:auto}
+#lift .front{position:absolute; top:var(--hp,13vh); height:calc(100% - var(--hp,13vh)); left:var(--s,5%); width:calc(100% - 2 * var(--s,5%)); overflow:hidden;
+  transform:translateZ(calc(-1 * var(--r,40px)))}
+#lift .shake{position:absolute; inset:0}
+/* the front wall's edges throw shadow onto the recessed doors (light from above) */
+#lift .shade{position:absolute; inset:0; z-index:5; pointer-events:none;
+  box-shadow:inset 0 3.2vh 3.5vh -1.6vh rgba(0,0,0,.75),inset 2.4vh 0 3vh -1.4vh rgba(0,0,0,.55),inset -2.4vh 0 3vh -1.4vh rgba(0,0,0,.55)}
+
+/* brushed steel shared by the front wall pieces */
+#lift .strip,#lift .jamb,#lift .soffit,#lift .sill,#lift .lintel{position:absolute;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,rgba(0,0,0,.04) 1px 3px),linear-gradient(180deg,#a3a6aa,#c4c6c9 30%,#8e9195)}
+/* front wall above the doorway (sits behind the fixed header; seen when the camera turns) */
+#lift .lintel{left:100%; width:var(--ext,40vw); top:0; height:var(--hp,13vh);
+  background:linear-gradient(180deg,rgba(255,255,255,.35) 0 1px,transparent 1px calc(100% - 1px),rgba(0,0,0,.5) calc(100% - 1px)),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,rgba(0,0,0,.04) 1px 3px),
+    linear-gradient(180deg,#9a9da1 0%,#c9cbce 45%,#8e9195 100%)}
+/* ceiling: level with the top of the header, running towards the camera */
+#lift .ceil{position:absolute; left:0; width:calc(100% + var(--ext,40vw)); height:var(--d,600px);
+  top:0; transform-origin:50% 0; transform:rotateX(90deg);
+  background:linear-gradient(90deg,transparent 47%,rgba(255,246,228,.85) 47% 53%,transparent 53%),linear-gradient(180deg,#76787c,#4d4f53)}
+#lift .strip{top:var(--hp,13vh); height:160%; width:var(--s,5%); cursor:pointer}
+/* wood-veneer wall pieces (texture mapped in JS so the grain lines up across pieces) */
+#lift .wood{background-repeat:repeat-x !important; background-color:#1d2724 !important; box-shadow:none !important}
+/* slim polished-stainless door frame */
+#lift .trim{position:absolute; transform:translateZ(.6px);
+  background:linear-gradient(90deg,#6f7377,#e4e6e8 35%,#a5a8ac 60%,#5d6064)}
+#lift .trim.l{left:calc(var(--s,5%) - var(--t,8px)); top:calc(var(--hp,13vh) - var(--t,8px)); width:var(--t,8px); height:160%}
+#lift .trim.r{left:calc(100% - var(--s,5%)); top:calc(var(--hp,13vh) - var(--t,8px)); width:var(--t,8px); height:160%;
+  background:linear-gradient(90deg,#5d6064,#a5a8ac 40%,#e4e6e8 65%,#6f7377)}
+#lift .trim.t{left:calc(var(--s,5%) - var(--t,8px)); top:calc(var(--hp,13vh) - var(--t,8px)); width:calc(100% - 2 * var(--s,5%) + 2 * var(--t,8px)); height:var(--t,8px);
+  background:linear-gradient(180deg,#e9ebed,#9a9da1 60%,#55585c)}
+#lift .strip.l{left:0; box-shadow:inset -1px 0 0 rgba(255,255,255,.35)}
+#lift .strip.r{left:calc(100% - var(--s,5%)); width:calc(var(--s,5%) + var(--ext,40vw)); box-shadow:inset 1px 0 0 rgba(255,255,255,.35)}
+#lift .jamb{top:var(--hp,13vh); height:160%; width:var(--r,40px)}
+#lift .jamb::after{content:""; position:absolute; top:0; bottom:0; width:38%; background:linear-gradient(90deg,#000,#0b0b0c)}
+#lift .jamb.l::after{right:0}
+#lift .jamb.r::after{left:0; background:linear-gradient(270deg,#000,#0b0b0c)}
+#lift .jamb.l{left:var(--s,5%); transform-origin:0 0; transform:rotateY(90deg); filter:brightness(.55)}
+#lift .jamb.r{left:calc(100% - var(--s,5%) - var(--r,40px)); transform-origin:100% 0; transform:rotateY(-90deg); filter:brightness(.7)}
+#lift .soffit{top:var(--hp,13vh); left:var(--s,5%); width:calc(100% - 2 * var(--s,5%)); height:var(--r,40px); transform-origin:50% 0; transform:rotateX(-90deg); filter:brightness(.35)}
+#lift .sill{top:calc(100% - var(--r,40px)); left:var(--s,5%); width:calc(100% - 2 * var(--s,5%)); height:var(--r,40px); transform-origin:50% 100%; transform:rotateX(90deg); filter:brightness(.9)}
+
+/* cab interior */
+#lift .wall{position:absolute; top:0; height:160%; width:var(--d,600px); backface-visibility:hidden;
+  background:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,rgba(0,0,0,.04) 1px 3px),
+    linear-gradient(180deg,rgba(255,255,255,.08),transparent 30%,transparent 75%,rgba(0,0,0,.25)),
+    #6d7075; background-size:cover}
+#lift .wall.r{left:calc(100% + var(--ext,40vw)); transform-origin:0 0; transform:rotateY(-90deg)}
+#lift .wall.l{left:calc(-1 * var(--d,600px)); transform-origin:100% 0; transform:rotateY(90deg)}
+#lift .wall.r::after,#lift .wall.l::after{content:""; position:absolute; inset:0; pointer-events:none}
+#lift .wall.r::after{background:linear-gradient(90deg,rgba(0,0,0,.4),transparent 35%)}
+#lift .wall.l::after{background:linear-gradient(270deg,rgba(0,0,0,.4),transparent 35%)}
+#lift.turned .strip.r{cursor:default}
+#lift.jolt .shake{animation:liftJolt .38s ease-out}
+
+@keyframes liftShake{0%,100%{transform:translate(0,0)}25%{transform:translate(0,.07vh)}50%{transform:translate(.04vh,-.06vh)}75%{transform:translate(-.04vh,.05vh)}}
+@keyframes liftJolt{0%{transform:none}30%{transform:translateY(.22vh)}65%{transform:translateY(-.06vh)}100%{transform:none}}
+
+/* one continuous scrolling page behind the doors */
+#lift .scroller{position:absolute; inset:0; z-index:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none; outline:none}
+#lift .scroller::-webkit-scrollbar{display:none}
+#lift.ride .scroller{overflow:hidden}
+/* each floor: outer .stop > sticky .hold (freezes the floor's last screen while doors close)
+   > sticky .floor (pins the floor's top while doors open) */
+#lift .stop{position:relative}
+#lift .hold{position:sticky}
+#lift .floor{position:sticky; top:0; background-size:cover; background-position:center}
+#lift .stop.gone{visibility:hidden}
+#lift .copy{max-width:960px; margin:0 auto; padding:14vh 6vw 22vh}
+#lift .copy h1{font-size:clamp(40px,7vw,96px); font-weight:600; letter-spacing:-.03em; line-height:1; margin:0 0 4vh}
+#lift .copy h2{font-size:clamp(20px,2.2vw,30px); font-weight:500; margin:10vh 0 2vh}
+#lift .copy p{font-size:clamp(15px,1.25vw,19px); line-height:1.6; max-width:52ch; margin:0 0 2vh; opacity:.8}
+#lift .floor .hero{display:block; width:100%; height:var(--sh,100vh); object-fit:cover; object-position:center}
+#lift .floor div.hero{background:linear-gradient(160deg,rgba(255,255,255,.13),rgba(255,255,255,.04))}
+#lift .floor .herow{position:relative}
+#lift .floor .htitle{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 6vw; color:#fff; pointer-events:none}
+#lift .floor .herow:has(img) .htitle{background:radial-gradient(ellipse at center,rgba(4,18,34,.42),rgba(4,18,34,.12) 70%); text-shadow:0 2px 28px rgba(0,0,0,.45)}
+#lift .floor .htitle small{font-size:clamp(12px,1.1vw,16px); font-weight:500; letter-spacing:.28em; margin:0 0 2.2vh; padding-left:.28em; opacity:.85}
+#lift .floor .htitle h1{font-size:clamp(38px,8vw,112px); font-weight:600; letter-spacing:-.03em; line-height:1; margin:0}
+#lift .copy ul{margin:0 0 2vh; padding-left:1.2em; max-width:52ch}
+#lift .copy li{font-size:clamp(15px,1.25vw,19px); line-height:1.6; margin:0 0 1.4vh; opacity:.8}
+#lift .copy li b{font-weight:600}
+#lift .copy .dlg{padding-left:4ch; max-width:44ch}
+#lift .copy .dlg b{display:block; font-weight:600; letter-spacing:.06em; font-size:.82em; margin-bottom:.2em}
+#lift .copy .ph{aspect-ratio:16/9; background:rgba(255,255,255,.06); border-radius:4px; margin:4vh 0}
+
+/* doors — scrubbed by scroll; pointer-events off so scrolling works through them */
+#lift .door{position:absolute; top:0; height:100%; width:50.4%; z-index:1; will-change:transform; pointer-events:none; filter:brightness(1.18) contrast(1.08) saturate(.7);
+  background:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,rgba(0,0,0,.035) 1px 3px),
+    linear-gradient(90deg,#868a8f,#c4c7cb 38%,#a2a6ab 62%,#7b7f84)}
+#lift .door.l{left:0;  transform:translateX(calc((var(--c) - 1) * 101%)); box-shadow:inset -.25vh 0 0 rgba(0,0,0,.55),1.2vh 0 2vh rgba(0,0,0,.45)}
+/* leading-edge faces give the doors thickness; their visible width follows the perspective */
+#lift .door::after{content:""; position:absolute; top:0; bottom:0;
+  background:linear-gradient(180deg,#5e6166,#8a8d92 40%,#4d5054); box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+#lift .door.l::after{left:100%; width:var(--edge-l,0px)}
+#lift .door.r::after{right:100%; width:var(--edge-r,0px)}
+#lift .door.r{right:0; transform:translateX(calc((1 - var(--c)) * 101%)); box-shadow:inset .2vh 0 0 rgba(255,255,255,.25),-1.2vh 0 2vh rgba(0,0,0,.45)}
+#lift.ride .door{transition:transform var(--door-ms) cubic-bezier(.6,0,.3,1)}
+/* rubber safety edge down each door's leading edge */
+#lift .door::before{content:""; position:absolute; top:0; bottom:0; width:.55vh; z-index:2;
+  background:linear-gradient(90deg,#232427,#3a3b3e 45%,#18191b); box-shadow:0 0 .3vh rgba(0,0,0,.5)}
+#lift .door.l::before{right:0}
+#lift .door.r::before{left:0}
+/* door finish: fixed shading (bottom and frame corners fall into shadow) + a soft reflection of the cab that
+   stays put in the room while the door slides through it, so the steel reads as metal rather than a print */
+#lift .door .dsk{position:absolute; inset:0; overflow:hidden; pointer-events:none;
+  box-shadow:inset 0 -9vh 9vh -5vh rgba(20,14,10,.45),inset 0 5vh 6vh -4vh rgba(0,0,0,.25)}
+#lift .door.l .dsk{background:linear-gradient(90deg,rgba(0,0,0,.28),transparent 14%)}
+#lift .door.r .dsk{background:linear-gradient(270deg,rgba(0,0,0,.28),transparent 14%)}
+#lift .door .dsk > i{position:absolute; top:0; bottom:0; width:198.4%; mix-blend-mode:soft-light; opacity:.9;
+  background:
+    linear-gradient(180deg,transparent 55%,rgba(255,250,240,.18) 59.5%,transparent 64%),
+    linear-gradient(180deg,rgba(255,236,205,.35),transparent 22%,transparent 72%,rgba(0,0,0,.55)),
+    linear-gradient(90deg,rgba(0,0,0,.5) 0%,transparent 10%,rgba(255,238,214,.45) 20%,rgba(255,238,214,.1) 27%,rgba(0,0,0,.25) 37%,
+      rgba(40,30,24,.6) 47%,rgba(40,30,24,.55) 53%,rgba(0,0,0,.25) 63%,rgba(255,238,214,.1) 73%,rgba(255,238,214,.45) 80%,transparent 90%,rgba(0,0,0,.5) 100%)}
+#lift .door.l .dsk > i{left:0; transform:translateX(calc((1 - var(--c)) * 50.9%))}
+#lift .door.r .dsk > i{right:0; transform:translateX(calc((var(--c) - 1) * 50.9%))}
+/* the landing seen through the doorway: its entrance frame in shadow around the edges, the landing header
+   darkening the top — so the floor
+   reads as a room beyond the doors instead of a picture stuck behind them */
+#lift .landing{position:absolute; inset:0; z-index:1; pointer-events:none;
+  background:
+    linear-gradient(90deg,#0c0c0d 0,#1d1e20 1.6%,rgba(220,214,204,.5) 1.8%,rgba(0,0,0,.35) 2.05%,transparent 5%),
+    linear-gradient(270deg,#0c0c0d 0,#1d1e20 1.6%,rgba(220,214,204,.4) 1.8%,rgba(0,0,0,.35) 2.05%,transparent 5%),
+    linear-gradient(180deg,#0a0a0b 0,#18191b 2.4vh,rgba(200,194,186,.45) 2.65vh,rgba(0,0,0,.45) 2.95vh,transparent 11vh)}
+#lift.rm .door{transition:none}
+
+#lift .frame{position:absolute; inset:0; z-index:2; background-size:cover; background-position:center; pointer-events:none}
+#lift .flicker{position:absolute; inset:0; z-index:3; background:#000; opacity:0; pointer-events:none}
+
+@keyframes liftFlick{0%{opacity:0}61%{opacity:.07}63%{opacity:0}64%{opacity:.04}66%{opacity:0}}
+
+/* floor-indicator header — always visible */
+#lift .hdr{position:absolute; left:calc(50% - 18vh); width:36vh; top:0; height:var(--hdr-h); transform:translateZ(1px);
+  display:flex; flex-direction:column; gap:0; align-items:center; justify-content:center;
+  padding-top:var(--overscan,.9vh); box-sizing:border-box}   /* centre in the visible strip (cab is slightly zoomed to hide edges) */
+/* header plate drawn in four pieces: browsers can drop part of one very wide surface when it turns in 3D */
+#lift .hdr-bg{position:absolute; top:0; width:12.75%; height:var(--hdr-h);
+  /* gradients sized to the full header width and offset per piece, so the brushing runs on without seams */
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.35) 0 1px,transparent 1px calc(100% - 1px),rgba(0,0,0,.5) calc(100% - 1px)),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,rgba(0,0,0,.04) 1px 3px),
+    linear-gradient(180deg,#9a9da1 0%,#c9cbce 45%,#8e9195 100%);
+  background-size:393.7% 100%}
+#lift .hdr-bg:nth-of-type(1){background-position:0 0}
+#lift .hdr-bg:nth-of-type(2){background-position:33.6% 0}
+#lift .hdr-bg:nth-of-type(3){background-position:67.1% 0}
+#lift .hdr-bg:nth-of-type(4){background-position:100% 0}
+#lift.has-header .hdr-bg{background-size:393.7% 100%}
+/* indicator plate: photo of the plate, live seven-segment number in its window, triangles light up */
+#lift .ind{position:relative; width:var(--ind-w,21vh); aspect-ratio:4128/1024; border-radius:.15vh; background:var(--ind-img) center/100% 100% no-repeat;
+  box-shadow:0 .2vh .45vh rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.5)}
+#lift .ind .digits{position:absolute; left:19.26%; top:29.3%; width:61.56%; height:41.6%; display:flex; align-items:center; justify-content:center;
+  font-family:"DSEG14","DSEG7",ui-monospace,monospace; font-size:var(--ind-fs,1.55vh); line-height:1; letter-spacing:.06em;
+  color:#ff2a1e; text-shadow:0 0 .12em rgba(255,40,30,.9),0 0 .4em rgba(255,40,30,.45)}
+#lift .ind .ghost{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:rgba(255,40,30,.07); text-shadow:none}
+#lift .ind .num{position:relative; white-space:pre}
+#lift .ind .arrow{display:none}
+#lift .tri{position:absolute; opacity:0; transition:opacity .25s;
+  background:radial-gradient(circle at 50% 60%,#fffdf4,#fff1c8 70%); filter:drop-shadow(0 0 .5vh rgba(255,240,200,.9))}
+#lift .tri.d{left:5.96%; top:40.2%; width:8.94%; height:19.4%; clip-path:polygon(0 0,100% 0,50% 100%)}
+#lift .tri.u{left:85.17%; top:40.2%; width:8.94%; height:19.4%; clip-path:polygon(50% 0,100% 100%,0 100%)}
+#lift .tri.on{opacity:1}
+#lift.moving .tri.on{animation:liftBlink 1s steps(1) infinite}
+/* row of floor lamps under the display: left → right = lowest → highest floor */
+#lift .lights{position:absolute; left:19.26%; width:61.56%; top:78%; height:14%; display:flex; align-items:center; justify-content:center; gap:5%}
+#lift .lamp{height:62%; aspect-ratio:1; border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#4a2018,#1c0b07 70%); box-shadow:0 0 0 .1vh rgba(0,0,0,.55),inset 0 .08vh .15vh rgba(0,0,0,.8),0 .06vh 0 rgba(255,255,255,.5);
+  transition:background .25s,box-shadow .25s}
+#lift .lamp.on{background:radial-gradient(circle at 40% 35%,#ffd0b0,#ff3a24 60%);
+  box-shadow:0 0 0 .1vh rgba(0,0,0,.55),0 0 .5vh rgba(255,60,31,.9),0 0 1.1vh rgba(255,60,31,.45)}
+#lift .arrow{font-size:.6em; min-width:1em; opacity:0; transition:opacity .25s}
+#lift .arrow.on{opacity:1}
+#lift.moving .arrow.on{animation:liftBlink 1s steps(1) infinite}
+@keyframes liftBlink{50%{opacity:.25}}
+
+/* button panel — the full ride lives here */
+#lift .panel{position:absolute; left:calc(var(--s,5%) + var(--panel-off,6vw)); top:calc(var(--panel-y,50vh) - var(--hp,13vh)); transform:translateY(-50%);
+  display:grid; grid-template-columns:repeat(var(--cols,4),auto); gap:1.8vh 2vh; padding:3.4vh 3vh 3.1vh; border-radius:.5vh;
+  /* brushed stainless cover plate, flush-mounted with a slight bevel */
+  background:var(--plate-img, linear-gradient(115deg,#4a4c50,#2e3033)) center/100% 100% no-repeat;
+  box-shadow:0 .25vh .5vh rgba(0,0,0,.35),0 0 0 .1vh rgba(0,0,0,.25),
+    inset 0 .12vh 0 rgba(255,255,255,.7),inset 0 -.12vh 0 rgba(0,0,0,.25),inset .12vh 0 0 rgba(255,255,255,.35),inset -.12vh 0 0 rgba(0,0,0,.2)}
+#lift.no-panel .panel{display:none}
+/* corner screws */
+#lift .screw{position:absolute; width:.62vh; height:.62vh; border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#e4e5e7,#8e9195 75%); box-shadow:inset 0 0 0 .08vh rgba(0,0,0,.35),0 .06vh 0 rgba(255,255,255,.5)}
+#lift .screw::before,#lift .screw::after{content:""; position:absolute; left:22%; right:22%; top:calc(50% - .04vh); height:.08vh; background:rgba(0,0,0,.55); transform:rotate(var(--rot,30deg))}
+#lift .screw::before{transform:rotate(calc(var(--rot,30deg) + 90deg))}
+#lift .screw.tl{top:1vh; left:1vh} #lift .screw.tr{top:1vh; right:1vh; --rot:-20deg}
+#lift .screw.bl{bottom:1vh; left:1vh; --rot:75deg} #lift .screw.br{bottom:1vh; right:1vh; --rot:5deg}
+
+/* each floor = bezel-ringed push button with an engraved label underneath */
+#lift .btn{display:flex; flex-direction:column; align-items:center; gap:1.1vh; background:none; border:0; padding:0; cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+/* black push button in a thin dark-steel collar; number is backlit */
+#lift .cap{position:relative; width:4.5vh; height:4.5vh; border-radius:50%;
+  background:radial-gradient(circle at 50% 40%,#3a3c3f,#1a1b1d 70%,#0e0e0f);
+  box-shadow:0 .25vh .4vh rgba(0,0,0,.6),inset 0 .1vh 0 rgba(255,255,255,.18)}
+#lift .cap::before{content:""; position:absolute; inset:.38vh; border-radius:50%;
+  background:radial-gradient(circle at 50% 30%,#2b2c2e,#111213 65%,#060606);
+  box-shadow:inset 0 .15vh .2vh rgba(255,255,255,.12),inset 0 -.3vh .5vh rgba(0,0,0,.6);
+  transition:transform .08s,filter .2s}
+#lift .lbl{font:700 1.3vh/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.2em; text-transform:uppercase;
+  color:#dfe1e4; text-shadow:0 -.08vh 0 rgba(0,0,0,.8); opacity:.92}
+#lift .btn:hover .cap::before{filter:brightness(1.2)}
+#lift .btn:active .cap::before{transform:scale(.94)}
+#lift .btn.lit .num-cap{animation:liftBtnPulse .9s ease-in-out infinite}
+@keyframes liftBtnPulse{50%{opacity:.45}}
+#lift .btn:focus-visible .cap{outline:.25vh solid #fff; outline-offset:.4vh}
+#lift .lbl{min-width:5.8vh; text-align:center; font-size:1vh; letter-spacing:.12em}
+/* spare floor slots for sections still to come */
+#lift .btn.ph{cursor:default}
+#lift .btn.ph .cap::before{filter:brightness(.85)}
+#lift .btn.ph .lbl{color:#8a8d91; letter-spacing:.3em}
+#lift .fns{display:grid; grid-template-columns:repeat(2,auto); justify-content:center; gap:1.9vh 2.6vh; margin-top:1vh;
+  padding-top:1.9vh; border-top:1px solid rgba(0,0,0,.45); box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+#lift .btn .num-cap{font:700 2.1vh/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:-.03em; color:#f6f5f0; text-shadow:0 0 .3vh rgba(255,255,250,.85),0 0 .9vh rgba(255,255,245,.45); transition:color .15s,text-shadow .15s}
+#lift .btn.ph .num-cap{color:#d9d8d2; text-shadow:0 0 .25vh rgba(255,255,250,.5)}
+#lift .btn.here .num-cap,#lift .btn.lit .num-cap,#lift .btn:hover .num-cap{color:#62b4ff; text-shadow:0 0 .35vh rgba(80,165,255,0.47),0 0 1.1vh rgba(60,145,245,0.30)}
+#lift.ride .btn.here:not(.lit):not(:hover) .num-cap{color:#f6f5f0; text-shadow:0 0 .3vh rgba(255,255,250,.85),0 0 .9vh rgba(255,255,245,.45)}
+#lift .btn.ph:active .cap::before{transform:none}
+/* lift-function row */
+#lift .ico{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:1;
+  font:700 1.9vh/1 -apple-system,Helvetica,Arial,sans-serif; color:#3a3b3e; text-shadow:0 .08vh 0 rgba(255,255,255,.6); letter-spacing:-.1em}
+#lift .btn.fn .ico svg{width:1.9vh; height:1.9vh; fill:none; stroke:#f6f5f0; filter:drop-shadow(0 0 .3vh rgba(255,255,250,.7)); transition:stroke .2s,filter .2s; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+#lift .btn.fn.on .ico svg,#lift .btn.fn:hover .ico svg{stroke:#62b4ff; filter:drop-shadow(0 0 .4vh rgba(80,165,255,0.45))}
+
+/* ===== LOBBY ===== */
+#lift .lobby{position:absolute; inset:0; z-index:20; overflow:hidden; transform-origin:50% 58%;
+  transform:translate(var(--lsx,0px),var(--lsy,0px))}
+#lift .lobby.in{transform:scale(2.4); opacity:0; pointer-events:none;
+  transition:transform 1.3s cubic-bezier(.55,0,.2,1),opacity .7s ease .55s}
+#lift .lobby.gone{display:none}
+#lift .lb-wall{position:absolute; inset:-2%;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 0%,rgba(255,232,200,.22),transparent 70%),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 2px,transparent 2px 7px),
+    repeating-linear-gradient(90deg,transparent 0 24vw,rgba(0,0,0,.25) 24vw calc(24vw + 2px)),
+    linear-gradient(180deg,#3d3732,#24201d)}
+#lift .lb-frame{position:absolute; left:50%; bottom:0; transform:translateX(-50%); width:40vw; height:86vh;
+  padding:0 1.3vw; display:flex; flex-direction:column;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,rgba(0,0,0,.04) 1px 3px),linear-gradient(180deg,#a3a6aa,#c7c9cc 20%,#8d9094);
+  box-shadow:0 0 0 .3vh #1b1a19,0 2vh 6vh rgba(0,0,0,.6)}
+#lift .lb-ind{height:9vh; display:flex; align-items:center; justify-content:center; gap:.35em;
+  font-family:"Doto",ui-monospace,monospace; font-weight:900; font-size:4.2vh; color:var(--led);
+  text-shadow:0 0 .12em var(--led),0 0 .45em rgba(255,90,31,.55)}
+#lift .lb-ind span{background:#080404; padding:.12em .35em; border-radius:.12em; box-shadow:inset 0 0 .4em #000,0 0 0 .08em #3a3a3c; min-width:1.4em; text-align:center}
+#lift .lb-ind .lb-arrow{font-size:.6em; min-width:1.2em}
+#lift .lb-ind .lb-arrow:empty{visibility:hidden}
+#lift .lb-opening{position:relative; flex:1; overflow:hidden; background:#000}
+#lift .lb-cab{position:absolute; inset:0;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.04) 0 1px,rgba(0,0,0,.05) 1px 3px),
+    linear-gradient(90deg,#4b4d50,#8e9094 25%,#9a9ca0 75%,#4b4d50)}
+#lift .lb-light{position:absolute; left:15%; right:15%; top:0; height:2.2%; background:#fff3df; box-shadow:0 0 6vh 2vh rgba(255,236,205,.45)}
+#lift .lb-rail{position:absolute; left:8%; right:8%; top:52%; height:1.1vh; border-radius:1vh;
+  background:linear-gradient(180deg,#e9eaec,#7c7f83); box-shadow:0 .8vh 1vh rgba(0,0,0,.35)}
+#lift .lb-door{position:absolute; top:0; height:100%; width:50.4%; transition:transform 1s cubic-bezier(.6,0,.3,1);
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,rgba(0,0,0,.035) 1px 3px),linear-gradient(90deg,#868a8f,#c4c7cb 38%,#a2a6ab 62%,#7b7f84)}
+#lift .lb-door.l{left:0; box-shadow:inset -.25vh 0 0 rgba(0,0,0,.55),1vh 0 2vh rgba(0,0,0,.4)}
+#lift .lb-door.r{right:0; box-shadow:inset .2vh 0 0 rgba(255,255,255,.25),-1vh 0 2vh rgba(0,0,0,.4)}
+#lift .lobby.open .lb-door.l{transform:translateX(-101%)}
+#lift .lobby.open .lb-door.r{transform:translateX(101%)}
+#lift .lb-shade{position:absolute; inset:0; pointer-events:none; box-shadow:inset 0 2.6vh 3vh -1.4vh rgba(0,0,0,.7),inset 1.8vh 0 2.4vh -1.2vh rgba(0,0,0,.5),inset -1.8vh 0 2.4vh -1.2vh rgba(0,0,0,.5)}
+#lift .lb-call{position:absolute; left:calc(50% + 20vw + 5vw); top:58%; transform:translate(-50%,-50%);
+  display:flex; flex-direction:column; align-items:center; gap:1.4vh; padding:3vh 2.4vh 2.4vh; border-radius:.5vh;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.045) 0 1px,rgba(0,0,0,.035) 1px 2px,transparent 2px 4px),linear-gradient(115deg,#c6c8cb,#a9acb0 38%,#cfd1d4 55%,#a2a5a9);
+  box-shadow:0 .4vh .8vh rgba(0,0,0,.45),inset 0 .12vh 0 rgba(255,255,255,.7)}
+#lift .lb-btn{width:7vh; height:7vh; border-radius:50%; border:0; padding:0; cursor:pointer; position:relative;
+  background:conic-gradient(from 210deg,#e2e3e5,#8a8d91 18%,#d6d8db 35%,#7c7f83 55%,#e6e7e9 75%,#9a9da1 90%,#e2e3e5);
+  box-shadow:0 .18vh .3vh rgba(0,0,0,.4)}
+#lift .lb-btn span{position:absolute; inset:1vh; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font:700 2vh/1 -apple-system,Helvetica,Arial,sans-serif; color:#2f3033;
+  background:radial-gradient(circle at 50% 30%,#f6f7f8,#c9cbce 55%,#a4a7ab);
+  box-shadow:0 0 0 .28vh #1d1e20,inset 0 .2vh .25vh rgba(255,255,255,.9); transition:box-shadow .25s,transform .08s,color .2s}
+#lift .lb-btn:hover span{filter:brightness(1.06)}
+#lift .lb-btn:active span{transform:scale(.94)}
+#lift .lb-btn.lit span{color:var(--led); box-shadow:0 0 0 .28vh var(--led),0 0 1.6vh .2vh rgba(255,90,31,.8),inset 0 .2vh .25vh rgba(255,255,255,.9)}
+#lift .lb-btn:not(.lit) span{animation:lbInvite 2.4s ease-in-out infinite}
+@keyframes lbInvite{50%{box-shadow:0 0 0 .28vh #4a3328,0 0 1vh rgba(255,90,31,.35),inset 0 .2vh .25vh rgba(255,255,255,.9)}}
+#lift .lb-cap{font:700 1.2vh/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.22em; text-transform:uppercase; color:#2e2f32}
+#lift .lb-plaque{position:absolute; right:calc(50% + 20vw + 4vw); top:50%; transform:translateY(-50%); text-align:right; color:#d8cfc3; max-width:22vw}
+#lift .lb-title{font:600 clamp(18px,2.4vw,40px)/1.05 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:-.01em}
+#lift .lb-sub{margin-top:1.4vh; font:500 11px/1.4 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.18em; text-transform:uppercase; opacity:.6}
+
+/* ===== ATMOSPHERE ===== */
+/* overhead light: soft warm pool from the ceiling, gentle falloff to the edges and floor */
+#lift .lightfx{position:absolute; inset:0; z-index:6; pointer-events:none;
+  background:radial-gradient(ellipse 80% 65% at 50% 0%,rgba(255,224,176,.22),transparent 72%),
+             radial-gradient(ellipse 120% 100% at 50% 30%,transparent 58%,rgba(0,0,0,.26) 100%),
+             linear-gradient(180deg,transparent 60%,rgba(0,0,0,.12));
+  mix-blend-mode:normal}
+/* cab gets a touch darker as the doors shut (landing light is cut off) — follows --c */
+#lift .dim{position:absolute; inset:0; z-index:7; pointer-events:none;
+  background:radial-gradient(ellipse 120% 90% at 50% 15%,rgba(0,0,0,.75),#000);
+  opacity:calc(var(--c,0) * var(--dark-amt,.28))}
+/* very subtle flicker while the lift is moving (opacity driven by JS) */
+#lift .flick{position:absolute; inset:0; z-index:7; pointer-events:none; background:#000; opacity:0}
+/* subtle film grain over everything (noise tile generated in JS, jittered every frame) */
+#lift .grain{position:absolute; inset:-50%; z-index:11; pointer-events:none; opacity:var(--grain,.09); mix-blend-mode:overlay;
+  background-size:256px 256px; will-change:transform}
+/* alarm: lights drop, red emergency light pulses */
+#lift .alarmfx{position:absolute; inset:0; z-index:9; pointer-events:none; opacity:0; mix-blend-mode:multiply;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%,#ff3a1a,#5a0600 70%)}
+#lift.alarm .alarmfx{animation:liftAlarm .9s ease-in-out infinite}
+#lift.alarm .cab{filter:brightness(.7)}
+@keyframes liftAlarm{0%,100%{opacity:.95}50%{opacity:.55}}
+
+#lift .hint{position:absolute; left:50%; bottom:3vh; transform:translateX(-50%); z-index:12; pointer-events:none;
+  font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#2a2a2c;
+  background:rgba(255,255,255,.55); padding:9px 14px; border-radius:20px; opacity:0; transition:opacity .6s}
+#lift .hint.on{opacity:1}
+#lift .hint span{display:inline-block; animation:liftHint 1.4s ease-in-out infinite}
+@keyframes liftHint{50%{transform:translateY(-4px)}}
+/* "Floors →" tab: tucked against the right edge, opens the button panel; hidden while the camera is turned */
+#lift .ftab{position:absolute; right:0; top:50%; z-index:12; display:flex; align-items:center; gap:7px; cursor:pointer;
+  background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.25); border-right:0; color:rgba(255,255,255,.8);
+  font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase;
+  padding:9px 12px 9px 14px; border-radius:20px 0 0 20px; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+  opacity:0; pointer-events:none; transform:translate(0,-50%) scaleX(.6); transform-origin:right center; transition:opacity .5s, transform .5s cubic-bezier(.2,.8,.2,1), background .2s}
+#lift .ftab.on{opacity:1; pointer-events:auto; transform:translate(0,-50%)}
+#lift .ftab:hover{background:rgba(0,0,0,.45); color:#fff}
+#lift .ftab-a{display:inline-block; animation:liftTab 1.4s ease-in-out infinite}
+@keyframes liftTab{50%{transform:translateX(3px)}}
+#lift.turned .ftab,#lift.ride .ftab,#lift.glancing .ftab{opacity:0; pointer-events:none}
+#lift.rm .ftab-a{animation:none}
+#lift .snd{position:absolute; left:2vw; bottom:2vh; z-index:12; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.75);
+  font:500 11px/1 -apple-system,Helvetica,Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase; padding:8px 12px; border-radius:20px; cursor:pointer}
+
+/* ===================== MODERN THEME (minimal corporate) ===================== */
+/* indicator: photographed brushed-steel plate with a flush black-glass display (CFG.indicatorImg); live text + lamps sit in the glass */
+#lift .ind{width:var(--ind-w,24vh); aspect-ratio:4/1; border-radius:.2vh; background:var(--ind-img) center/100% 100% no-repeat !important;
+  box-shadow:0 .2vh .5vh rgba(0,0,0,.3),0 0 0 .08vh rgba(0,0,0,.3)}
+#lift .ind .digits{left:18.5%; width:63%; top:24%; height:38%;
+  font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; font-weight:400; font-size:1.45vh; letter-spacing:.3em; text-indent:.3em;
+  color:#f2f4f6; text-transform:uppercase; text-shadow:0 0 .15vh rgba(255,255,255,.5)}
+#lift .ind .ghost{display:none}
+#lift .tri{background:rgba(0,0,0,.28); filter:drop-shadow(0 .06vh 0 rgba(255,255,255,.55)); opacity:1}
+#lift .tri.on{background:#62b4ff; filter:drop-shadow(0 0 .3vh rgba(80,165,255,0.42))}
+#lift .tri.d{left:6.6%; top:42%; width:4.2%; height:16%}
+#lift .tri.u{left:89.2%; top:42%; width:4.2%; height:16%}
+#lift .lights{left:18.5%; width:63%; top:64%; height:8%; gap:6%}
+#lift .lamp{height:45%; background:rgba(255,255,255,.13); box-shadow:none}
+#lift .lamp.on{background:#62b4ff; box-shadow:0 0 .35vh rgba(80,165,255,0.40)}
+
+/* button panel: satin brushed-steel plate (same steel as the doors), black push buttons, engraved labels */
+#lift .panel{background:var(--steel-img) center/cover, linear-gradient(160deg,#c9ccd0,#9a9da2) !important; border-radius:.5vh;
+  box-shadow:0 .35vh .9vh rgba(0,0,0,.28),0 0 0 .1vh rgba(0,0,0,.35),inset 0 .12vh 0 rgba(255,255,255,.55),inset 0 -.12vh 0 rgba(0,0,0,.25)}
+#lift .panel::after{content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,0) 40%,rgba(0,0,0,.08))}
+#lift .screw{display:none}
+#lift .fns{border-top:1px solid rgba(0,0,0,.22); box-shadow:none; background:linear-gradient(180deg,rgba(255,255,255,.3) 0 1px,transparent 1px)}
+/* black button inserts in a fine steel collar; backlit white numerals, red when current / selected / hovered */
+#lift .cap{background:radial-gradient(circle at 50% 35%,#e6e8ea,#9ea1a5 70%); box-shadow:0 .12vh .2vh rgba(0,0,0,.35),inset 0 .08vh 0 rgba(255,255,255,.7)}
+#lift .cap::before{inset:.3vh; background:radial-gradient(circle at 50% 30%,#2a2b2d,#0c0c0d 70%); box-shadow:inset 0 .12vh .2vh rgba(255,255,255,.12),inset 0 -.2vh .4vh rgba(0,0,0,.6)}
+#lift .btn:hover .cap::before{filter:none}
+#lift .btn:hover .cap,#lift .btn.here .cap,#lift .btn.lit .cap{box-shadow:0 .12vh .2vh rgba(0,0,0,.35),inset 0 .08vh 0 rgba(255,255,255,.7),0 0 .8vh rgba(80,165,255,0.17)}
+#lift .btn .num-cap{font:500 1.9vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:0}
+#lift .lbl{font:600 .95vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:.22em; color:#2c2e31; text-shadow:0 .08vh 0 rgba(255,255,255,.5); opacity:.9}
+#lift .btn.ph .lbl{color:#6a6d72}
+/* thinner, satin door frame */
+#lift .trim{filter:saturate(.6) brightness(1.05)}
+
+/* ===================== LEVEL SCREEN VARIANTS (CFG.indicator) ===================== */
+#lift .ind2{position:relative; display:flex; align-items:center; justify-content:center}
+#lift.ind-alt .ind{display:none}
+#lift .ind2 .ar{width:1vh; height:.85vh; background:rgba(255,255,255,.14); transition:background .25s,filter .25s}
+#lift .ind2 .ar.u{clip-path:polygon(50% 0,100% 100%,0 100%)}
+#lift .ind2 .ar.d{clip-path:polygon(0 0,100% 0,50% 100%)}
+#lift .ind2 .ar.on{background:#62b4ff; filter:drop-shadow(0 0 .35vh rgba(80,165,255,0.47))}
+#lift.moving .ind2 .ar.on{animation:liftBlink 1s steps(1) infinite}
+#lift .steelplate{background:var(--steel-img) center/cover, linear-gradient(160deg,#c9ccd0,#9a9da2);
+  box-shadow:0 .25vh .6vh rgba(0,0,0,.28),0 0 0 .1vh rgba(0,0,0,.35),inset 0 .1vh 0 rgba(255,255,255,.55),inset 0 -.1vh 0 rgba(0,0,0,.25)}
+
+/* A — DIAL: art-deco half-moon floor dial with a sweeping needle */
+#lift .ind2.dial{gap:0}
+#lift .dial .face{position:relative; width:12vh; height:6vh; border-radius:6vh 6vh .3vh .3vh; transform:scale(.92); transform-origin:50% 60%}
+#lift .dial .face::before{content:""; position:absolute; left:.45vh; right:.45vh; top:.45vh; bottom:.3vh; border-radius:6.1vh 6.1vh .15vh .15vh;
+  background:radial-gradient(ellipse at 50% 100%,#1d1e20,#0a0a0b 75%); box-shadow:inset 0 .15vh .35vh rgba(0,0,0,.9),0 .08vh 0 rgba(255,255,255,.45)}
+#lift .dial .mk{position:absolute; left:50%; bottom:.35vh; width:0; height:0}
+#lift .dial .mk i{position:absolute; left:-.06vh; top:-5.6vh; width:.12vh; height:.55vh; background:rgba(255,255,255,.35)}
+#lift .dial .mk b{position:absolute; left:-1vh; top:-4.7vh; width:2vh; text-align:center; font:500 1.05vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif;
+  color:rgba(255,255,255,.55); transition:color .3s,text-shadow .3s}
+#lift .dial .mk.on b{color:#62b4ff; text-shadow:0 0 .4vh rgba(80,165,255,0.42)}
+#lift .dial .mk.on i{background:#62b4ff}
+#lift .dial .needle{position:absolute; left:calc(50% - .1vh); bottom:.35vh; width:.2vh; height:3.15vh; transform-origin:50% 100%;
+  background:linear-gradient(180deg,#bfe0ff,#3a8ae8); border-radius:.1vh .1vh 0 0; box-shadow:0 0 .35vh rgba(80,165,255,0.30);
+  transition:transform .7s cubic-bezier(.45,1.35,.5,1)}
+#lift .dial .hub{position:absolute; left:calc(50% - .55vh); bottom:-.2vh; width:1.1vh; height:1.1vh; border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#f2f3f4,#8d9094 70%); box-shadow:0 .08vh .15vh rgba(0,0,0,.6)}
+#lift .dial .tag{position:absolute; left:calc(100% + 1.4vh); top:50%; transform:translateY(-50%)}
+#lift .dial > .arrs{position:absolute; right:calc(100% + 1.4vh); top:50%; transform:translateY(-50%); padding:.7vh .75vh; border-radius:.2vh;
+  background:linear-gradient(180deg,#141516,#070708); box-shadow:inset 0 .12vh .25vh rgba(0,0,0,.9),0 0 0 .1vh rgba(0,0,0,.35),0 .08vh 0 rgba(255,255,255,.45)}
+#lift .dial .tag .nm{min-width:9.5vh; text-align:center; font:500 1.1vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:.3em; text-indent:.3em; text-transform:uppercase;
+  color:#62b4ff; text-shadow:0 0 .35vh rgba(80,165,255,0.35); padding:.75vh .8vh; border-radius:.2vh;
+  background:linear-gradient(180deg,#141516,#070708); box-shadow:inset 0 .12vh .25vh rgba(0,0,0,.9),0 0 0 .1vh rgba(0,0,0,.35),0 .08vh 0 rgba(255,255,255,.45)}
+#lift .dial .arrs{display:flex; flex-direction:column; gap:.5vh}
+#lift .dial .arrs .ar{background:rgba(255,255,255,.14)}
+#lift .dial .arrs .ar.on{background:#62b4ff}
+
+/* B — BAR: every floor engraved along one steel bar; current floor lit gold */
+#lift.ind-bar .hdr{left:calc(50% - 34vh); width:68vh}
+#lift .ind2.bar{gap:1.3vh; padding:0 1.4vh; height:3.6vh; border-radius:.3vh}
+#lift .bar .names{display:flex; align-items:center; gap:.4vh; height:2.5vh; padding:0 .4vh; border-radius:.15vh;
+  background:linear-gradient(180deg,#141516,#070708); box-shadow:inset 0 .15vh .3vh rgba(0,0,0,.9),0 .08vh 0 rgba(255,255,255,.45)}
+#lift .bar .nm{position:relative; font:500 .95vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:.24em; text-indent:.24em; text-transform:uppercase;
+  color:rgba(255,255,255,.26); padding:0 .9vh; transition:color .35s,text-shadow .35s}
+#lift .bar .nm + .nm::before{content:""; position:absolute; left:-.25vh; top:calc(50% - .1vh); width:.2vh; height:.2vh; border-radius:50%; background:rgba(255,255,255,.22)}
+#lift .bar .nm.on{color:#62b4ff; text-shadow:0 0 .35vh rgba(80,165,255,0.42),0 0 1vh rgba(80,165,255,0.17)}
+#lift .bar .ar{background:rgba(0,0,0,.35)}
+#lift .bar .ar.on{background:#62b4ff}
+
+/* C — ROLL: flush black-glass display, floor name rolls up/down like a departures board */
+#lift .ind2.roll{gap:1.4vh; height:4.8vh; padding:0 1.6vh; border-radius:.35vh;
+  background:linear-gradient(180deg,#18191b,#060607); box-shadow:0 .25vh .6vh rgba(0,0,0,.35),0 0 0 .12vh #8e9195,0 0 0 .22vh rgba(0,0,0,.4),inset 0 .1vh 0 rgba(255,255,255,.12)}
+#lift .ind2.roll::after{content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(170deg,rgba(255,255,255,.1),rgba(255,255,255,0) 40%)}
+#lift .roll .no{font:300 2.3vh/1 "Helvetica Neue",Helvetica,Arial,sans-serif; color:#62b4ff; text-shadow:0 0 .4vh rgba(80,165,255,0.35);
+  font-variant-numeric:tabular-nums; min-width:2.8vh; text-align:right}
+#lift .roll .sep{width:.1vh; height:2.6vh; background:rgba(255,255,255,.18)}
+#lift .roll .win{position:relative; height:2.4vh; width:15vh; overflow:hidden;
+  -webkit-mask:linear-gradient(180deg,transparent,#000 22%,#000 78%,transparent); mask:linear-gradient(180deg,transparent,#000 22%,#000 78%,transparent)}
+#lift .roll .col{position:absolute; left:0; right:0; top:0; transition:transform .5s cubic-bezier(.6,0,.25,1)}
+#lift .roll .col span{display:block; height:2.4vh; font:400 1.5vh/2.4vh "Helvetica Neue",Helvetica,Arial,sans-serif;
+  letter-spacing:.34em; text-transform:uppercase; color:#f5f7f9; text-shadow:0 0 .3vh rgba(255,255,255,.55)}
+#lift .roll .arrs{display:flex; flex-direction:column; gap:.45vh}
+
+/* ===================== SCREEN REALISM ===================== */
+/* LCD/LED panel behind the glass: backlight bleed (blacks aren't pure black), fine pixel grid, glass reflection on top */
+#lift .ind .scr{position:absolute; left:17.6%; width:64.8%; top:20.4%; height:59.4%; border-radius:.1vh; pointer-events:none;
+  background:radial-gradient(ellipse 70% 90% at 50% 45%,rgba(58,64,70,.32),rgba(20,22,24,.12) 70%,transparent);
+  opacity:calc(.75 + .25 * (1 - var(--c,0)))}
+#lift .ind .scr::after{content:""; position:absolute; inset:0; border-radius:inherit; opacity:.3;
+  background:repeating-linear-gradient(90deg,rgba(0,0,0,.35) 0 1px,transparent 1px 2px),repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 1px,transparent 1px 2px)}
+#lift .ind .refl{position:absolute; left:17.6%; width:64.8%; top:20.4%; height:59.4%; border-radius:.1vh; pointer-events:none; overflow:hidden; z-index:3;
+  box-shadow:inset 0 .1vh .25vh rgba(0,0,0,.85),inset 0 -.05vh 0 rgba(255,255,255,.08)}
+#lift .ind .refl::before{content:""; position:absolute; top:-60%; height:220%; width:38%; left:calc(18% + var(--rx,0) * 1%);
+  transform:rotate(18deg); background:linear-gradient(90deg,transparent,rgba(255,255,255,.07) 35%,rgba(255,255,255,.11) 50%,rgba(255,255,255,.04) 65%,transparent);
+  mix-blend-mode:screen}
+#lift .ind .refl::after{content:""; position:absolute; inset:0;
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0) 38%,rgba(255,255,255,0) 80%,rgba(255,255,255,.03)); mix-blend-mode:screen}
+/* text sits behind the glass: soft bloom, slight LCD lag when it changes */
+#lift .ind .digits{z-index:2; color:#e8edf1; text-shadow:0 0 .08vh rgba(255,255,255,.9),0 0 .5vh rgba(200,220,245,.28); transition:opacity .12s linear}
+#lift .ind .digits.swap{opacity:.15; transition:none}
+#lift .ind .lights{z-index:2}
+/* dot-matrix LED mode */
+#lift .ind .mtx{position:absolute; left:20%; width:60%; top:24%; height:37%; z-index:2; display:none}
+#lift.screen-matrix .ind .mtx{display:block}
+#lift.screen-matrix .ind .digits{display:none}
+/* direction arrows: frosted acrylic lenses set into the steel, backlit when travelling */
+#lift .ind .tri{clip-path:none !important; background:none !important; opacity:1 !important; animation:none !important; z-index:2;
+  top:35%; width:7.2%; height:30%;
+  filter:drop-shadow(0 .07vh 0 rgba(255,255,255,.65)) drop-shadow(0 -.05vh 0 rgba(0,0,0,.35));
+  transition:filter .18s ease-out}
+#lift .ind .tri.d{left:5.15%}
+#lift .ind .tri.u{left:87.65%}
+#lift .ind .tri::before,#lift .ind .tri::after{content:""; position:absolute; inset:0}
+#lift .ind .tri.u::before,#lift .ind .tri.u::after{clip-path:polygon(50% 0,100% 100%,0 100%)}
+#lift .ind .tri.d::before,#lift .ind .tri.d::after{clip-path:polygon(0 0,100% 0,50% 100%)}
+/* unlit: milky grey lens, darker toward the edges where it meets the steel */
+#lift .ind .tri::before{background:radial-gradient(ellipse 60% 55% at 50% 55%,#8d8f90,#6b6d6f 55%,#4c4e50 100%)}
+#lift .ind .tri.d::before{background:radial-gradient(ellipse 60% 55% at 50% 40%,#8d8f90,#6b6d6f 55%,#4c4e50 100%)}
+/* lit: hot white-gold core falling off to amber at the edges */
+#lift .ind .tri::after{opacity:0; transition:opacity .18s ease-out;
+  background:radial-gradient(ellipse 55% 50% at 50% 62%,#a8d2ff 0%,#7fbcff 35%,#4f9df0 70%,#2a6fc8 100%)}
+#lift .ind .tri.d::after{background:radial-gradient(ellipse 55% 50% at 50% 38%,#a8d2ff 0%,#7fbcff 35%,#4f9df0 70%,#2a6fc8 100%)}
+#lift .ind .tri.on::after{opacity:1}
+/* halo the lens throws onto the brushed steel */
+#lift .ind .tri.on{filter:drop-shadow(0 0 .12vh rgba(205,232,255,0.47)) drop-shadow(0 0 .55vh rgba(90,170,255,0.35)) drop-shadow(0 0 1.4vh rgba(50,135,240,0.17))}
+#lift.moving .ind .tri.on::after{animation:arrowHum 2.4s ease-in-out infinite}
+@keyframes arrowHum{0%,100%{opacity:1}50%{opacity:.9}}
+</style>
+
+<style>
+/* ===== 2D version re-skinned with artwork rendered from the 3D lift ===== */
+#lift{--hdr-h:12.4vh; --dark-amt:.06}
+#lift .cab{filter:none}
+#lift .door{filter:none !important}
+#lift .door::before{width:.5vh !important; background:linear-gradient(90deg,#121214,#2a2b2e 45%,#0c0c0d) !important; box-shadow:none !important}
+/* the reflection is one picture pinned to the doorway; each door's steel slides through it */
+#lift .door .dsk{box-shadow:none !important; background:none !important}
+#lift .door{background:#8f8a80 !important}
+#lift .door .dsk{display:block !important}
+#lift .door .dsk > i{mix-blend-mode:normal !important; opacity:1 !important; background:url(../assets/2d/door-refl.webp) center/cover no-repeat !important; will-change:transform}
+/* the steel's grain and marks are a transparent overlay (no blend modes: cheap to move) */
+#lift .door .dsk::after{content:""; position:absolute; inset:0; pointer-events:none}
+#lift .door.l .dsk::after{background:url(../assets/2d/door-l-steel.webp) right center/cover no-repeat}
+#lift .door.r .dsk::after{background:url(../assets/2d/door-r-steel.webp) left center/cover no-repeat}
+/* performance: no full-screen filter pass, and the sliding scene stays on its own layer */
+#lift .cab{filter:none !important}
+#lift.alarm .cab{filter:brightness(.7) !important}
+#lift .room,#lift .flat{will-change:transform}
+#lift .dim{will-change:opacity}
+#lift.ride .door .dsk > i{transition:transform var(--door-ms) cubic-bezier(.6,0,.3,1)}
+#lift.rm .door .dsk > i{transition:none}                 /* reflections, wipe marks and the safety edge are in the door images */
+#lift .door.l{box-shadow:none} #lift .door.r{box-shadow:none}
+#lift .door::after{background:linear-gradient(180deg,#2b2c2e,#3a3b3d 40%,#1f2021)}
+#lift .shade{box-shadow:inset 2.2vh 0 2.6vh -1.5vh rgba(0,0,0,.4),inset -2.2vh 0 2.6vh -1.5vh rgba(0,0,0,.4)}   /* the header's shadow is already in the doors */
+#lift .landing{background:linear-gradient(180deg,#0a0a0b 0,#151617 1.2vh,transparent 5vh)}
+#lift .lightfx{opacity:.25}
+#lift .wood{background-color:#b8a07c !important}
+/* gunmetal door frame; the header over the doors is the rendered brushed steel */
+#lift .trim{background:linear-gradient(90deg,#1c1d1f,#55585c 35%,#3a3c40 60%,#17181a)}
+#lift .trim.r{background:linear-gradient(90deg,#17181a,#3a3c40 40%,#55585c 65%,#1c1d1f)}
+#lift .trim.t{top:calc(var(--hp,13vh) - 3.7vh); height:3.7vh; background:url(../assets/2d/header.webp) center/100% 100% no-repeat; box-shadow:0 .5vh .9vh rgba(0,0,0,.45)}
+#lift .jamb::after{background:#050505}
+#lift .hdr{padding-bottom:3.7vh}   /* the indicator sits in the wood above the steel header */
+/* indicator: the rendered plate, with the live LEDs laid into its glass */
+#lift .ind{width:var(--ind-w,27vh) !important; aspect-ratio:1637/322 !important; border-radius:.35vh; box-shadow:0 .5vh .9vh rgba(0,0,0,.4),0 0 0 .12vh rgba(0,0,0,.5) !important}
+#lift .ind .scr,#lift .ind .refl{left:8%; width:84%; top:17%; height:66%}
+#lift .ind .mtx{left:16%; width:68%; top:21%; height:42%}
+#lift .ind .digits{left:16%; width:68%; top:21%; height:42%}
+#lift .tri{background:rgba(255,255,255,.07); filter:none}
+#lift .tri.on{background:#d6e6f4; filter:drop-shadow(0 0 .35vh rgba(200,228,255,.75))}
+#lift .tri.d{left:10%; top:33%; width:3%; height:24%}
+#lift .tri.u{left:87%; top:33%; width:3%; height:24%}
+#lift .lights{left:26%; width:48%; top:69%; height:10%; gap:5%}
+#lift .lamp{height:60%; background:rgba(40,120,170,.22); box-shadow:none}
+#lift .lamp.on{background:#2aa6ee; box-shadow:0 0 .45vh rgba(0,125,186,.9)}
+/* ----- screens and button panel in the 3D lift's design ----- */
+#lift .ind .mtx{left:6.9% !important; width:86.2% !important; top:13.5% !important; height:73% !important; display:block !important; z-index:2}
+#lift .ind .digits,#lift .ind .tri,#lift .ind .lights,#lift .ind .scr,#lift .ind .refl{display:none !important}
+#lift .panel{display:block !important; padding:0 !important; width:var(--panel-w,26vh); aspect-ratio:886/1883; border-radius:.3vh; transform:translateY(-63%) !important;
+  background:url(../assets/2d/panel-plate.webp) center/100% 100% no-repeat !important; box-shadow:0 .7vh 1.6vh rgba(0,0,0,.42),0 0 0 .1vh rgba(0,0,0,.35) !important}
+#lift .panel .screw{display:none}
+#lift .panel .fns{display:contents}
+#lift .panel{container-type:inline-size}
+#lift .panel::before{content:""; position:absolute; left:6.5%; right:6.5%; top:74.8%; height:0; border-top:1px solid rgba(40,30,15,.38); border-bottom:1px solid rgba(255,250,235,.4); pointer-events:none}
+#lift .panel .btn{position:absolute !important; width:17%; aspect-ratio:1; height:auto; padding:0; margin:0; display:block; border-radius:50%; transform:translate(-50%,-50%); background:none; cursor:pointer; overflow:visible}
+#lift .panel .btn.fnb{width:15.5%}
+/* collar: turned steel ring let into the plate, lit from above */
+#lift .panel .btn .cap{position:absolute; inset:0; width:auto; height:auto; border-radius:50%; opacity:1; pointer-events:none;
+  background:conic-gradient(from 0deg,#f6f1e6,#a79d8c 12%,#e9e2d3 25%,#8d8475 39%,#d9d1c1 50%,#8a8172 62%,#e6dfd0 75%,#a39988 88%,#f6f1e6);
+  box-shadow:0 .9cqw 1.3cqw rgba(30,20,8,.5),0 .2cqw .3cqw rgba(30,20,8,.55),inset 0 .25cqw .2cqw rgba(255,255,255,.85),inset 0 -.3cqw .4cqw rgba(40,30,15,.45) !important}
+/* light ring: dark groove when off, ANZ blue when lit */
+#lift .panel .btn .cap::before{content:""; position:absolute; inset:11.5%; border-radius:50%; filter:none !important; transform:none !important;
+  background:#11161a; box-shadow:inset 0 .35cqw .5cqw rgba(0,0,0,.9),inset 0 -.15cqw .2cqw rgba(255,255,255,.12); transition:background .2s, box-shadow .2s}
+/* the cap you press: satin, slightly domed, engraved numeral */
+#lift .panel .btn .ico{position:absolute; inset:19%; border-radius:50%; display:grid; place-items:center; z-index:1;
+  background:radial-gradient(circle at 50% 22%,#fbf8f0 0,#e4ddce 38%,#c2b8a5 78%,#a89e8b 100%);
+  box-shadow:inset 0 .3cqw .25cqw rgba(255,255,255,.95),inset 0 -.6cqw .9cqw rgba(60,45,20,.28),0 .35cqw .5cqw rgba(0,0,0,.65); transition:transform .08s, box-shadow .08s, background .2s}
+#lift .panel .btn .num-cap{font:600 5.4cqw/1 "Helvetica Neue",Helvetica,Arial,sans-serif !important; letter-spacing:-.02em !important; color:#23201b !important; text-shadow:0 .12cqw 0 rgba(255,255,255,.75) !important; animation:none !important}
+#lift .panel .btn.fn .ico svg{width:5.6cqw !important; height:5.6cqw !important; stroke:#23201b !important; stroke-width:2.2; filter:drop-shadow(0 .12cqw 0 rgba(255,255,255,.7)) !important}
+#lift .panel .btn .lbl{position:absolute; left:50%; top:112%; transform:translateX(-50%); min-width:0; white-space:nowrap; opacity:1; pointer-events:none;
+  font:600 2.75cqw/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:.16em; text-indent:.16em; color:#3a3024; text-shadow:0 .1cqw 0 rgba(255,248,230,.55)}
+#lift .panel .btn.ph .lbl{color:#6f6453}
+#lift .panel .btn:active .ico{transform:scale(.955); box-shadow:inset 0 .3cqw .25cqw rgba(255,255,255,.8),inset 0 -.6cqw .9cqw rgba(60,45,20,.34),0 .1cqw .2cqw rgba(0,0,0,.7)}
+#lift .panel .btn.here .cap::before,#lift .panel .btn.lit .cap::before,#lift .panel .btn.on .cap::before{background:radial-gradient(circle,#dff4ff 0 58%,#58c4f7 70%,#0f9be0 100%); box-shadow:0 0 1.6cqw rgba(30,160,235,.95),0 0 4.5cqw rgba(0,125,186,.6)}
+#lift .panel .btn.here .ico{background:radial-gradient(circle at 50% 30%,#f4fbff 0,#cfeafa 45%,#9fd2f0 100%); box-shadow:inset 0 .3cqw .25cqw rgba(255,255,255,.95),inset 0 -.5cqw .8cqw rgba(0,90,140,.25),0 .2cqw .4cqw rgba(0,40,70,.5),0 0 2.2cqw rgba(60,175,240,.55)}
+#lift .panel .btn.lit .cap::before{animation:liftRing .9s ease-in-out infinite}
+@keyframes liftRing{50%{box-shadow:0 0 2.4cqw rgba(30,160,235,1),0 0 7cqw rgba(0,125,186,.8)}}
+#lift .panel .btn[aria-label="alarm"].on .cap::before{background:radial-gradient(circle,#ffe3de 0 58%,#ff6a55 70%,#e52a14 100%); box-shadow:0 0 1.6cqw rgba(255,60,35,.95),0 0 4.5cqw rgba(230,40,20,.6)}
+#lift .panel .btn:focus-visible .cap{outline:.5cqw solid #fff; outline-offset:.8cqw}
+/* --- richer buttons: spun-metal caps whose highlight swings round on hover, ring wakes up, cap lifts --- */
+@property --sheen{syntax:'<angle>'; inherits:true; initial-value:0deg}
+@property --ring{syntax:'<number>'; inherits:true; initial-value:0}
+#lift .panel .btn{--sheen:0deg; --ring:0; transition:--sheen .7s cubic-bezier(.2,.8,.2,1), --ring .35s ease}
+#lift .panel .btn .cap{background:conic-gradient(from var(--sheen),#fbf7ee,#a39988 11%,#ece5d6 25%,#857c6d 38%,#ddd5c5 50%,#857c6d 62%,#ece5d6 75%,#a39988 89%,#fbf7ee) !important}
+#lift .panel .btn .cap::after{content:""; position:absolute; inset:8.5%; border-radius:50%; box-shadow:inset 0 0 0 .18cqw rgba(40,30,15,.55),inset 0 .5cqw .6cqw rgba(0,0,0,.45); pointer-events:none}
+#lift .panel .btn .ico{isolation:isolate; transition:transform .08s ease-out, box-shadow .08s ease-out !important}
+#lift .panel .btn .ico::after{content:""; position:absolute; inset:0; border-radius:50%; z-index:-1; pointer-events:none;
+  background:conic-gradient(from calc(var(--sheen) - 20deg),rgba(255,255,255,.75),rgba(255,255,255,0) 13%,rgba(60,45,20,.12) 25%,rgba(255,255,255,0) 37%,rgba(255,255,255,.55) 50%,rgba(255,255,255,0) 63%,rgba(60,45,20,.12) 75%,rgba(255,255,255,0) 87%,rgba(255,255,255,.75));
+  box-shadow:inset 0 0 0 .14cqw rgba(255,255,255,.5),inset 0 0 0 .3cqw rgba(60,45,20,.14)}
+#lift .panel .btn .num-cap{font-size:5.7cqw !important}
+#lift .panel .btn:hover .ico{transform:translateY(.08cqw) scale(.975); box-shadow:inset 0 .3cqw .25cqw rgba(255,255,255,.9),inset 0 -.6cqw .9cqw rgba(60,45,20,.3),0 .18cqw .28cqw rgba(0,0,0,.68)}
+#lift .panel .btn:active .ico{transform:translateY(.1cqw) scale(.95) !important; transition-duration:.06s !important}
+#lift .panel .btn .lbl{transition:color .25s, letter-spacing .35s cubic-bezier(.2,.8,.2,1), text-indent .35s}
+@keyframes liftPress{
+  0%{transform:translateY(.08cqw) scale(.975)}
+  32%{transform:translateY(.28cqw) scale(.9); box-shadow:inset 0 .5cqw .7cqw rgba(60,45,20,.38),inset 0 -.3cqw .5cqw rgba(60,45,20,.3),0 0 .1cqw rgba(0,0,0,.8)}
+  55%{transform:translateY(.28cqw) scale(.9); box-shadow:inset 0 .5cqw .7cqw rgba(60,45,20,.38),inset 0 -.3cqw .5cqw rgba(60,45,20,.3),0 0 .1cqw rgba(0,0,0,.8)}
+  82%{transform:translateY(-.05cqw) scale(1.012)}
+  100%{transform:translateY(.08cqw) scale(.975)}}
+#lift .panel .btn.press .ico{animation:liftPress .26s cubic-bezier(.3,.7,.3,1) !important}
+#lift .panel .btn:active .ico{transform:translateY(.28cqw) scale(.9) !important}
+@media (prefers-reduced-motion:reduce){#lift .panel .btn,#lift .panel .btn .ico,#lift .panel .btn .lbl{transition:none !important}}
+/* --- door frame: satin stainless header and jambs with a bright chamfer and a dark return --- */
+#lift .trim{filter:none !important; z-index:4}
+#lift{--tw:max(3.2vh,19px); --th:4.7vh}
+#lift .trim.l{left:calc(var(--s,5%) - var(--tw)) !important; width:var(--tw) !important}
+#lift .trim.r{width:var(--tw) !important}
+#lift .trim.t{left:calc(var(--s,5%) - var(--tw)) !important; width:calc(100% - 2 * var(--s,5%) + 2 * var(--tw)) !important}
+#lift .jamb{filter:none !important}
+#lift .jamb.l{background:linear-gradient(90deg,#7b7e81,#4f5254 45%,#232426 80%,#0d0d0e) !important}
+#lift .jamb.r{background:linear-gradient(270deg,#7b7e81,#4f5254 45%,#232426 80%,#0d0d0e) !important}
+/* real brushed grain + hairline scratches laid over the lighting; light comes from above */
+#lift .trim.l,#lift .trim.r{background-blend-mode:normal,screen,overlay,normal !important; background-size:auto,46vh 46vh,24vh 24vh,auto !important; background-repeat:no-repeat,repeat,repeat,no-repeat !important}
+#lift .trim.l{background-image:linear-gradient(180deg,rgba(255,255,255,.1),rgba(0,0,0,0) 22%,rgba(0,0,0,.1) 60%,rgba(0,0,0,.3)),url(../assets/2d/scratch.webp),url(../assets/2d/grain-v.webp),
+    linear-gradient(90deg,#4a4d50 0,#aeb1b3 5%,#f2f3f3 11%,#d6d8d9 24%,#c3c6c8 52%,#a7aaad 78%,#84878a 88%,#2c2d2f 93%,#0a0a0a 97%,#000) !important;
+  box-shadow:-.15vh 0 .5vh rgba(0,0,0,.3),.5vh 0 1.2vh rgba(0,0,0,.4) !important}
+#lift .trim.r{background-image:linear-gradient(180deg,rgba(255,255,255,.1),rgba(0,0,0,0) 22%,rgba(0,0,0,.1) 60%,rgba(0,0,0,.3)),url(../assets/2d/scratch.webp),url(../assets/2d/grain-v.webp),
+    linear-gradient(270deg,#4a4d50 0,#aeb1b3 5%,#f2f3f3 11%,#d6d8d9 24%,#c3c6c8 52%,#a7aaad 78%,#84878a 88%,#2c2d2f 93%,#0a0a0a 97%,#000) !important;
+  box-shadow:.15vh 0 .5vh rgba(0,0,0,.3),-.5vh 0 1.2vh rgba(0,0,0,.4) !important}
+#lift .hdr{padding-bottom:var(--th) !important}
+#lift .trim.t{top:calc(var(--hp,13vh) - var(--th)) !important; height:var(--th) !important;
+  background-image:
+    linear-gradient(180deg,rgba(255,255,255,.85) 0,rgba(255,255,255,0) 5%,rgba(255,255,255,0) 60%,rgba(0,0,0,.16) 100%),
+    linear-gradient(90deg,rgba(0,0,0,.24),rgba(255,255,255,.12) 20%,rgba(0,0,0,.06) 47%,rgba(255,255,255,.14) 72%,rgba(0,0,0,.26)),
+    url(../assets/2d/scratch.webp),url(../assets/2d/grain-h.webp),
+    linear-gradient(180deg,#e1e3e4,#c6c9cb 42%,#a2a5a8) !important;
+  background-blend-mode:normal,normal,screen,overlay,normal !important; background-size:auto,auto,52vh 52vh,24vh 24vh,auto !important; background-repeat:no-repeat,no-repeat,repeat,repeat,no-repeat !important;
+  box-shadow:0 1vh 1.8vh rgba(0,0,0,.4),0 -.12vh 0 rgba(0,0,0,.35) !important}
+/* plates: same grain and scratches, a bevelled edge that catches the top light, tighter contact shadow */
+#lift .panel{background-image:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 30%,rgba(0,0,0,.05) 70%,rgba(0,0,0,.2)),url(../assets/2d/panel-plate.webp) !important;
+  background-blend-mode:normal !important; background-size:100% 100% !important; background-repeat:no-repeat !important;
+  box-shadow:0 1.1vh 2.2vh rgba(0,0,0,.42),0 .25vh .45vh rgba(0,0,0,.55),0 0 0 .08vh rgba(30,22,10,.6),inset 0 .16vh 0 rgba(255,252,240,.85),inset .12vh 0 0 rgba(255,252,240,.35),inset 0 -.16vh 0 rgba(40,28,10,.5),inset -.12vh 0 0 rgba(40,28,10,.3) !important}
+#lift .panel::after{display:none !important}
+#lift .ind{background-image:url(../assets/2d/scratch.webp),var(--ind-img) !important; background-blend-mode:screen,normal !important; background-size:70% auto,100% 100% !important; background-repeat:repeat,no-repeat !important;
+  box-shadow:0 .7vh 1.2vh rgba(0,0,0,.42),0 .15vh .3vh rgba(0,0,0,.55),0 0 0 .08vh rgba(0,0,0,.55),inset 0 .12vh 0 rgba(255,255,255,.7),inset 0 -.12vh 0 rgba(0,0,0,.4) !important}
+#lift .panel .pscr{position:absolute; left:29%; width:42.6%; top:3.5%; height:10.1%; border-radius:.15vh; pointer-events:none}
+</style>
+
+<script>
+(() => {
+  /* ===== CONFIG ===== */
+  const CFG = {
+    // Floors stack into one continuous scrolling page. Each floor is at least one screen tall.
+    floors: [
+      { n:'Intro', bg:'#0b2a47', img:'', hero:'../assets/anz/intro-hero.webp', ambience:'', html:`
+        <h1>Intro</h1><p>The Small Scraper is a metaphor we need right now.</p><p>While it’s a vibrant representation of ANZ’s backing of small business, it’s also a celebration of the people and their enterprises that make Australia thrive. Day in, day out, people are out there driving their communities forward. They’re dreaming up ideas and experiences and services so that the world we all live in is more colourful, convenient, crafty and awe-inspiring.</p><div class="ph"></div><p>You can get a taste of all the people working hard and making it work by strolling up a high street or perusing a Neighbourhood What’s On Facebook page. Yet it’s rare to actually see the diversity of businesses backed by the same bank all together. This is an incredible feel-good visual reminder of who makes up the backbone of our societies, whether they’re a logistics company or an escape room.</p><p>We’re launching ANZ back into the limelight yet subtly. Putting the spotlight onto the myriad of people backed by ANZ rather than the bank itself. It’s beautiful, it’s playful, and the best way to show who to trust is to show the people who trust in ANZ.</p><div class="ph"></div>` },
+      { n:'Approach', bg:'#12456e', img:'', ambience:'', html:`
+        <h1>Approach</h1><p>No small business is the same. Each one is dreamt up to serve a unique community, shaped by the people who live there and the lives they’ve built.</p><p>So my approach is all about keeping the individual character of every business. Rather than custom fitting each one into a set dressed to look like a floor of a building, we meet real businesses where they’re at and shoot them on site, IRL, in their actual workplaces. When many businesses come together with their own flair they form a village, and here they become the building blocks of the ANZ Smallscraper.</p><div class="ph"></div><p>Our lift is the constant. We build it once, beautifully, in the studio, and every business is captured on location as a background plate, matched to the lift’s lens, height and light. In post, the two are married seamlessly, so the doors open onto a real fabric merchant, a real logistics centre, a real lush garden being tended by landscapers. Then, when we pull wide, the skyscraper is designed to look as if all of these businesses are stacked on top of one another. Some small, some big, each unique, fitting together to form one building.</p><p>Real doesn’t mean untouched. Every location becomes a canvas for our art department, who will layer in the detail that makes a space feel unmistakably lived in. More bolts of colour stacked to the ceiling in the fabric merchant. Handwritten labels, pinned invoices and a radio on the shelf at the logistics centre. Overflowing planters, stacked pavers and muddy boots by the shed on the rooftop. We heighten what’s already there, amplifying each owner’s personality so every frame rewards a second look, without ever losing the truth of the place.</p><div class="ph"></div><p>ANZ, more than any of the other big four, is known as the go to for small business. This approach reflects ANZ as a pillar of support that lets businesses flourish without asking them to bend to a rigid way of working or fit a one size fits all box. Small businesses thrive on trust, their one of a kindness and the freedom to serve their own communities. This is a visual approach that reflects that.</p><p>It’s important to say this isn’t a whimsical jaunt through quirky businesses. It should feel like we’re moving through the engine room of contemporary Australian business, with upbeat, driving momentum. People feel as though they’re playing themselves, not a performed version. The humour is played straight, never played up. The wonder of the world building does the heavy lifting, so we can simply witness these business owners doing what they do best.</p><div class="ph"></div>` },
+      { n:'The Businesses', bg:'#0d3557', img:'', ambience:'', html:`
+        <h1>The Businesses</h1><p>The kinds of businesses on each floor are locked, but the specific businesses aren’t. Small business is endlessly surprising, and the best version of this film will come from what we find, not what we imagine at a desk. So we’ll go into scouting with a clear brief for each floor and cast the net wide within it, holding our ideas loosely enough to recognise gold when we walk into it. Each floor has a job to do in the story. As long as the business we choose does that job, the idea keeps its integrity.</p><div class="ph"></div><h2>Ground Floor: ANZ Branch</h2><p>Where it all begins. Ideally we shoot this on location in a real, working ANZ branch, so the familiar cues do the work instantly: the signage, the blue, the tellers, the customers coming and going. The doors open, Sally is standing there with the branch busy behind her, and in one frame the audience knows exactly where they are and who this is from. It’s the anchor of the whole building, so it should feel solid, warm and modern, the new ANZ, not the old one.</p><div class="ph"></div><h2>Floor 7: The Makers</h2><p>Our first stop is a business built by hand. The brief calls for a fabric merchant, and that remains a strong option, but this floor could be home to any bespoke artisan or design business: a ceramicist, a surfboard shaper, a furniture maker, a textile printer, a glass blower, a luthier. What matters is that it’s handmade, owner operated, full of character and gives us something to carry. A bolt of silk, a freshly glassed board, a hand turned chair. That object rides with us up the building, and it’s how we show these businesses feeding one another. Modern makers, not museum pieces: natural materials, beautiful light, the kind of workshop that has a waiting list and a great Instagram.</p><div class="ph"></div><h2>Floor 25: The Wild Card</h2><p>The floor nobody sees coming. Something unexpected that speaks to the spirit of the startup, a business that only exists because someone had a slightly mad idea and backed themselves. This is our comedy floor, but the laugh comes from the setting, never from the performance. Everyone treats it like any other Monday.</p><p>The trick is the passenger. Whoever gets off at this floor has been riding with Sally since the branch: an escape room employee dressed as a cyborg, a kid clutching a violin case, a woman in activewear ready for her spin class. They’re there to spark a little intrigue and quietly tease what’s coming. The audience clocks them early, wonders where on earth they’re headed, and gets the answer the moment the doors open.</p><p>A few options we love:</p><ul><li><b>Escape room.</b> A neon lit reception, haze across the floor, a sign blazing ESCAPE 2099. The cyborg steps out to a casual “Morning, Ed.” “Morning, Trish.”</li><li><b>Indoor play centre.</b> A cavernous fun house of slides and ball pits, a birthday party in full swing, and a cape wearing party entertainer stepping out to a hero’s welcome.</li><li><b>Spin class.</b> Techno pounding, coloured light, a room of riders mid sprint. The loudest few frames in the film, as the woman in activewear jogs out to the last empty bike.</li><li><b>Violin studio.</b> A small, bright room, a teacher waiting with her own bow raised. The kid steps out, and moments later the first scratchy note finally lands. It’s the lift melody, a lovely musical bridge into the roof.</li></ul><div class="ph"></div><h2>Floor 45: Logistics</h2><p>This one is cemented, and for good reason. A vast warehouse bustling with forklifts, conveyors and people in hi vis, forty five floors up a tower, is a striking image on its own. It’s also where our story pays off: the object from the makers’ floor is handed over, wrapped, boxed and labelled before the doors close. One small business shipping another’s work to the world. The size, scale and layout of the centre are open, and we’ll let the best real space decide. The bigger and busier it feels, the harder the scale gag lands.</p><div class="ph"></div><h2>Top Floor: The Landscapers</h2><p>The perfect place to arrive is out in the open. The doors open, the lift music falls away, and there’s wind, birdsong and sky. On the roof of our building is an undulating garden: native grasses, gum trees, sculpted beds, a crew of landscapers mid job. Sally slips off her heels and walks up the hill to meet the landscaper, and behind them a goat, the crew’s lawnmower, wanders into the empty lift. Other businesses could take this floor just as beautifully, a sprawling greenhouse nursery or a rooftop beekeeping farm, but whatever we find, it should feel like a breath of fresh air at the top of the climb, and the most natural place in the world to finish a meeting.</p><div class="ph"></div>` },
+      { n:'The Lift', bg:'#16293a', img:'', ambience:'', html:`
+        <h1>The Lift</h1><p>The lift is our constant, the room every scene begins and ends in. It should feel like one you’ve stood in a hundred times: an everyday modern lift, warm timber veneer above, a darker band below, brushed steel trims. Clean, symmetrical and quietly handsome.</p><p>ANZ lives in the details. A soft blue halo on each lit button, blue numbers in the indicator above the doors, a fine blue line along the handrail. Noticed on a second look, present in every frame.</p><p>No mirrors. They double the crew, complicate the comp and make a space feel cold. Timber and steel keep it warm, lit by a soft overhead glow, so every time the doors open the new world lands in full colour by contrast.</p><div class="ph"></div><h2>The Panel</h2><p>The first joke in the film. A tall column of brushed steel buttons, just high enough that Sally has to rise onto her toes for the top floor. Beside each, a backlit name plate: Florists. Barbers. Bookkeepers. Virtual Assistants. Beekeepers. Electricians. Dozens of them, common and comically niche. In one close up, the audience gets the whole idea: every floor is a small business. A few buttons are already lit, quietly setting up the stops to come.</p><div class="ph"></div><h2>The Doors and the Ding</h2><p>The doors are our curtain, framing every reveal, their rhythm becoming the rhythm of the edit. The ding punctuates every cut and doubles as the first note of our score, turning the lift itself into an instrument.</p><div class="ph"></div>` },
+      { n:'The Smallscraper', bg:'#0f3d63', img:'', ambience:'', html:`
+        <h1>The Smallscraper</h1><p>While the interiors will be determined by what we find, we can get more imaginative when designing the building blocks that stack together to form the tower. I’m imagining something like this:</p><p>Every block is its own building, with its own history. A red brick warehouse with a sawtooth roof. A corrugated iron workshop. A shipping container office. An art deco corner shop. A sandstone shopfront with an ornate parapet. A steel and glass studio. A glasshouse. A food van, wedged in mid tower as if it simply drove up there and parked. Each one carries the materials, scars and personality of the business inside it, and together they read like a whole high street turned on its end.</p><p>Wherever we can, these blocks will be drawn from the real places we shoot. The fabric merchant’s facade, the logistics centre’s roller doors, the escape room’s neon glow. So when we pull back at the end, the floors we’ve just visited are right there in the building, and the audience can spot them.</p><div class="ph"></div><p>The stacking is deliberate, never chaotic. Blocks step out and tuck back in, some overhang the floor below, some sit slightly off the grid, giving the tower a lively, irregular silhouette. But it never leans or teeters. It should feel calm, confident and effortlessly balanced, as if nothing about it is unusual. A building that shouldn’t stand, standing perfectly still.</p><p>At the base sits the ANZ branch: the widest, most grounded block in the tower, clean, modern and unmistakably blue, quietly holding everything above it. It’s the only branded building in the frame, and the one everything else rests on.</p><p>At the top, the landscapers’ garden crowns the tower. A gentle grassy hill rises from the roof, with native grasses, gum trees, a shed and a water tank, so even from the street we can see life up there. It’s the punctuation mark on the skyline.</p><div class="ph"></div><p>Every window is alive. People working, light glowing, colour spilling out: purple neon, warm timber, the red glow of the escape room, the green of a nursery. The tower should feel inhabited from top to bottom, a vertical village humming with activity.</p><p>The setting matters too. Our tower stands on an ordinary Australian street corner, surrounded by heritage shopfronts, everyday office blocks and traffic going about its day. Nobody on the street looks up. The more normal the world around it, the more extraordinary the building feels.</p><p>The overall effect should be crafted, cohesive and warm. There are touches of whimsy, a van parked forty floors up, a hill on the roof, but this should feel modern and grounded rather than storybook. Not a fantasy castle. A real building that just happens to be made of a hundred real businesses.</p><div class="ph"></div>` },
+      { n:'ANZ Energy', bg:'#16324a', img:'', ambience:'', html:`
+        <h1>ANZ Energy</h1><p>Effortless and upbeat, this campaign is one fluid elevator ride from the ground floor to the top. Characters flow in and out and around each other, everyone moving like smooth clockwork as we catch them on a regular day at HQ. I want this to feel cool and elegant at the same time as awe-inspiring and buzzing with energy.</p><p>The dynamic atmosphere is crafted through camera, character and design, but also through our choice of music. I want something rhythmic and resonant, a track to really tap into a contemporary groove. Sound design weaves effortlessly through the melody, the cacophony of floors and voices making this building feel truly lived in, elevator dings punctuate cuts with diegetic percussion. This is the sound of a modern village in sync.</p><div class="ph"></div><p>While writing this, I couldn’t get Sade’s Smooth Operator out of my head. It’s both steady and pulsing. It instills a feeling of laid-back and calm confidence while nods at the story with a sly sense of humour. Just something to think about as you’re reading the script.</p><div class="ph"></div>` },
+      { n:'Script', bg:'#102f4d', img:'', ambience:'', html:`
+        <h1>Script</h1><p>Placeholder script. Lorem ipsum stands in until the real one is ready.</p><div class="ph"></div><h2>1. INT. LOREM IPSUM — DAY</h2><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p><p class="dlg"><b>LOREM</b>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p><p class="dlg"><b>IPSUM</b>Dolor sit amet.</p><div class="ph"></div><h2>2. INT. DOLOR SIT — CONTINUOUS</h2><p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p><p class="dlg"><b>LOREM</b>Consectetur adipiscing elit?</p><p class="dlg"><b>AMET</b>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit.</p><p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p><div class="ph"></div><h2>3. INT. CONSECTETUR — LATER</h2><p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p><p class="dlg"><b>IPSUM</b>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p><div class="ph"></div><h2>4. INT. ADIPISCING ELIT — DAY</h2><p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p><p class="dlg"><b>AMET</b>Sed do eiusmod.</p><p class="dlg"><b>LOREM</b>Tempor incididunt.</p><div class="ph"></div><h2>5. EXT. MAGNA ALIQUA — DAY</h2><p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p><p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p><p class="dlg"><b>SUPER</b>Lorem ipsum dolor sit amet.</p><div class="ph"></div>` },
+      { n:'Casting', bg:'#0a2540', img:'', ambience:'', html:`
+        <h1>Casting</h1><p>People and businesses that feel found, grounded, authentic.</p><p>Feeling genuine doesn’t mean we lose the freshness of modernity. No way. The people we’re after are building businesses right now in 2026. So they should look and feel contemporary, but not in the way art direction dresses people up to look smoother and more aspirational than they are. Truth comes from the genuine smile lines around someone’s eyes and the ease with which they wear their uniforms.</p><div class="ph"></div><p>I’m not saying our approach is entirely street casting. Most actors have worn many hats and lived a lot of past lives. Let’s find people who look just like that: people. Wrinkles, a little bit of weirdness and all.</p><p>For the ANZ rep, I see her as affable, friendly and approachable. She’s a real person outside of work and probably has a unique hobby that she doesn’t talk about at work, like going to Medieval Fairs with her friends for a laugh. She should exude calm and warmth, like an old friend, rather than feeling like she’s been plucked out of a casting studio.</p><div class="ph"></div>` },
+      { n:'Camera', bg:'#184a73', img:'', ambience:'', html:`
+        <h1>Camera</h1><p>We’re peeking through the window into a beautiful miscellany of worlds that we never get to see all in one place. So the cinematography supports the simplicity of the story and emphasises the visual richness of each business without overcomplicating things.</p><p>Each scene is a thoughtfully blocked tableaux that of a workplace in full-swing. Performers move through the space in a way which draws our eyes to intricate details. The spaces themselves are warm, vibrant, and art-directed with colour in mind. I’m after sets that are full of life and energy, not the usual steely blue-grey palette of a lot of bank spots.</p><div class="ph"></div><p>While the camera is still for the most part when looking out of and into the elevator, I want to immerse the viewers in a couple of the scenes. Sometimes we’re taken out of the lift and into the scene to see the doors open and a worker step out, making workplaces feel tangible and tactile.</p><div class="ph"></div>` },
+      { n:'Outro', bg:'#0a1f33', img:'', ambience:'', html:`
+        <h1>Outro</h1><p>There’s that saying that no man is an island.</p><p>I think we can extend that to businesses too. They don’t erupt from the water fully formed and raring to go. They take time to build, patience to go the distance, and a whole lot of support. Like most hard and beautiful things, it’s always comforting to look around and see that there are many people just like you, in the exact same position. People committed to their livelihood and bringing out their innate gifts and skills into the world.</p><div class="ph"></div><p>All these island together, well, in this case they make up a sky-scraper rather than an archipelago. This metaphor is losing steam but this idea isn’t! I love that ANZ is zooming out to see the bigger picture of the work they do and heroing the collective ingenuity of small and medium businesses.</p><p>Thanks for having me on to pitch. Now let’s go build an elevator inside an ice cream van.</p><p>Alex</p>` },
+    ],
+    headerImg: '',         // indicator housing plate (wide strip, blank display window in the centre)
+    frameImg: '',          // optional overlay above the doors (reflections/grime), transparent PNG
+    doorL: '',
+    doorR: '',
+    wallTex: '../assets/2d/wall.webp',      // wood-veneer wall (tiles left↔right)
+    indicatorImg: '../assets/2d/indicator.webp',  // photo of the indicator plate (4:1, blank glass window)
+    plateImg: '',          // (modern theme: glass panel drawn in code)
+    indicator: 'classic',     // level screen: 'dial' (needle) | 'bar' (all floors, current lit) | 'roll' (rolling name) | 'classic'
+    screen: 'matrix',       // level screen text: 'lcd' (backlit type behind glass) | 'matrix' (dot-matrix LEDs)
+    display: 'both',       // indicator shows 'both' ("1 INTRO"), just the floor 'name', or just the 'number'
+    sfx: { ding:'', door:'', hum:'' },  // optional audio file URLs; blank = synthesised
+
+    // scroll-scrubbed doors
+    doorZone: 0.7,         // scroll distance (in screen heights) for the doors to close — and the same again to open
+    closedHold: 0.28,      // fraction of the zone where the doors sit fully shut
+    doorEase: 0.3,        // smoothing (0–1). Lower = floatier, higher = tighter to the scroll
+    scrollDing: true,      // soft ding when you pass a floor by scrolling
+
+    // button-panel ride
+    doorMs: 700,
+    perFloorMs: 520,
+    arriveDwellMs: 180,
+    bellHz: 1046.5,
+
+    startAtBottom: false,  // true = loads on the ground floor; scroll UP to ride up (floors must be one screen each). List floors ground → top.
+    descending: true,      // true = Intro is the top floor and the lift rides DOWN as you scroll down. false = rides up
+    numberFromTop: true,   // true = floors are numbered 1 (top, Intro) → 12 (bottom), panel reads 1-2-3 on the top row.
+                           // false = real-lift numbering (lowest floor is 1, numbers climb bottom row → top row)
+    showPanel: true,
+    panelCols: 3,          // columns of floor buttons
+    floorSlots: 12,        // floor buttons on the panel; spares beyond your floors show as blank placeholders
+    functions: ['open', 'close', 'alarm', 'call'],  // bottom-row lift buttons (any of: open, close, alarm, call)
+    // 3D cab + camera turn
+    wallShow: 0.03,         // wall always visible outside the door frame, each side (fraction of screen width)
+    maxDoorWidth: 1320,     // px — the doorway stops growing here; wider screens show more wall instead
+    wallWidth: 0.022,       // width of the front wall either side of the doors (fraction of screen width)
+    recess: 0.018,
+    doorThickness: 0.035,  // depth of each door leaf (fraction of screen width) — shows on the leading edges as they move         // how far the doors sit back behind the front wall (fraction of screen width)
+    persp: 1.1,            // camera distance from the doors, as a fraction of screen width (lower = wider lens)
+    turnMs: 600,           // camera slide duration
+    panelOffset: 0.02,     // panel sits on the front wall this far past the right edge of the screen (fraction of width)
+    panelWallExt: 1,       // how far the front wall carries on past the screen edge before the cab corner
+    revealDistance: 90,    // px — mouse this close to the right edge turns the camera to the panel
+    turnBackAfterMs: 4000, // turn back to the doors after this long idle on the panel
+    // panel discovery hints (reset on every page load; both stop once the visitor has opened the panel)
+    panelGlance: true,     // the camera glances part-way towards the panel, then eases back
+    glanceAfterMs: 2500,   // …after the doors are open and the visitor has stopped scrolling this long
+    glanceAmount: 0.4,     // how far it glances (fraction of the full turn)
+    glanceHoldMs: 700,     // how long it holds before easing back
+    panelTab: true,        // small "Floors →" tab on the right edge that opens the panel; shown until the panel is first opened
+    panelTabLabel: 'Floors',
+    wallImg: '',           // side-wall texture (optional)
+    ceilImg: '',
+    startClosed: true,         // doors start shut on load; the first scroll opens them onto Intro
+    openOnLoad: false,         // (if startClosed is false) doors open by themselves on load
+
+    // lobby start
+    lobby: false,              // lobby start (off for now — set true to bring it back)
+    lobbyTitle: 'Treatment title',
+    lobbySub: 'Director · Client · 2026',
+    lobbyWallImg: '', lobbyDoorImg: '', lobbyCabImg: '',
+
+    // camera sway (0 = off)
+    sway: 1,
+    grain: 0.035,              // film grain strength (0 = off)
+    flicker: 1,                // faint light flicker while the lift is moving (0 = off)
+    cursorLook: 1,             // camera leans slightly towards the mouse (0 = off)
+    vibration: 0.4,            // cab shake while travelling (0 = off, 0.4 = smooth modern lift, 1 = noticeable, 2 = rough old lift)
+    haptics: true,             // also buzz phones that support it (Android) while travelling
+
+    // button jobs
+    contactEmail: '',          // Call button opens an email to this address (blank = just rings)
+    contactSubject: 'Treatment',
+
+    // sound & atmosphere
+    muzak: '',                 // lift-music file (loop). Blank = synthesised bossa
+    muzakVolume: 0.6,
+    floorAmbience: false,      // per-floor background sound (off). If on, uses each floor's 'ambience' file
+    ambienceVolume: 0.6
+  };
+
+  const root = document.getElementById('lift');
+  const $ = s => root.querySelector(s);
+  if (CFG.startAtBottom) CFG.descending = true;
+  const F = CFG.startAtBottom ? [...CFG.floors].reverse() : CFG.floors;  // page order is always top → bottom
+  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const T = ms => RM ? 0 : ms;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const sc = $('.scroller');
+
+  root.style.setProperty('--door-ms', CFG.doorMs + 'ms');
+  if (RM) root.classList.add('rm');
+  if (!CFG.showPanel) root.classList.add('no-panel');
+  if (CFG.indicatorImg) root.style.setProperty('--ind-img', `url(${CFG.indicatorImg})`);
+  root.style.setProperty('--steel-img', 'url(../assets/2d/plate.webp)');
+  if (CFG.plateImg) { root.style.setProperty('--plate-img', `url(${CFG.plateImg})`); root.classList.add('has-plate'); }
+  if (CFG.headerImg) {
+    root.classList.add('has-header');
+    root.querySelectorAll('.hdr-bg').forEach((b, k) => { b.style.backgroundImage = `url(${CFG.headerImg})`; b.style.backgroundPosition = ['0','33.6%','67.1%','100%'][k] + ' 50%'; });
+  }
+  if (CFG.frameImg) $('.frame').style.backgroundImage = `url(${CFG.frameImg})`;
+  if (CFG.doorL) $('.door.l').style.background = `url(${CFG.doorL}) right center/cover`;
+  if (CFG.doorR) $('.door.r').style.background = `url(${CFG.doorR}) left center/cover`;
+
+  /* build floors + buttons */
+  const stops = [], holds = [], floorEls = [];
+  F.forEach((f, i) => {
+    const stop = document.createElement('div'); stop.className = 'stop'; stop.style.zIndex = F.length - i;
+    const hold = document.createElement('div'); hold.className = 'hold';
+    const d = document.createElement('section'); d.className = 'floor';
+    d.style.backgroundColor = f.bg || '#111';
+    if (f.img) d.style.backgroundImage = `url(${f.img})`;
+    // hero: optional full-screen image, the first thing on the floor (above the copy)
+    d.innerHTML = `<div class="herow">` + (f.hero ? `<img class="hero" src="${f.hero}" alt="" decoding="async">` : '<div class="hero"></div>')
+      + `<div class="htitle"><small>${String(i + 1).padStart(3, '0')}</small><h1>${f.n}</h1></div></div><div class="copy">${(f.html || '').replace(/^\s*<h1>.*?<\/h1>/, '')}</div>`;
+    hold.appendChild(d); stop.appendChild(hold); sc.appendChild(stop);
+    stops.push(stop); holds.push(hold); floorEls.push(d);
+  });
+
+  /* layout: works out where each floor freezes, swaps and pins */
+  let swaps = [], starts = [], Z = 0;   // swaps[i] = scroll position where floor i hands over to i+1 (doors shut)
+  function layout() {
+    const H = sc.clientHeight, n = F.length;
+    root.style.setProperty('--sh', H + 'px');   // one screen — sizes full-page hero images
+    Z = Math.round(H * CFG.doorZone);
+    let o = 0; swaps = []; starts = [CFG.startClosed ? Z : 0];
+    for (let i = 0; i < n; i++) {
+      const zs = i > 0 || CFG.startClosed ? Z : 0, ze = i < n - 1 ? Z : 0;
+      floorEls[i].style.minHeight = H + 'px';
+      const h = floorEls[i].offsetHeight;
+      const hHold = h + zs, hStop = hHold + ze;
+      holds[i].style.height = hHold + 'px';
+      holds[i].style.top = (H - hHold) + 'px';
+      stops[i].style.height = hStop + 'px';
+      stops[i].style.marginTop = i > 0 ? -H + 'px' : '0';
+      if (i < n - 1) { o += hStop - H; swaps.push(o); starts.push(o + Z); }
+    }
+  }
+  layout();
+  addEventListener('resize', layout);
+  if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout()); floorEls.forEach(f => ro.observe(f.querySelector('.copy'))); }
+  ['tl','tr','bl','br'].forEach(k => { const sc = document.createElement('span'); sc.className = 'screw ' + k; $('.panel').appendChild(sc); });
+  // numberFromTop: 1 is the top floor (Intro), numbers run left→right, top row → bottom row.
+  // Otherwise numbered like a real lift: 1 is the lowest floor, numbers climb bottom row → top row.
+  // Spare slots for sections still to come take the numbers after your floors.
+  const cols = CFG.panelCols;
+  const floorRows = Math.ceil(CFG.floorSlots / cols);
+  $('.panel').style.setProperty('--cols', cols);
+  const floorNo = i => CFG.numberFromTop || !CFG.descending ? i + 1 : F.length - i;   // floor index → floor number
+  const place = (b, num) => {                                         // number → grid cell
+    const k = num - 1;
+    b.style.gridRow = CFG.numberFromTop ? Math.floor(k / cols) + 1 : floorRows - Math.floor(k / cols);
+    b.style.gridColumn = (k % cols) + 1;
+  };
+  const btns = F.map((f, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn'; b.setAttribute('aria-label', `${floorNo(i)} ${f.n}`);
+    b.innerHTML = `<span class="cap"><span class="ico num-cap">${floorNo(i)}</span></span><span class="lbl">${f.n}</span>`;
+    b.addEventListener('pointerdown', () => { initAudioQuiet(); click(); });
+    b.addEventListener('click', () => go(i));
+    place(b, floorNo(i));
+    $('.panel').appendChild(b);
+    return b;
+  });
+  for (let num = F.length + 1; num <= CFG.floorSlots; num++) {        // spare slots for sections still to come
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn ph'; b.tabIndex = -1; b.setAttribute('aria-hidden', 'true');
+    b.innerHTML = `<span class="cap"><span class="ico num-cap">${num}</span></span><span class="lbl">—</span>`;
+    b.addEventListener('pointerdown', () => { initAudioQuiet(); click(); });
+    b.addEventListener('click', () => { buzz(); flashDisplay(['COMING', 'SOON', 'COMING', 'SOON'], 380); });
+    place(b, num);
+    $('.panel').appendChild(b);
+  }
+  const ICONS = {
+    open:  '<svg viewBox="0 0 24 24"><path d="M3 12h6M3 12l3-3M3 12l3 3M21 12h-6M21 12l-3-3M21 12l-3 3M12 5v14"/></svg>',
+    close: '<svg viewBox="0 0 24 24"><path d="M3 12h6M9 12l-3-3M9 12l-3 3M21 12h-6M15 12l3-3M15 12l3 3M12 5v14"/></svg>',
+    alarm: '<svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0"/></svg>',
+    call:  '<svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>'
+  };
+  CFG.functions.forEach(fn => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn fn'; b.setAttribute('aria-label', fn);
+    b.innerHTML = `<span class="cap"><span class="ico">${ICONS[fn] || ''}</span></span><span class="lbl">${fn}</span>`;
+    b.addEventListener('pointerdown', () => { initAudioQuiet(); click(); });
+    b.addEventListener('click', () => liftFn(fn, b));
+    $('.panel').appendChild(b);
+  });
+  // a click plays the whole press: cap goes fully in, then springs back out
+  $('.panel').addEventListener('pointerdown', e => { const b = e.target.closest('.btn'); if (!b) return;
+    b.classList.remove('press'); void b.offsetWidth; b.classList.add('press'); });
+  $('.panel').addEventListener('animationend', e => { if (e.animationName === 'liftPress') e.target.closest('.btn')?.classList.remove('press'); });
+  { // lay each button over its place on the rendered panel
+    const colX = [18.5, 49.9, 81.7], rowY = [20.45, 34.75, 49.3, 63.95], fnX = [14, 38, 62, 86];
+    btns.forEach((b, k) => { b.style.left = colX[k % 3] + '%'; b.style.top = (rowY[Math.floor(k / 3)] ?? 63.95) + '%'; });
+    [...root.querySelectorAll('.btn.fn')].forEach((b, k) => { b.style.left = (fnX[k] ?? 86) + '%'; b.style.top = '82.4%'; b.classList.add('fnb'); }); }
+  // lift functions sit under the floor buttons, two to a row, centred
+  const fnBtns = [...root.querySelectorAll('.btn.fn')];
+  if (fnBtns.length) {
+    const fns = document.createElement('div'); fns.className = 'fns';
+    fns.style.gridRow = floorRows + 1; fns.style.gridColumn = '1 / -1';
+    fnBtns.forEach(fb => fns.appendChild(fb));
+    $('.panel').appendChild(fns);
+  }
+
+  const numEl = $('.num'), arrowEl = $('.arrow');
+  const NUMS = CFG.display === 'number';
+  const BOTH = CFG.display === 'both';
+  const screenText = i => BOTH ? `${floorNo(i)} ${F[i].n}` : F[i].n;   // e.g. "12 Conclusion"
+  const maxLen = NUMS ? 2 : Math.max(...F.map((f, i) => screenText(i).length));
+  const pad = t => { const l = Math.floor((maxLen - t.length) / 2); return ' '.repeat(l) + t + ' '.repeat(maxLen - t.length - l); };
+  $('.ghost').textContent = (NUMS ? '8' : '~').repeat(maxLen);   // faint unlit segments behind the text
+  const lampsEl = $('.lights');
+  const lamps = F.map((f, i) => { const l = document.createElement('span'); l.className = 'lamp'; l.title = f.n; return l; });
+  lamps.forEach(l => lampsEl.appendChild(l));   // first floor (Intro) on the left
+  const label = i => NUMS ? String(floorNo(i)).padStart(2, ' ') : pad(screenText(i));
+
+
+  /* ===== SCREEN REALISM: glass layers, LCD lag, optional dot-matrix ===== */
+  const indEl = $('.ind');
+  (function () {
+    const scr = document.createElement('span'); scr.className = 'scr'; indEl.insertBefore(scr, indEl.firstChild);
+    const refl = document.createElement('span'); refl.className = 'refl'; indEl.appendChild(refl);
+  })();
+  const GLYPH = {A:'.###.#...##...#######...##...##...#',B:'####.#...##...#####.#...##...#####.',C:'.###.#...##....#....#....#...#.###.',D:'####.#...##...##...##...##...#####.',
+    E:'######....#....####.#....#....#####',F:'######....#....####.#....#....#....',G:'.###.#...##....#.####...##...#.####',H:'#...##...##...#######...##...##...#',
+    I:'.###...#....#....#....#....#...###.',J:'..###...#....#....#....#.#..#..##..',K:'#...##..#.#.#..##...#.#..#..#.#...#',L:'#....#....#....#....#....#....#####',
+    M:'#...###.###.#.##.#.##...##...##...#',N:'#...##...###..##.#.##..###...##...#',O:'.###.#...##...##...##...##...#.###.',P:'####.#...##...#####.#....#....#....',
+    Q:'.###.#...##...##...##.#.##..#..##.#',R:'####.#...##...#####.#.#..#..#.#...#',S:'.#####....#.....###.....#....#####.',T:'#####..#....#....#....#....#....#..',
+    U:'#...##...##...##...##...##...#.###.',V:'#...##...##...##...##...#.#.#...#..',W:'#...##...##...##.#.##.#.##.#.#.#.#.',X:'#...##...#.#.#...#...#.#.#...##...#',
+    Y:'#...##...#.#.#...#....#....#....#..',Z:'#####....#...#...#...#...#....#####',
+    0:'.###.#...##..###.#.###..##...#.###.',1:'..#...##....#....#....#....#...###.',2:'.###.#...#....#...#...#...#...#####',3:'#####...#...#.....#....##...#.###.',
+    4:'...#...##..#.#.#..#.#####...#....#.',5:'######....####.....#....##...#.###.',6:'..##..#...#....####.#...##...#.###.',7:'#####....#...#...#...#....#....#...',
+    8:'.###.#...##...#.###.#...##...#.###.',9:'.###.#...##...#.####....#...#..##..'};
+  const mtx = document.createElement('canvas'); mtx.className = 'mtx'; indEl.appendChild(mtx);
+  let mtxText = '';
+  // --- the 3D lift's screens, drawn flat: one canvas in the indicator's glass, one in the button panel's display
+  const pscr = document.createElement('canvas'); pscr.className = 'pscr'; pscr.width = 512; pscr.height = 256; $('.panel').appendChild(pscr);
+  const LED = '#0a8fd4';
+  function ledDots(cols, rows, text) {
+    const lit = new Set(), w = text.length * 6 - 1, top = Math.floor((rows - 7) / 2), x0 = Math.floor((cols - w) / 2);
+    [...text].forEach((ch, n) => { const gl = GLYPH[ch]; if (!gl) return;
+      for (let i = 0; i < 35; i++) if (gl[i] === '#') { const x = x0 + n * 6 + (i % 5), y = top + Math.floor(i / 5); if (x >= 0 && x < cols) lit.add(y * cols + x); } });
+    return lit;
+  }
+  function ledMatrix(g, cols, rows, lit, ox, oy, p) {
+    for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
+      const on = lit.has(r * cols + k), x = ox + k * p, y = oy + r * p, sz = p * .7, o = (p - sz) / 2;
+      if (!on) { g.fillStyle = 'rgba(6,30,46,.6)'; g.fillRect(x + o, y + o, sz, sz); continue; }
+      g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = p * 1.1; g.fillStyle = LED; g.beginPath(); g.roundRect(x + o, y + o, sz, sz, sz * .28); g.fill();
+      g.shadowBlur = 0; g.fillStyle = 'rgba(170,222,255,.85)'; g.fillRect(x + o + sz * .3, y + o + sz * .3, sz * .4, sz * .4);
+    }
+    g.shadowBlur = 0;
+  }
+  function ledTri(g, x, y, sz, up, on) {
+    g.beginPath(); if (up) { g.moveTo(x, y - sz * .55); g.lineTo(x + sz * .6, y + sz * .45); g.lineTo(x - sz * .6, y + sz * .45); } else { g.moveTo(x - sz * .6, y - sz * .45); g.lineTo(x + sz * .6, y - sz * .45); g.lineTo(x, y + sz * .55); } g.closePath();
+    if (on) { g.shadowColor = 'rgba(200,228,255,.8)'; g.shadowBlur = sz * .45; g.fillStyle = '#cfe2f2'; g.fill(); g.shadowBlur = 0; } else { g.fillStyle = 'rgba(255,255,255,.07)'; g.fill(); }
+  }
+  function drawLed() {
+    const text = (mtxText || '').trim().toUpperCase(), tu = root.querySelector('.tri.u'), td = root.querySelector('.tri.d');
+    const up = !!tu && tu.classList.contains('on'), down = !!td && td.classList.contains('on'), here = lamps.findIndex(l => l.classList.contains('on'));
+    // only repaint the LED screens when what they show has changed (this is called on every scroll frame)
+    const ledKey = text + '|' + up + '|' + down + '|' + here; if (ledKey === drawLed.key && mtx.width === 1536) return; drawLed.key = ledKey;
+    { if (mtx.width !== 1536) { mtx.width = 1536; mtx.height = 256; }
+      const g = mtx.getContext('2d'), W = 1536, H = 256, cols = Math.max(maxLen, 8) * 6 + 1, rows = 9; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
+      const pp = Math.min((W - 330) / cols, 150 / rows), mw = pp * cols;
+      ledMatrix(g, cols, rows, ledDots(cols, rows, text), (W - mw) / 2, 30, pp);
+      ledTri(g, 96, H / 2 - 5, 100, false, down); ledTri(g, W - 96, H / 2 + 5, 100, true, up);
+      const n = F.length, gap = Math.min(46, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
+      for (let i = 0; i < n; i++) { const x = x0 + i * gap; g.beginPath(); g.arc(x, 214, 9, 0, 7);
+        if (i === here) { g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = 16; g.fillStyle = LED; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(180,226,255,.9)'; g.beginPath(); g.arc(x - 2, 212, 3.2, 0, 7); g.fill(); }
+        else { g.fillStyle = 'rgba(8,40,60,.6)'; g.fill(); } } }
+    { const g = pscr.getContext('2d'), W = 512, H = 256, cols = 13, rows = 9, pp = 21; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
+      const num = text.split(' ')[0] || '';
+      ledMatrix(g, cols, rows, ledDots(cols, rows, /^\d+$/.test(num) ? num : ''), W - pp * cols - 46, (H - pp * rows) / 2, pp);
+      ledTri(g, 98, H / 2 + (up ? 5 : -5), 98, up, up || down); }
+  }
+  function drawMatrix(txt) {
+    mtxText = txt; drawLed(); return;
+    if (!root.classList.contains('screen-matrix')) return;
+    const dpr = Math.min(3, devicePixelRatio || 1), w = mtx.clientWidth, h = mtx.clientHeight;
+    if (!w || !h) return;
+    mtx.width = Math.round(w * dpr); mtx.height = Math.round(h * dpr);
+    const g = mtx.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const COLS = Math.max(maxLen, ...F.map(f => f.n.length)) * 6 + 3, ROWS = 9;
+    const p = Math.min(w / COLS, h / ROWS), ox = (w - COLS * p) / 2, oy = (h - ROWS * p) / 2, r = p * .36;
+    const t = txt.trim().toUpperCase(), tw = t.length * 6 - 1, sx = Math.floor((COLS - tw) / 2);
+    const on = new Set();
+    [...t].forEach((ch, k) => { const gl = GLYPH[ch]; if (!gl) return; for (let i = 0; i < 35; i++) if (gl[i] === '#') on.add((1 + Math.floor(i / 5)) * COLS + sx + k * 6 + (i % 5)); });
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+      const lit = on.has(y * COLS + x);
+      g.beginPath(); g.arc(ox + (x + .5) * p, oy + (y + .5) * p, r, 0, Math.PI * 2);
+      if (lit) { g.fillStyle = '#2aa6ee'; g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = p * 1.5; }
+      else { g.fillStyle = 'rgba(40,120,170,.13)'; g.shadowBlur = 0; }
+      g.fill();
+    }
+  }
+  if (CFG.screen === 'matrix') root.classList.add('screen-matrix');
+  addEventListener('resize', () => drawMatrix(mtxText)); setTimeout(() => drawMatrix(mtxText), 300);
+  const digitsEl = $('.ind .digits');
+  const screenSet = txt => {
+    drawMatrix(txt);
+    digitsEl.classList.add('swap'); requestAnimationFrame(() => requestAnimationFrame(() => digitsEl.classList.remove('swap')));
+  };
+  /* ===== LEVEL SCREEN VARIANTS ===== */
+  let ind2Set = null, ind2Dir = null;
+  (function buildInd2() {
+    let style = CFG.indicator || 'classic'; if (style === 'strip') style = 'bar';
+    if (style === 'classic') return;
+    root.classList.add('ind-alt', 'ind-' + style);
+    const box = document.createElement('div'); box.className = 'ind2 ' + style;
+    const fno = floorNo;     // floor number shown on buttons
+    const arrows = '<span class="arrs"><span class="ar u"></span><span class="ar d"></span></span>';
+    if (style === 'dial') {
+      box.innerHTML = `${arrows}<div class="face steelplate"></div><div class="tag"><span class="nm"></span></div>`;
+      const face = box.querySelector('.face');
+      const span = 140, ang = i => { const k = fno(i) - 1; return F.length > 1 ? -span / 2 + k * span / (F.length - 1) : 0; };
+      const mks = F.map((f, i) => {
+        const m = document.createElement('span'); m.className = 'mk'; m.title = f.n;
+        const a = ang(i), r = a * Math.PI / 180;
+        m.innerHTML = `<i style="transform:rotate(${a}deg); transform-origin:50% 5.6vh"></i><b style="transform:translate(${(Math.sin(r) * 3.9).toFixed(2)}vh,${(4.0 - Math.cos(r) * 3.9).toFixed(2)}vh)">${fno(i)}</b>`;
+        face.appendChild(m); return m;
+      });
+      const nd = document.createElement('span'); nd.className = 'needle'; face.appendChild(nd);
+      const hub = document.createElement('span'); hub.className = 'hub'; face.appendChild(hub);
+      const nm = box.querySelector('.nm');
+      ind2Set = i => { nd.style.transform = `rotate(${ang(i)}deg)`; mks.forEach((m, k) => m.classList.toggle('on', k === i)); nm.textContent = F[i].n; };
+    } else if (style === 'bar') {
+      box.classList.add('steelplate');
+      box.innerHTML = `<span class="ar d"></span><span class="names">${F.map(f => `<span class="nm">${f.n}</span>`).join('')}</span><span class="ar u"></span>`;
+      const nms = [...box.querySelectorAll('.nm')];
+      ind2Set = i => nms.forEach((n, k) => n.classList.toggle('on', k === i));
+    } else if (style === 'roll') {
+      box.innerHTML = `<span class="no"></span><span class="sep"></span><span class="win"><span class="col">${F.map(f => `<span>${f.n}</span>`).join('')}</span></span>${arrows}`;
+      const no = box.querySelector('.no'), col = box.querySelector('.col');
+      ind2Set = i => { no.textContent = String(fno(i)).padStart(2, '0'); col.style.transform = `translateY(${-i * 2.4}vh)`; };
+    }
+    $('.hdr').appendChild(box);
+    const au = box.querySelector('.ar.u'), ad = box.querySelector('.ar.d');
+    ind2Dir = d => { au && au.classList.toggle('on', d > 0); ad && ad.classList.toggle('on', d < 0); };
+  })();
+  const setNum = i => { const changed = numEl.textContent !== label(i); numEl.textContent = label(i); if (changed) screenSet(label(i)); lamps.forEach((l, k) => l.classList.toggle('on', k === i)); if (ind2Set) ind2Set(i); drawLed(); };
+  const liftDir = d => CFG.descending ? -d : d;   // page direction → lift direction
+  const triU = $('.tri.u'), triD = $('.tri.d');
+  const setArrow = dir => { dir = liftDir(dir); triU.classList.toggle('on', dir > 0); triD.classList.toggle('on', dir < 0); if (ind2Dir) ind2Dir(dir); drawLed(); };
+  const markHere = i => {
+    btns.forEach((b, k) => b.classList.toggle('here', k === i));
+  };
+  const jolt = () => { if (RM) return; root.classList.remove('jolt'); void root.offsetWidth; root.classList.add('jolt'); };
+  let cVal = 1;
+  // door position goes only to the elements that use it (doors, dimmer) — setting it on the root restyled the whole page every frame
+  let cTargets = null, cLast = '';
+  const setC = v => { cVal = v; const t = v.toFixed(4); if (t === cLast) return; cLast = t;
+    cTargets = cTargets || ['.door.l', '.door.r', '.dim'].map(q => root.querySelector(q)).filter(Boolean);
+    cTargets.forEach(el => el.style.setProperty('--c', t)); };
+  // door leading-edge thickness as seen from the camera: wider the further the edge is from centre
+  const dl = $('.door.l'), dr = $('.door.r');
+  function doorEdges() {
+    // nothing to re-measure while the doors are still: skip the style and layout reads
+    const moving = root.classList.contains('ride') || root.classList.contains('turned');
+    if (!moving && cVal === doorEdges.c && innerWidth === doorEdges.w) { requestAnimationFrame(doorEdges); return; }
+    doorEdges.c = cVal; doorEdges.w = innerWidth;
+    const p = parseFloat(getComputedStyle(root).getPropertyValue('--p')) || 1000;
+    const mid = innerWidth / 2, a = dl.getBoundingClientRect(), b = dr.getBoundingClientRect();
+    const t = innerWidth * CFG.doorThickness;
+    // set on the doors themselves (not the root) and only when it really changes, so the page isn't restyled every frame
+    const el = Math.max(0, (mid - a.right) / p * t), er = Math.max(0, (b.left - mid) / p * t);
+    if (Math.abs(el - (doorEdges.l ?? -9)) > .3) { doorEdges.l = el; dl.style.setProperty('--edge-l', el.toFixed(1) + 'px'); }
+    if (Math.abs(er - (doorEdges.r ?? -9)) > .3) { doorEdges.r = er; dr.style.setProperty('--edge-r', er.toFixed(1) + 'px'); }
+    requestAnimationFrame(doorEdges);
+  }
+  requestAnimationFrame(doorEdges);
+
+  /* ===== AUDIO ===== */
+  let ac = null, soundOn = false, noiseBuf = null, hum = null, humEl = null;
+  function initAudio() {
+    if (!ac) {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      const len = ac.sampleRate * 2;
+      noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0); let last = 0;
+      for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
+    }
+    if (ac.state === 'suspended') ac.resume();
+  }
+  const initAudioQuiet = () => { if (soundOn) initAudio(); };
+  const playFile = (url, vol = 1) => { const a = new Audio(url); a.volume = vol; a.play().catch(() => {}); return a; };
+
+  function bell(f, t0, vol = .3) {
+    const out = ac.createGain(); out.gain.value = vol; out.connect(ac.destination);
+    [[1, .6, 2.4], [2, .22, 1.5], [2.76, .16, 1], [5.4, .06, .5]].forEach(([r, g, dur]) => {
+      const o = ac.createOscillator(), e = ac.createGain();
+      o.type = 'sine'; o.frequency.value = f * r;
+      e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g, t0 + .004);
+      e.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+      o.connect(e).connect(out); o.start(t0); o.stop(t0 + dur + .05);
+    });
+  }
+  function ding(dir, vol = .3) { // once going up, twice going down — like real car lanterns
+    if (!soundOn) return;
+    dir = liftDir(dir);
+    if (CFG.sfx.ding) { playFile(CFG.sfx.ding, vol / .3); if (dir < 0) setTimeout(() => playFile(CFG.sfx.ding, vol / .3), 450); return; }
+    const t = ac.currentTime; bell(CFG.bellHz, t, vol); if (dir < 0) bell(CFG.bellHz * .84, t + .45, vol);
+  }
+  function noiseBurst(t, dur, type, freq, peak, attack) {
+    const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+    const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = .8;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + attack);
+    g.gain.setValueAtTime(peak, t + Math.max(attack, dur - .2)); g.gain.linearRampToValueAtTime(0, t + dur);
+    s.connect(f).connect(g).connect(ac.destination); s.start(t); s.stop(t + dur + .05);
+  }
+  /* lift-function buttons */
+  async function liftFn(fn, b) {
+    if (fn === 'close') {             // doors shut briefly, then reopen (nowhere to go)
+      if (busy) return; busy = true; b.classList.add('on');
+      root.classList.add('ride'); void root.offsetWidth; setC(1); doorSound();
+      await sleep(T(CFG.doorMs + 900)); setC(0); doorSound();
+      await sleep(T(CFG.doorMs)); root.classList.remove('ride'); b.classList.remove('on'); busy = false;
+    } else if (fn === 'open') {       // doors are already open at rest; just acknowledges
+      b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 600);
+    } else if (fn === 'alarm') {             // emergency lighting for a few seconds
+      if (root.classList.contains('alarm')) return;
+      b.classList.add('on'); root.classList.add('alarm'); alarmSound(); flashDisplay(['ALARM', 'ALARM', 'ALARM'], 900);
+      setTimeout(() => { root.classList.remove('alarm'); b.classList.remove('on'); }, 3200);
+    } else if (fn === 'call') {              // rings, then opens an email to you
+      b.classList.add('on'); callSound(); flashDisplay(['CALLING'], 1600);
+      setTimeout(() => {
+        b.classList.remove('on');
+        if (CFG.contactEmail) {
+          const url = `mailto:${CFG.contactEmail}?subject=${encodeURIComponent(CFG.contactSubject || '')}`;
+          try { window.top.location.href = url; } catch (e) { window.location.href = url; }
+        }
+      }, 1700);
+    }
+  }
+  // temporarily show words on the floor display, then go back to the floor name
+  let flashTimer = 0;
+  function flashDisplay(words, each = 750) {
+    clearTimeout(flashTimer);
+    let k = 0;
+    const step = () => {
+      if (k < words.length) {
+        const w = words[k++];
+        numEl.textContent = NUMS ? ({ COMING: '--', SOON: '  ', ALARM: 'AL', CALLING: 'CA' }[w] ?? w.slice(0, 2)) : pad(w.slice(0, maxLen).toUpperCase());
+        screenSet(numEl.textContent);
+        flashTimer = setTimeout(step, each);
+      } else { numEl.textContent = label(cur); screenSet(label(cur)); }
+    };
+    step();
+  }
+  function buzz() {                   // flat 'not available' buzz
+    if (!soundOn) return;
+    const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
+    o.type = 'square'; o.frequency.value = 118; f.type = 'lowpass'; f.frequency.value = 900;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.06, t + .01); g.gain.setValueAtTime(.06, t + .3); g.gain.linearRampToValueAtTime(0, t + .34);
+    o.connect(f).connect(g).connect(ac.destination); o.start(t); o.stop(t + .36);
+  }
+  function alarmSound() {             // old-school alarm bell: fast repeated strikes
+    if (!soundOn) return;
+    const t = ac.currentTime;
+    for (let k = 0; k < 34; k++) bell(2200, t + k * .085, .1);
+  }
+  function callSound() {              // intercom ring: two short bursts
+    if (!soundOn) return;
+    const t = ac.currentTime;
+    [0, .45].forEach(d => {
+      const o = ac.createOscillator(), m = ac.createOscillator(), g = ac.createGain(), mg = ac.createGain();
+      o.frequency.value = 440; m.frequency.value = 20; mg.gain.value = 0.5;
+      g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(.08, t + d + .02);
+      g.gain.setValueAtTime(.08, t + d + .35); g.gain.linearRampToValueAtTime(0, t + d + .38);
+      m.connect(mg).connect(g.gain); o.connect(g).connect(ac.destination);
+      o.start(t + d); m.start(t + d); o.stop(t + d + .4); m.stop(t + d + .4);
+    });
+  }
+  function click() { // button press
+    if (!soundOn) return;
+    const t = ac.currentTime;
+    noiseBurst(t, .03, 'highpass', 2500, .25, .001);
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = 180; g.gain.setValueAtTime(.12, t); g.gain.exponentialRampToValueAtTime(.0001, t + .05);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t + .06);
+  }
+  function doorSound() {
+    if (!soundOn) return;
+    if (CFG.sfx.door) { playFile(CFG.sfx.door, .8); return; }
+    const t = ac.currentTime, d = CFG.doorMs / 1000;
+    noiseBurst(t, d, 'bandpass', 320, .16, .15);
+    noiseBurst(t + d - .02, .16, 'lowpass', 140, .45, .005);
+  }
+  function humOn() {
+    if (!soundOn) return;
+    if (CFG.sfx.hum) { humEl = new Audio(CFG.sfx.hum); humEl.loop = true; humEl.volume = .6; humEl.play().catch(() => {}); return; }
+    const t = ac.currentTime;
+    const g = ac.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.12, t + .6);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 180;
+    const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 48;
+    const n = ac.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
+    const ng = ac.createGain(); ng.gain.value = .5;
+    o.connect(lp); n.connect(ng).connect(lp); lp.connect(g).connect(ac.destination);
+    o.start(t); n.start(t); hum = { g, o, n };
+  }
+  function humOff() {
+    if (humEl) { const a = humEl; humEl = null; let v = a.volume; const iv = setInterval(() => { v -= .06; if (v <= 0) { a.pause(); clearInterval(iv); } else a.volume = v; }, 40); }
+    if (!hum) return;
+    const { g, o, n } = hum, t = ac.currentTime; hum = null;
+    g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + .5);
+    o.stop(t + .55); n.stop(t + .55);
+  }
+  /* ===== LIFT MUSIC + FLOOR AMBIENCE ===== */
+  // Music plays only during button-panel rides; scrolling between floors is silent apart from the ding.
+  // Each floor's ambience is muffled while the doors are shut and opens up as they part.
+  let mus = null, amb = null, musEl = null, ambEls = [];
+  function initAtmos() {
+    if (mus || !ac) return;
+    // music bus: through a small 'cab speaker' band-pass
+    const musGain = ac.createGain(); musGain.gain.value = 0;
+    const spk = ac.createBiquadFilter(); spk.type = 'bandpass'; spk.frequency.value = 1700; spk.Q.value = .32;
+    musGain.connect(spk).connect(ac.destination);
+    mus = { gain: musGain, next: ac.currentTime + .1, step: 0 };
+    if (CFG.muzak) { musEl = new Audio(CFG.muzak); musEl.loop = true; musEl.volume = 0; musEl.play().catch(() => {}); }
+    else setInterval(scheduleMuzak, 100);
+    // ambience bus: low-pass opened by the doors (only if floorAmbience is on)
+    if (!CFG.floorAmbience) return;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 300;
+    const ag = ac.createGain(); ag.gain.value = CFG.ambienceVolume;
+    lp.connect(ag).connect(ac.destination);
+    // placeholder ambience: soft room tone + a faint, bright major chord per floor (no low drones)
+    const chordsByFloor = [[523.25, 659.25, 783.99], [587.33, 739.99, 880], [493.88, 622.25, 739.99], [440, 554.37, 659.25], [659.25, 830.61, 987.77], [392, 493.88, 587.33]];
+    amb = { lp, floors: F.map((f, i) => {
+      const g = ac.createGain(); g.gain.value = 0; g.connect(lp);
+      if (f.ambience) { const el = new Audio(f.ambience); el.loop = true; el.volume = 0; el.play().catch(() => {}); ambEls[i] = el; return g; }
+      if (!f.ambience) return g;   // no file = silence
+      const n = ac.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
+      const nf = ac.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 500 + i * 120; nf.Q.value = .6;
+      const ng = ac.createGain(); ng.gain.value = .35;
+      n.connect(nf).connect(ng).connect(g); n.start();
+      chordsByFloor[i % chordsByFloor.length].forEach(fq => {
+        const o = ac.createOscillator(), og = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain();
+        o.type = 'sine'; o.frequency.value = fq; og.gain.value = .025;
+        lfo.frequency.value = .1 + Math.random() * .15; lg.gain.value = .02; lfo.connect(lg).connect(og.gain);
+        o.connect(og).connect(g); o.start(); lfo.start();
+      });
+      return g;
+    }) };
+  }
+  // synthesised lift music: breezy bossa in C major — I–vi–ii–V, vibraphone melody, soft keys, bass, shaker
+  const CHORDS = [[523.25, 659.25, 783.99, 987.77, 130.81], [440, 523.25, 659.25, 783.99, 110], [587.33, 698.46, 880, 1046.5, 146.83], [392, 493.88, 587.33, 698.46, 98]];
+  const MEL = [  // one note per eighth over 4 bars (0 = rest)
+    783.99, 0, 659.25, 783.99, 880, 0, 783.99, 0,      1046.5, 0, 880, 0, 783.99, 659.25, 0, 0,
+    698.46, 0, 880, 0, 1046.5, 0, 987.77, 880,        783.99, 0, 698.46, 0, 587.33, 0, 659.25, 0];
+  const EIGHTH = 60 / 124 / 2;
+  function vib(f, t, v, dur = 1.4) {          // vibraphone-ish: sine + soft octave, with tremolo
+    const o = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain(), g2 = ac.createGain();
+    const tr = ac.createOscillator(), tg = ac.createGain();
+    o.type = 'sine'; o2.type = 'sine'; o.frequency.value = f; o2.frequency.value = f * 4.0;
+    g2.gain.value = .08; tr.frequency.value = 5.5; tg.gain.value = v * .25;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    tr.connect(tg).connect(g.gain);
+    o.connect(g); o2.connect(g2).connect(g); g.connect(mus.gain);
+    o.start(t); o2.start(t); tr.start(t); o.stop(t + dur + .05); o2.stop(t + dur + .05); tr.stop(t + dur + .05);
+  }
+  function keys(ch, t) {                      // soft chord stab
+    ch.slice(0, 4).forEach(f => vib(f / 2, t, .028, .5));
+  }
+  function bassNote(f, t) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.3, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + .42);
+    o.connect(g).connect(mus.gain); o.start(t); o.stop(t + .45);
+  }
+  function shaker(t, v) {
+    const s = ac.createBufferSource(); s.buffer = noiseBuf;
+    const f = ac.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 6500;
+    const g = ac.createGain(); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + .06);
+    s.connect(f).connect(g).connect(mus.gain); s.start(t, Math.random()); s.stop(t + .07);
+  }
+  function scheduleMuzak() {
+    if (!soundOn || !mus) return;
+    if (mus.next < ac.currentTime) mus.next = ac.currentTime + .05;
+    while (mus.next < ac.currentTime + .35) {
+      const bar = Math.floor(mus.step / 8) % CHORDS.length, st = mus.step % 8, ch = CHORDS[bar];
+      const m = MEL[mus.step % MEL.length];
+      if (m) vib(m, mus.next, .085);
+      if (st === 0 || st === 3 || st === 6) keys(ch, mus.next);                    // bossa comping
+      if (st === 0 || st === 3 || st === 4 || st === 7) bassNote(ch[4] * (st === 3 || st === 7 ? 1.5 : 1), mus.next);
+      shaker(mus.next, st % 2 ? .012 : .02);
+      mus.next += EIGHTH * (st % 2 ? .86 : 1.14);   // light swing
+      mus.step++;
+    }
+  }
+  function updateAtmos() {
+    if (!ac || !mus) return;
+    const t = ac.currentTime, open = 1 - cVal;
+    // music: only during button-panel rides — scrolling between floors stays quiet (just the ding)
+    const between = busy && !lobbyActive ? 1 : 0;
+    const mv = soundOn ? between * CFG.muzakVolume : 0;
+    mus.gain.gain.setTargetAtTime(mv * .9, t, .25);
+    if (musEl) musEl.volume = Math.min(1, mv);
+    // ambience: current floor only, opened up by the doors
+    if (!amb) return;
+    amb.lp.frequency.setTargetAtTime(220 + open * open * 7000, t, .06);
+    amb.floors.forEach((g, i) => {
+      const v = soundOn && !lobbyActive && i === cur ? 1 : 0;
+      g.gain.setTargetAtTime(v * .55, t, .5);
+      if (ambEls[i]) ambEls[i].volume = Math.min(1, v * (.15 + .85 * open) * CFG.ambienceVolume);
+    });
+  }
+
+  const sndBtn = $('.snd');
+  sndBtn.addEventListener('click', () => {
+    initAudio(); initAtmos(); soundOn = !soundOn;
+    sndBtn.textContent = soundOn ? 'Sound on' : 'Sound off';
+    if (!soundOn) humOff();
+  });
+
+  /* ===== SCROLL-SCRUBBED DOORS ===== */
+  // Approaching the end of a floor, it freezes on its last screen while the doors close.
+  // At the shut point the next floor swaps in, pinned at the top, and the doors open over it.
+  // Stop anywhere and the doors stay where they are.
+  const smooth = x => x * x * (3 - 2 * x);
+  function scrollTarget() {
+    const v = sc.scrollTop; let c = 0;
+    for (const s of (CFG.startClosed ? [0, ...swaps] : swaps)) {   // 0 = shut at the very top
+      const d = Math.abs(v - s);
+      if (d < Z) c = Math.max(c, Math.min(1, (1 - d / Z) / (1 - CFG.closedHold)));
+    }
+    return smooth(c);
+  }
+  function floorNow() {
+    const v = sc.scrollTop; let f = 0;
+    swaps.forEach((s, i) => { if (v > s) f = i + 1; });
+    return f;
+  }
+  function updateVisibility() {
+    const v = sc.scrollTop;
+    stops.forEach((st, i) => st.classList.toggle('gone', i < swaps.length && v > swaps[i]));
+  }
+
+  let cur = 0, busy = false, lastTop = 0, idleTimer = 0;
+  function tick() {
+    updateVisibility(); updateAtmos();
+    if (!busy) {
+      const target = scrollTarget();
+      const next = RM ? target : cVal + (target - cVal) * CFG.doorEase;
+      // ease towards the target, then snap the last sliver so the doors really meet (and fully clear when open)
+      if (cVal !== target) setC(Math.abs(next - target) < .006 ? target : next);
+      const f = floorNow();
+      if (f !== cur) {
+        const dir = f > cur ? 1 : -1;
+        cur = f; setNum(f); markHere(f);
+        if (CFG.scrollDing) ding(dir, .14);
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  sc.addEventListener('scroll', () => {
+    if (busy) return;
+    const top = sc.scrollTop, dir = Math.sign(top - lastTop); lastTop = top;
+    if (dir) setArrow(dir);
+    clearTimeout(idleTimer); idleTimer = setTimeout(() => setArrow(0), 450);
+  }, { passive: true });
+
+  // wheel over the header/panel still scrolls the page
+  root.addEventListener('wheel', e => {
+    if (busy) { e.preventDefault(); return; }
+    if (!sc.contains(e.target) && !e.target.closest('.panel')) { e.preventDefault(); sc.scrollTop += e.deltaY; }
+  }, { passive: false });
+
+  /* ===== BUTTON-PANEL RIDE ===== */
+  async function go(t) {
+    if (busy || t === cur || t < 0 || t >= F.length) return;
+    busy = true;
+    const dir = t > cur ? 1 : -1;
+    btns[t].classList.add('lit');
+    clearTimeout(idleTimer);
+    if (turned) { await sleep(T(120)); look(false); await sleep(T(CFG.turnMs)); }
+
+    root.classList.add('ride');
+    void root.offsetWidth;
+    setC(1); doorSound();
+    await sleep(T(CFG.doorMs + 80));
+
+    setArrow(dir); jolt(); root.classList.add('moving'); humOn();
+    let i = cur;
+    while (i !== t) { await sleep(T(CFG.perFloorMs)); i += dir; setNum(i); if (typeof floorBump === 'function') floorBump(); }
+    root.classList.remove('moving'); humOff(); jolt();
+
+    sc.scrollTop = starts[t]; lastTop = sc.scrollTop; updateVisibility();
+    cur = t; markHere(t);
+    await sleep(T(CFG.arriveDwellMs));
+    ding(dir); btns[t].classList.remove('lit');
+    await sleep(T(180));
+
+    setC(0); doorSound();
+    await sleep(T(CFG.doorMs));
+    root.classList.remove('ride'); setArrow(0);
+    sc.focus({ preventScroll: true });
+    busy = false;
+  }
+
+  /* ===== 3D CAB + CAMERA TURN ===== */
+  const cab = $('.cab'), wallR = $('.strip.r');
+  { // move the front-wall pieces out of the 3D room into a flat sliding layer
+    const flat = document.createElement('div'); flat.className = 'flat'; cab.appendChild(flat);
+    root.querySelectorAll('.room > .hdr-bg, .room > .hdr, .room > .lintel, .room > .strip, .room > .trim').forEach(el => flat.appendChild(el));
+  }
+  if (CFG.wallImg) root.querySelectorAll('.wall').forEach(w => w.style.backgroundImage = `url(${CFG.wallImg})`);
+  root.style.setProperty('--turn-ms', CFG.turnMs + 'ms');
+  if (CFG.ceilImg) $('.ceil').style.background = `url(${CFG.ceilImg}) center/cover`;
+  let panPx = 300, turned = false; let turnedAt = 0, onPanel = false;
+  function geom() {
+    const W = cab.clientWidth, p = W * CFG.persp;
+    // wall either side of the doors: always a visible margin past the frame, and once the doorway reaches maxDoorWidth the walls take the rest
+    const frameW = Math.max(innerHeight * .032, 19), sideW = Math.max(frameW + Math.max(12, W * CFG.wallShow), (W - CFG.maxDoorWidth) / 2);
+    root.style.setProperty('--p', p + 'px');
+    root.style.setProperty('--s', (sideW) + 'px');
+    root.style.setProperty('--r', (W * CFG.recess) + 'px');
+    const d = p * 0.92;   // interior walls reach from the front wall almost to the camera
+    root.style.setProperty('--d', d + 'px');
+    root.style.setProperty('--ext', (W * CFG.panelWallExt) + 'px');
+    const hp = $('.hdr').offsetHeight;
+    root.style.setProperty('--hp', hp + 'px');
+    root.style.setProperty('--panel-y', (hp + (cab.clientHeight - hp) / 2) + 'px');
+    root.style.setProperty('--panel-off', (W * CFG.panelOffset) + 'px');
+    // slide: the gap between the doorway and the panel is matched on the panel's right, at the frame edge
+    const pw = $('.panel').offsetWidth || W * .12;
+    const gap = sideW + W * CFG.panelOffset;
+    panPx = pw + gap + W * CFG.panelOffset;
+    if (turned) root.style.setProperty('--pan', panPx + 'px');
+    // slim door-frame trim
+    root.style.setProperty('--t', Math.max(3, W * .0026) + 'px');
+    // wood wall: one continuous texture across every wall piece, rail at the same height everywhere
+    if (CFG.wallTex) {
+      const H = cab.clientHeight, s = sideW, wood = (el, left, top) => {
+        if (!el) return;
+        el.classList.add('wood');
+        el.style.background = `url(${CFG.wallTex}) ${-left}px ${-top}px / auto ${H}px repeat-x`;
+      };
+      root.querySelectorAll('.hdr-bg').forEach((el, k) => wood(el, W * k * .125, 0));
+      wood($('.lintel'), W, 0);
+      wood($('.strip.l'), 0, hp);
+      wood($('.strip.r'), W - s, hp);
+      root.querySelectorAll('.wall').forEach(el => wood(el, 0, 0));
+    }
+  }
+  geom(); layout(); addEventListener('resize', () => { geom(); layout(); });
+
+  let backTimer = 0;
+  function look(on) {
+    if (turned === on) return;
+    turned = on; root.classList.toggle('turned', on); turnedAt = performance.now(); onPanel = false;
+    root.style.setProperty('--pan', on ? panPx + 'px' : '0px');
+    if (on) armBack(); else clearTimeout(backTimer);
+  }
+  function armBack() {
+    clearTimeout(backTimer);
+    backTimer = setTimeout(() => { if (!busy && !$('.panel').matches(':hover')) look(false); else armBack(); }, CFG.turnBackAfterMs);
+  }
+  if (CFG.showPanel) {
+    root.addEventListener('pointermove', e => {
+      if (busy || e.pointerType !== 'mouse') return;
+      if (!turned && e.clientX > innerWidth - CFG.revealDistance) look(true);
+      else if (turned) {
+        // once the slide has settled and the cursor has been on (or right of) the panel, moving off its left edge returns to the lift
+        const pl = $('.panel').getBoundingClientRect().left, settled = performance.now() - turnedAt > CFG.turnMs + 80;
+        if (settled && e.clientX >= pl) onPanel = true;
+        if (e.clientX < innerWidth * 0.3 || settled && onPanel && e.clientX < pl - 6) look(false); else armBack();
+      }
+    });
+    wallR.addEventListener('click', e => { if (!turned && !busy) { e.stopPropagation(); look(true); } }); // tap the right-hand wall strip (touch)
+    sc.addEventListener('scroll', () => { if (turned && !busy) look(false); }, { passive: true });
+    root.addEventListener('wheel', () => { if (turned && !busy) look(false); }, { passive: true });
+    addEventListener('keydown', e => { if (e.key === 'Escape') look(false); });
+    // up / down arrow keys ride one floor at a time (up = previous section, down = next)
+    addEventListener('keydown', e => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+      e.preventDefault(); if (busy) return;
+      const t = floorNow() + (e.key === 'ArrowDown' ? 1 : -1);
+      if (t >= 0 && t < F.length) { initAudioQuiet(); go(t); }
+    });
+  }
+
+  /* ===== PANEL DISCOVERY: glance + edge tab, until the visitor opens the panel (fresh on every load) ===== */
+  {
+    const tab = $('.ftab');
+    // the panel sits off-screen to the right, so focus/scrollIntoView could slide the whole scene sideways — pin it
+    root.addEventListener('scroll', () => { if (root.scrollLeft || root.scrollTop) root.scrollLeft = root.scrollTop = 0; });
+    let seen = false;   // not remembered: every page load starts fresh
+    let glanced = false, glancing = false, glanceTimer = 0, settleTimer = 0;
+    $('.ftab-l').textContent = CFG.panelTabLabel || 'Floors';
+    const markSeen = () => {
+      if (seen) return;
+      seen = true; clearTimeout(glanceTimer); tab.classList.remove('on');
+    };
+    // the visitor opened the panel by any route (edge hover, wall tap, tab) → retire the tab and glance until next load
+    new MutationObserver(() => { if (turned) markSeen(); }).observe(root, { attributes: true, attributeFilter: ['class'] });
+    tab.addEventListener('click', e => { e.stopPropagation(); if (!busy) look(true); });
+
+    const doorsOpen = () => cVal < 0.35;   // mostly open: scroll-scrubbed doors can rest part-way
+    const glance = async () => {
+      if (seen || glanced || busy || turned || !doorsOpen()) return;
+      glanced = glancing = true; root.classList.add('glancing');
+      root.style.setProperty('--pan', (panPx * CFG.glanceAmount) + 'px');
+      await sleep(CFG.turnMs + CFG.glanceHoldMs);
+      if (glancing && !turned) root.style.setProperty('--pan', '0px');
+      glancing = false;
+      await sleep(CFG.turnMs * 0.6); root.classList.remove('glancing');
+    };
+    const cancelGlance = () => { if (glancing && !turned) { root.style.setProperty('--pan', '0px'); glancing = false; root.classList.remove('glancing'); } };
+    // the tab shows from the start (hidden during a ride or the glance) until the panel is first opened
+    const showTab = () => { if (CFG.panelTab && CFG.showPanel && !seen) tab.classList.add('on'); };
+    if (CFG.lobby) { const wait = setInterval(() => { if (!busy) { clearInterval(wait); showTab(); } }, 500); }
+    else setTimeout(showTab, 1600);
+    // once scrolling settles with the doors open (they ease open just after), arm the one-time glance
+    const settled = () => {
+      if (seen || !CFG.showPanel || busy || !doorsOpen()) return;
+      if (!glanced && CFG.panelGlance && !RM) glanceTimer = setTimeout(glance, Math.max(0, CFG.glanceAfterMs - 900));
+    };
+    const onScroll = () => {
+      cancelGlance(); clearTimeout(glanceTimer); clearTimeout(settleTimer);
+      settleTimer = setTimeout(settled, 900);
+    };
+    sc.addEventListener('scroll', onScroll, { passive: true });
+    root.addEventListener('wheel', cancelGlance, { passive: true });
+    if (!CFG.startClosed && !CFG.lobby) setTimeout(settled, 1500);
+  }
+
+  /* ===== FILM GRAIN ===== */
+  {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d'), img = g.createImageData(256, 256);
+    for (let i = 0; i < img.data.length; i += 4) { const v = 128 + (Math.random() + Math.random() + Math.random() - 1.5) * 70; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+    g.putImageData(img, 0, 0);
+    const grainEl = $('.grain'); grainEl.style.backgroundImage = `url(${c.toDataURL()})`;
+    root.style.setProperty('--grain', CFG.grain);
+    let gt = 0;
+    const jitter = now => {   // ~24fps, like film
+      if (now - gt > 41 && CFG.grain && !RM) { gt = now; grainEl.style.transform = `translate(${(Math.random() * 256) | 0}px,${(Math.random() * 256) | 0}px)`; }
+      requestAnimationFrame(jitter);
+    };
+    if (!CFG.grain) grainEl.style.display = 'none'; else requestAnimationFrame(jitter);
+  }
+
+  /* ===== IDLE CAMERA SWAY ===== */
+  // slow handheld drift: the cab shifts a touch and the vanishing point wanders, so the recess breathes
+  const lobbyEl = $('.lobby');
+  let lobbyActive = !!CFG.lobby;
+  // travel: 1 during a panel ride; while scrolling, follows how shut the doors are × how fast you're moving
+  // cursor look: the camera leans very slightly towards the pointer (smoothed)
+  let lookX = 0, lookY = 0, tLookX = 0, tLookY = 0;
+  root.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse') return;
+    tLookX = (e.clientX / innerWidth - .5) * 2; tLookY = (e.clientY / innerHeight - .5) * 2;
+  });
+  root.addEventListener('pointerleave', () => { tLookX = 0; tLookY = 0; });
+  const flickEl = $('.flick'); let flk = 0;
+  let travel = 0, scrollVel = 0, lastSc = 0, lastBuzz = 0, shakeX = 0, shakeY = 0, bump = 0;
+  const floorBump = () => { bump = 1; if (CFG.haptics && navigator.vibrate) navigator.vibrate(35); };
+  function sway(now) {
+    // how much the cab is 'moving'
+    const v = Math.abs(sc.scrollTop - lastSc); lastSc = sc.scrollTop;
+    scrollVel += (Math.min(1, v / 18) - scrollVel) * .15;
+    const target = root.classList.contains('moving') ? 1 : Math.min(1, Math.max(0, (cVal - .45) / .45)) * scrollVel;
+    travel += (target - travel) * .12;
+    bump *= .82;
+    // the odd faint dip in the lights while travelling
+    if (!RM && CFG.flicker && travel > .3 && Math.random() < .035 * travel) flk = (.04 + Math.random() * .06) * CFG.flicker;
+    flk *= .78;
+    flickEl.style.opacity = flk.toFixed(3);
+    // vibration: fast jitter + a low rumble, scaled by travel
+    let vx = 0, vy = 0;
+    if (CFG.vibration && !RM && travel > .01) {
+      const a = travel * CFG.vibration, t = now / 1000;
+      // smoothed noise: a soft rumble rather than a frame-by-frame buzz
+      shakeX += ((Math.random() - .5) * 2 - shakeX) * .15; shakeY += ((Math.random() - .5) * 2 - shakeY) * .15;
+      vx = shakeX * 2 * a + Math.sin(t * 23) * 1 * a;
+      vy = shakeY * 3 * a + Math.sin(t * 31 + 1) * 1.6 * a + bump * 4 * CFG.vibration;   // small bump as each floor passes
+      // phone haptics where supported (Android); light ticks while moving
+      if (CFG.haptics && navigator.vibrate && now - lastBuzz > 140 && travel > .35) { navigator.vibrate(Math.round(12 + 18 * travel)); lastBuzz = now; }
+    }
+    // ease towards the pointer; parked while sliding over to the panel
+    const lk = RM || turned ? 0 : CFG.cursorLook;
+    lookX += (tLookX * lk - lookX) * .04; lookY += (tLookY * lk - lookY) * .04;
+    const lx = -lookX * 5, ly = -lookY * 3.5;                     // px the view shifts
+    const lpx = lookX * 1.6, lpy = lookY * 1.2;                    // % the vanishing point shifts (depth parallax)
+    vx += lx; vy += ly;
+    indEl.style.setProperty('--rx', (lookX * 14 + Math.sin(now / 4300) * 3).toFixed(2));
+    if (CFG.sway && !RM) {
+      const t = now / 1000, k = CFG.sway;
+      const x = (Math.sin(t * .23) * .6 + Math.sin(t * .41 + 1.3) * .35) * k;
+      const y = (Math.sin(t * .19 + .7) * .45 + Math.sin(t * .33 + 2.1) * .25) * k;
+      const r = (Math.sin(t * .17 + 2.4) * .06) * k;
+      cab.style.transform = `translate(${x * 2.4 + vx}px,${y * 2.4 + vy}px) rotate(${r}deg) scale(${1 + .012 * k + .008})`;
+      cab.style.perspectiveOrigin = `${50 + x * .5 + lpx}% ${50 + y * .5 + lpy}%`;
+      if (lobbyActive && !lobbyEl.classList.contains('in')) {
+        lobbyEl.style.setProperty('--lsx', (x * 3) + 'px'); lobbyEl.style.setProperty('--lsy', (y * 3) + 'px');
+      }
+    }
+    else cab.style.transform = `translate(${vx}px,${vy}px) scale(1.016)`;
+    requestAnimationFrame(sway);
+  }
+  requestAnimationFrame(sway);
+
+  /* ===== LOBBY START ===== */
+  function openCabDoors() {
+    busy = true; root.classList.add('ride');
+    setTimeout(() => { setC(0); doorSound(); setTimeout(() => { root.classList.remove('ride'); busy = false; }, CFG.doorMs); }, 350);
+  }
+  function setupLobby() {
+    $('.lb-title').textContent = CFG.lobbyTitle || '';
+    $('.lb-sub').textContent = CFG.lobbySub || '';
+    if (CFG.lobbyWallImg) $('.lb-wall').style.background = `url(${CFG.lobbyWallImg}) center/cover`;
+    if (CFG.lobbyDoorImg) root.querySelectorAll('.lb-door').forEach((d, k) => d.style.background = `url(${CFG.lobbyDoorImg}) ${k ? 'left' : 'right'} center/cover`);
+    if (CFG.lobbyCabImg) $('.lb-cab').style.background = `url(${CFG.lobbyCabImg}) center/cover`;
+    const topNo = floorNo(0), lbNum = $('.lb-num'), lbArrow = $('.lb-arrow');
+    lbNum.textContent = '1'; lbArrow.textContent = '';
+    const btn = $('.lb-btn');
+    let called = false;
+    btn.addEventListener('click', async () => {
+      if (called) return; called = true;
+      initAudio(); initAtmos(); soundOn = true; sndBtn.textContent = 'Sound on';
+      click(); btn.classList.add('lit');
+      // the lift comes up to you
+      lbArrow.textContent = '▲'; humOn();
+      for (let n = 2; n <= topNo; n++) { await sleep(T(420)); lbNum.textContent = String(n); }
+      await sleep(T(300)); humOff(); ding(1); lbArrow.textContent = '';
+      await sleep(T(450));
+      lobbyEl.classList.add('open'); doorSound();
+      await sleep(T(CFG.doorMs + 500));
+      // step in
+      lobbyEl.classList.add('in');
+      await sleep(T(1350));
+      lobbyEl.classList.add('gone'); lobbyActive = false;
+      openCabDoors();
+    });
+  }
+
+  /* ===== START ===== */
+  if (CFG.startAtBottom) {
+    sc.scrollTop = sc.scrollHeight; lastTop = sc.scrollTop;
+    cur = floorNow();
+    const hint = $('.hint');
+    setTimeout(() => hint.classList.add('on'), 1800);
+    const hideHint = () => { if (sc.scrollTop < sc.scrollHeight - sc.clientHeight - 20) { hint.classList.remove('on'); sc.removeEventListener('scroll', hideHint); } };
+    sc.addEventListener('scroll', hideHint, { passive: true });
+  }
+  updateVisibility(); setNum(cur); markHere(cur); setC(1);
+  sc.focus({ preventScroll: true });
+  if (CFG.lobby) { busy = true; setupLobby(); }
+  else {
+    lobbyEl.classList.add('gone');
+    if (CFG.startClosed) {
+      // shut on load; a nudge to scroll appears until the visitor moves
+      const hint = $('.hint');
+      if (!CFG.startAtBottom) {
+        setTimeout(() => { if (sc.scrollTop < 5) hint.classList.add('on'); }, 1600);
+        const hideHint = () => { if (sc.scrollTop > 5) { hint.classList.remove('on'); sc.removeEventListener('scroll', hideHint); } };
+        sc.addEventListener('scroll', hideHint, { passive: true });
+      }
+    } else if (CFG.openOnLoad && !RM) {
+      busy = true; root.classList.add('ride');
+      setTimeout(() => { setC(0); setTimeout(() => { root.classList.remove('ride'); busy = false; }, CFG.doorMs); }, 700);
+    } else setC(0);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+
+</body></html>
