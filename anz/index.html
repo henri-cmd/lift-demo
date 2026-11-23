@@ -12,7 +12,7 @@
   // No WebGL (hardware acceleration off, blocked graphics card, remote desktop…): go straight to the 2D lift, which needs none
   window.liftLite = function () { if (!window.__lite) { window.__lite = 1; location.replace('lite.html'); } };
   (function () { var gl = null; try { var c = document.createElement('canvas'); gl = c.getContext('webgl2'); } catch (e) {}
-    if (!gl || /[?&]nogl\b/.test(location.search)) window.liftLite(); })();
+    if (!gl || /[?&](nogl|flat)\b/.test(location.search)) window.__flat = true; })();
   var errs = [];
   addEventListener('error', function (e) { var t = e.target, src = t && t !== window && (t.src || t.href); errs.push(src ? 'could not load ' + String(src).split('/').slice(-2).join('/') : (e.message || 'error') + (e.lineno ? ' (line ' + e.lineno + ')' : '')); }, true);
   addEventListener('unhandledrejection', function (e) { errs.push(String((e.reason && e.reason.message) || e.reason)); });
@@ -21,7 +21,7 @@
       (errs.length ? '<code>' + errs.slice(0, 3).join(' \u00b7 ').replace(/</g, '&lt;') + '</code>' : '') + '</div>'; }
   setTimeout(function () { var l = document.querySelector('#lift3d .loading'); if (!l || l.classList.contains('done')) return;
     var gl = null; try { var c = document.createElement('canvas'); gl = c.getContext('webgl2') || c.getContext('webgl'); } catch (e) {}
-    if (!gl) return window.liftLite();
+    if (!gl && !window.__flat) return window.liftLite();
     if (!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('importmap'))) return fail('This browser is too old to run it.');
     fetch('../assets/vendor/three/LICENSE', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; fail(errs.length ? 'Something went wrong while it was loading.' : 'It is taking much longer than expected to load. It may still appear.'); })
       .catch(function () { fail('A file the lift needs could not be downloaded. Check your connection and reload.'); });
@@ -35,6 +35,17 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .css3d,#lift3d canvas.gl{position:absolute; inset:0}
 #lift3d canvas.gl{z-index:1; pointer-events:none; filter:none}
 #lift3d .css3d{z-index:0; transition:background-color .5s}
+/* flat mode (no WebGL): the cab is assembled from pictures of the 3D lift */
+#lift3d .flat{position:absolute; inset:0; z-index:1; pointer-events:none; overflow:hidden}
+#lift3d .flat .fdoors,#lift3d .flat .fcab,#lift3d .flat .leaf,#lift3d .flat img,#lift3d .flat .fscr,#lift3d .flat .flamp{position:absolute}
+#lift3d .flat .fdoors,#lift3d .flat .fcab,#lift3d .flat .leaf{will-change:transform}
+#lift3d .flat .leaf{left:0; top:0; width:50%; height:100%; overflow:hidden}
+#lift3d .flat .leaf.r{left:50%}
+#lift3d .flat img{left:0; top:0; max-width:none}
+#lift3d .flat .fcab > img{width:100%; height:100%}
+#lift3d .flat .fscr{filter:saturate(.9) brightness(.96)}
+#lift3d .flat .flamp{border-radius:50%; opacity:0; background-repeat:no-repeat; -webkit-mask-image:radial-gradient(circle,#000 62%,transparent 100%); mask-image:radial-gradient(circle,#000 62%,transparent 100%)}
+#lift3d .flat .fvig{position:absolute; inset:0; background:radial-gradient(ellipse 100% 108.7% at 50% 50%,rgba(0,0,0,0) 32%,rgba(0,0,0,.1) 56%,rgba(0,0,0,.2) 80%)}
 
 /* the floors: one continuous page seen through the doorway (a real DOM page placed in the 3D scene) */
 #lift3d .wall{position:absolute; left:0; top:0; overflow:hidden; background:#111; will-change:transform}
@@ -244,15 +255,38 @@ const smooth = x => x * x * (3 - 2 * x);
 const MOBILE = matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 600;
 const SHADOWS = !MOBILE;
 
+/* FLAT MODE: when the browser has no WebGL, the same lift runs without drawing in 3D. Everything else is unchanged (the scene is
+   still built, so framing, clicks and timing are identical); what you see is assembled from pictures of the real cab that were
+   rendered ahead of time at a range of window shapes (assets/anz/flat/). ?flat forces it; ?bake re-renders the pictures. */
+const BAKE = /[?&]bake\b/.test(location.search);
+let FLAT = !!window.__flat && !BAKE;
 let renderer = null;   // try gentler settings before giving up on 3D
-for (const o of [{ antialias: true, alpha: true }, { antialias: false, alpha: true, powerPreference: 'low-power' }, { antialias: false, alpha: true, failIfMajorPerformanceCaveat: false }]) {
+if (!FLAT) for (const o of [{ antialias: true, alpha: true }, { antialias: false, alpha: true, powerPreference: 'low-power' }, { antialias: false, alpha: true, failIfMajorPerformanceCaveat: false }]) {
   try { renderer = new THREE.WebGLRenderer(o); break; } catch (e) { renderer = null; }
 }
-if (!renderer) { window.liftLite(); await new Promise(() => {}); }
+if (!renderer) {   // a stand-in that accepts every call and does nothing
+  FLAT = true;
+  const dom = document.createElement('canvas'), mk = () => { const f = function () { return px; }, px = new Proxy(f, { get: (t, k) => k === 'domElement' ? dom : k === Symbol.toPrimitive ? () => 0 : k in t ? t[k] : (t[k] = mk()) }); return px; };
+  renderer = mk(); dom.style.display = 'none';
+}
+const BAKE_H = 1200, BUCKETS = [1440, 1530, 1620, 1720, 1820, 1930, 2050, 2170, 2300, 2440, 2590, 2740, 2900];   // picture widths at BAKE_H: one set per window shape
+let VW = innerWidth, VH = innerHeight, SX = 1, SY = 1, OX = 0, OY = 0, bucketW = 0, bakeSize = null;
+const mx = e => (e.clientX - OX) / SX, my = e => (e.clientY - OY) / SY;
+function viewSize() {
+  if (bakeSize) { [VW, VH] = bakeSize; bucketW = VW; }
+  else if (!FLAT) { VW = innerWidth; VH = innerHeight; return; }
+  else {   // nearest baked shape, stretched a few per cent sideways to fill the window (bars only if the window is far outside the range)
+    const a = innerWidth / innerHeight; let b = BUCKETS[0]; for (const q of BUCKETS) if (Math.abs(Math.log(q / BAKE_H / a)) < Math.abs(Math.log(b / BAKE_H / a))) b = q;
+    bucketW = b; const ba = b / BAKE_H, need = a / ba; SX = clamp(need, .93, 1.07); SY = 1;
+    if (need < .93) { VW = innerWidth / SX; VH = VW / ba; } else { VH = innerHeight; VW = VH * ba; }
+    OX = (innerWidth - VW * SX) / 2; OY = (innerHeight - VH * SY) / 2;
+  }
+  Object.assign(root.style, { left: '0', top: '0', right: 'auto', bottom: 'auto', width: VW + 'px', height: VH + 'px', transformOrigin: '0 0', transform: bakeSize ? 'none' : `translate(${OX}px,${OY}px) scale(${SX},${SY})` });
+}
 // Quality steps down by itself if the frame rate drops (see the governor in the frame loop); it never steps back up, so it can't flicker.
 let qLevel = 0;
 const Q_SCALE = [1, .82, .66, .52];
-const pixelRatioNow = () => Math.max(.5, Math.min(2, devicePixelRatio, Math.sqrt((MOBILE ? 2.2e6 : 3.6e6) / Math.max(1, innerWidth * innerHeight))) * Q_SCALE[qLevel]);
+const pixelRatioNow = () => BAKE ? 1 : Math.max(.5, Math.min(2, devicePixelRatio, Math.sqrt((MOBILE ? 2.2e6 : 3.6e6) / Math.max(1, innerWidth * innerHeight))) * Q_SCALE[qLevel]);
 renderer.setPixelRatio(pixelRatioNow());
 renderer.setClearColor(0x000000, 0);
 renderer.toneMapping = THREE.AgXToneMapping;
@@ -262,16 +296,17 @@ renderer.shadowMap.enabled = SHADOWS; renderer.shadowMap.type = THREE.PCFSoftSha
 renderer.domElement.className = 'gl';
 root.prepend(renderer.domElement);
 RectAreaLightUniformsLib.init();
+viewSize();
 
 const pageLayer = document.createElement('div'); pageLayer.className = 'css3d';   // holds the page, under the lift's canvas
 root.prepend(pageLayer);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(CFG.fov, innerWidth / innerHeight, 0.02, 60);
+const camera = new THREE.PerspectiveCamera(CFG.fov, VW / VH, 0.02, 60);
 camera.rotation.order = 'YXZ';
 
-const pmrem = new THREE.PMREMGenerator(renderer);
-const roomEnv = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const pmrem = FLAT ? null : new THREE.PMREMGenerator(renderer);
+const roomEnv = FLAT ? null : pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environment = roomEnv;
 scene.environmentIntensity = 0.5;
 const MAXANI = renderer.capabilities.getMaxAnisotropy();
@@ -575,7 +610,7 @@ const FIG_VIDEO = { src: '../assets/anz/passenger-loop.mp4', aspect: 296 / 720, 
 // They cross-fade into one another. Once she has stepped over, the waiting loop carries on, drawn one step across, so she never freezes.
 const VID = { mode: 'still', A: null, B: null, t0: 0, dur: 0 };
 const STEP_DX = .1222, STEP = { split: 74 / 24, end: 158 / 24, land: 2.2, mirror: 2.5 };   // the step clip: stepping out runs to 'split' (she has landed by 'land' and then settles), stepping back runs from there to 'end'   // how far the step carries her, as a share of the clip's width
-if (CFG.passenger > 0 && !MOBILE) {
+if (CFG.passenger > 0 && !MOBILE && !FLAT && !BAKE) {
   const mk = (src, loop) => { const v = document.createElement('video'); v.muted = true; v.loop = loop; v.playsInline = true; v.preload = 'auto'; v.src = src; const t = new THREE.VideoTexture(v); t.colorSpace = THREE.SRGBColorSpace; return { v, t, ready: false }; };
   const L = mk(FIG_VIDEO.src, true), S = mk(FIG_STEP.src, false), play = v => v.play().catch(() => {});
   const HOME = FIG_VIDEO.face, AWAY = FIG_VIDEO.face - STEP_DX;
@@ -631,6 +666,7 @@ const cubeCam = new THREE.CubeCamera(.05, 40, cubeRT);
 let envTex = null, envDirty = 0;
 function captureEnv() { envDirty = 3; }
 function doCaptureEnv() {
+  if (FLAT) return;
   if (!G.envPos) return;
   cubeCam.position.copy(G.envPos); scene.add(cubeCam);
   scene.environment = roomEnv; scene.environmentIntensity = .5;
@@ -689,8 +725,9 @@ const fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), outMat); fsQuad.fru
 let AO = POST && !MOBILE && CFG.ao > 0;
 const rtDepth = new THREE.WebGLRenderTarget(4, 4, { depthTexture: new THREE.DepthTexture(4, 4, THREE.UnsignedIntType) });
 const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
-function sizePost() { const v = renderer.getDrawingBufferSize(new THREE.Vector2()); rtScene.setSize(v.x, v.y); rtDepth.setSize(v.x, v.y); const w = Math.max(2, v.x >> 2), h = Math.max(2, v.y >> 2); rtA.setSize(w, h); rtB.setSize(w, h); }
+function sizePost() { if (FLAT) return; const v = renderer.getDrawingBufferSize(new THREE.Vector2()); rtScene.setSize(v.x, v.y); rtDepth.setSize(v.x, v.y); const w = Math.max(2, v.x >> 2), h = Math.max(2, v.y >> 2); rtA.setSize(w, h); rtB.setSize(w, h); }
 function renderScene() {
+  if (FLAT) { flatDraw(); return; }
   if (!POST) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
   if (!AO) outMat.uniforms.aoS.value = 0;
   if (AO) {   // depth of the solid geometry only (shading/glow overlays are hidden for this pass)
@@ -737,7 +774,7 @@ const reflMat = (mir, strength, dx, dy, lod, tint = [.92, .9, .87]) => new THREE
 // The page sits directly behind the doorway, as in the 2D version: an ordinary element, laid out at the size the doorway
 // has on screen and moved in step with the camera's small shifts so it always sits exactly in the opening.
 function placePage(cx, cy) {
-  const x = innerWidth / 2 + (-G.ow / 2 - cx) * G.pk, y = innerHeight / 2 - (G.oh - cy) * G.pk;
+  const x = VW / 2 + (-G.ow / 2 - cx) * G.pk, y = VH / 2 - (G.oh - cy) * G.pk;
   wallEl.style.transform = `translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0)`;
 }
 
@@ -809,7 +846,7 @@ function wallRun(u0, u1, yTop, seed = 0, r0 = u0, r1 = u1) {   // r0..r1: the st
 function build() {
   cab.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   cab.clear(); btnMeshes.length = 0; btnRings.length = 0; fnMeshes.length = 0; LIGHTS.length = 0;
-  const aspect = innerWidth / innerHeight;
+  const aspect = VW / VH;
   const vfov = CFG.fov * Math.PI / 180, hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
   // framing matches the 2D version: the doorway fills the screen width, a strip of wall with the indicator sits on top,
   // and the doors run off the bottom of the screen (no floor in view, with some margin for looking down)
@@ -825,7 +862,7 @@ function build() {
   const xl = Math.min(-ow / 2 - pocket, -sideR - .05), xr = ow / 2 + pocket + panelSide;
   const depth = D + CFG.roomBehind;
   const rr = sideR, rl = -sideR;   // side walls the same distance either side, so the room mirrored in the doors is symmetrical   // the room's own side walls (the front wall runs on behind them, where the doors park)
-  G = { ow, oh, D, eye, cabH, xl, xr, depth };
+  G = { ow, oh, D, eye, cabH, xl, xr, depth, vfov };
 
   /* --- front wall: veneer bays either side of the doorway, header bands above --- */
   const FZ = .05, t = .028, ins = .003;
@@ -1014,15 +1051,15 @@ function build() {
   captureEnv();
 
   /* --- the page: an ordinary web page directly behind the doorway (the 2D set-up) --- */
-  G.pk = (innerHeight / 2) / Math.tan(vfov / 2) / (D - z1);                    // screen pixels per metre at the back of the doorway
-  const pageTop = innerHeight / 2 - (oh - eye) * G.pk;
-  wallEl.style.width = Math.ceil(ow * G.pk) + 'px'; wallEl.style.height = Math.ceil(innerHeight - pageTop + 14) + 'px';
+  G.pk = (VH / 2) / Math.tan(vfov / 2) / (D - z1);                    // screen pixels per metre at the back of the doorway
+  const pageTop = VH / 2 - (oh - eye) * G.pk;
+  wallEl.style.width = Math.ceil(ow * G.pk) + 'px'; wallEl.style.height = Math.ceil(VH - pageTop + 14) + 'px';
   wallEl.style.setProperty('--mx', '0px');
   if (!wallEl.parentNode) pageLayer.appendChild(wallEl);
   placePage(0, eye);
 
   camera.aspect = aspect; camera.updateProjectionMatrix();
-  renderer.setPixelRatio(pixelRatioNow()); renderer.setSize(innerWidth, innerHeight); sizePost();
+  renderer.setPixelRatio(pixelRatioNow()); renderer.setSize(VW, VH); sizePost();
   layout();
 }
 
@@ -1095,20 +1132,20 @@ addEventListener('keydown', e => {
 let tLookX = 0, tLookY = 0, lookX = 0, lookY = 0, turned = false, turnT = 0, turnV = 0, onPanel = false;   // turnT: 0 = facing doors, 1 = facing panel
 root.addEventListener('pointermove', e => {
   if (e.pointerType !== 'mouse') return;
-  tLookX = (e.clientX / innerWidth - .5) * 2; tLookY = (e.clientY / innerHeight - .5) * 2;
+  tLookX = (mx(e) / VW - .5) * 2; tLookY = (my(e) / VH - .5) * 2;
   root.style.cursor = hitButton(e) !== null ? 'pointer' : '';
   // resting the cursor on the panel glides you over to it. It re-arms only once the cursor has left the panel,
   // so coming back to the doors with the mouse still parked there doesn't send you straight back.
   if (e.target.closest('.ui')) return;
-  const over = overPlate(e) || (!turned && e.clientX > innerWidth - CFG.revealDistance);
+  const over = overPlate(e) || (!turned && mx(e) > VW - CFG.revealDistance);
   // once you have been on the panel, moving the cursor off it to the left takes you straight back to the doors
-  if (turned && G.plateLeft) { const px = (TMPV.copy(G.plateLeft).project(camera).x * .5 + .5) * innerWidth;
-    if (e.clientX >= px) onPanel = true; else if (onPanel && turnT > .7 && e.clientX < px - 40) { onPanel = false; lookAtPanel(false); return; } }
+  if (turned && G.plateLeft) { const px = (TMPV.copy(G.plateLeft).project(camera).x * .5 + .5) * VW;
+    if (mx(e) >= px) onPanel = true; else if (onPanel && turnT > .7 && mx(e) < px - 40) { onPanel = false; lookAtPanel(false); return; } }
   if (!over) { hoverArmed = true; clearTimeout(hoverTimer); hoverTimer = 0; }
   else if (hoverArmed && !turned && turnT < .6 && !hoverTimer) hoverTimer = setTimeout(() => { hoverTimer = 0; if (!turned) { hoverArmed = false; lookAtPanel(true); } }, CFG.panelHoverMs);   // also while the lift is travelling
 });
 let hoverTimer = 0, hoverArmed = true;
-function overPlate(e) { if (!G.plate) return false; ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObject(G.plate, false).length > 0; }
+function overPlate(e) { if (!G.plate) return false; ndc.set(mx(e) / VW * 2 - 1, -(my(e) / VH) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObject(G.plate, false).length > 0; }
 root.addEventListener('pointerleave', () => { tLookX = tLookY = 0; });
 const ftab = root.querySelector('.ftab');
 const panelHold = false;
@@ -1118,7 +1155,7 @@ ftab.addEventListener('click', e => { e.stopPropagation(); lookAtPanel(!turned);
 
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function hitButton(e) {
-  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ndc.set(mx(e) / VW * 2 - 1, -(my(e) / VH) * 2 + 1);
   ray.setFromCamera(ndc, camera);
   const h = ray.intersectObjects([...btnMeshes, ...fnMeshes], false)[0];
   return h ? h.object : null;
@@ -1317,14 +1354,16 @@ const TEST = /[?&]test\b/.test(location.search);
 let gAcc = 0, gN = 0, gLast = 0, lastInput = performance.now(), frameNo = 0;
 for (const ev of ['pointermove', 'pointerdown', 'wheel', 'touchstart', 'touchmove', 'keydown']) addEventListener(ev, () => { lastInput = performance.now(); }, { passive: true, capture: true });
 function stepQualityDown() {
+  if (FLAT || BAKE) return;
   if (qLevel >= Q_SCALE.length - 1) return; qLevel++;
   if (qLevel >= 2) { AO = false; if (G.mirror) { G.mirror.visible = false; for (const m of G.over || []) m.visible = false; M.doorL.envMapIntensity = M.doorR.envMapIntensity = 1; } }
   if (qLevel >= 3 && renderer.shadowMap.enabled) { renderer.shadowMap.enabled = false; if (G.key) G.key.castShadow = false; scene.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) m.needsUpdate = true; }); }
-  renderer.setPixelRatio(pixelRatioNow()); renderer.setSize(innerWidth, innerHeight); sizePost();
+  renderer.setPixelRatio(pixelRatioNow()); renderer.setSize(VW, VH); sizePost();
 }
 const EXPORT = /[?&]export\b/.test(location.search);
 function frame() {
   if (EXPORT && window.__liftPause) { setTimeout(frame, 100); return; }
+  if (BAKE && !bakeStep) return;   // while baking, frames are drawn one at a time by the bake routine
   const now0 = performance.now();
   // when nothing has been touched for a few seconds and nothing is moving, draw every other frame (saves battery, no visible change)
   const idle = !busy && now0 - lastInput > 2500 && travel < .02 && (turnT === 0 || turnT === 1) && !doorAnim && !roll;
@@ -1402,7 +1441,7 @@ function frame() {
     G.gapLight.position.y = bandY * G.oh; G.gapLight.intensity = .25 * k * shut;   // the sliver catching the door edges, right at the gap
   }
   // eyes adapt a little to a bright floor
-  renderer.toneMappingExposure = CFG.exposure * (1 - .2 * openK * lumNow) * ((now < alarmUntil) ? .55 : 1);
+  renderer.toneMappingExposure = CFG.exposure * (BAKE ? 1 : 1 - .2 * openK * lumNow) * ((now < alarmUntil) ? .55 : 1);
   if (G.alarm) G.alarm.intensity = now < alarmUntil ? (.5 + .5 * Math.sin(now / 70)) * 9 : 0;
 
   // camera: head follows the cursor; turns to the panel when asked
@@ -1416,16 +1455,17 @@ function frame() {
   // flat-on camera: it never turns or moves in or out. It leans a few millimetres with the cursor (the 2D version's lean),
   // and slides sideways to the button panel. The page is moved in step, so it always sits exactly in the doorway.
   const p = turnT;
-  const hs = RM ? 0 : CFG.headShift;
+  const hs = RM || FLAT || BAKE ? 0 : CFG.headShift, still = FLAT || BAKE;   // the baked pictures are taken from a fixed spot
   G.panNow = G.pan * p;
-  const camX = G.pan * p + vx + lookX * hs * (1 - p) + Math.sin(sw * .21) * .0015, camY = G.eye + vy - lookY * hs * .5 * (1 - p) + Math.sin(sw * .27 + 1) * .001;
+  const camX = still ? G.pan * p : G.pan * p + vx + lookX * hs * (1 - p) + Math.sin(sw * .21) * .0015, camY = still ? G.eye : G.eye + vy - lookY * hs * .5 * (1 - p) + Math.sin(sw * .27 + 1) * .001;
   camera.position.set(camX, camY, G.D); camera.rotation.set(0, 0, 0);
   placePage(camX, camY);
+  if (FLAT) { camera.updateMatrixWorld(); scene.updateMatrixWorld(); }
 
   if (envDirty && --envDirty === 0) doCaptureEnv();
   renderScene();
   if (grainEl) grainEl.style.transform = `translate(${(Math.random() * 64) | 0}px,${(Math.random() * 64) | 0}px)`;
-  nextFrame(frame);
+  if (!BAKE) nextFrame(frame);
 }
 const WHITE = new THREE.Color(0xffffff);
 
@@ -1452,11 +1492,89 @@ if (MOBILE) root.querySelector('.hint').textContent = 'Swipe up ↑';
       await until(() => performance.now() - t0 > 1800 && Math.abs(pageEl.scrollTop - y0) > 140, 9000); tipScroll.classList.remove('on'); await pause(500); }
     if (!root.classList.contains('seen-panel') && (G.pan > .08 || MOBILE)) { coach.classList.add('on'); await until(() => root.classList.contains('seen-panel'), 6e5); coach.classList.remove('on');
       if (turned && !busy) { back.classList.add('on');
-        const place = () => { if (!back.classList.contains('on')) return; if (G.plateLeft) back.style.right = Math.max(0, innerWidth - (TMPV.copy(G.plateLeft).project(camera).x * .5 + .5) * innerWidth + 22) + 'px'; requestAnimationFrame(place); }; place();   // keeps to the panel's left edge as the view slides
+        const place = () => { if (!back.classList.contains('on')) return; if (G.plateLeft) back.style.right = Math.max(0, VW - (TMPV.copy(G.plateLeft).project(camera).x * .5 + .5) * VW + 22) + 'px'; requestAnimationFrame(place); }; place();   // keeps to the panel's left edge as the view slides
         await until(() => !turned || busy, 15000); back.classList.remove('on'); } }   // they found the panel: show the way back at once
     })(); }
 build();
 setIndicator(0);
+/* ===== FLAT MODE: the cab assembled from baked pictures (no WebGL) ===== */
+// Where things sit in the baked pictures, in picture pixels (bucketW x BAKE_H). The same sums are used to bake and to show them.
+function flatGeom() {
+  const W = bucketW, H = BAKE_H, FZ = .05, ZD = -.035, pk = z => (H / 2) / Math.tan(G.vfov / 2) / (G.D - z);
+  const X = (wx, z) => W / 2 + wx * pk(z), Y = (wy, z) => H / 2 - (wy - G.eye) * pk(z);
+  const pan = Math.round(G.pan * pk(FZ));                                          // how far the front wall slides across the screen on the way to the panel
+  const rect = (o, pad) => { const b = new THREE.Box3().setFromObject(o), z = b.max.z, x = Math.floor(X(b.min.x, z)) - pad, y = Math.floor(Y(b.max.y, z)) - pad;
+    return { x, y, w: Math.ceil(X(b.max.x, z)) + pad - x, h: Math.ceil(Y(b.min.y, z)) + pad - y }; };
+  const dx = Math.max(0, Math.floor(X(-G.ow / 2, ZD)) - 24), dy = Math.max(0, Math.floor(Y(G.oh, ZD)) - 24);
+  const scr = S => { let m = null; cab.traverse(o => { if (o.isMesh && o.material && o.material.emissiveMap === S.tex) m = o; }); return m ? rect(m, 0) : null; };
+  const plate = rect(G.plate, 34); plate.y = Math.max(0, plate.y); plate.h = Math.min(H - plate.y, plate.h);
+  return { W, H, pan, wide: W + pan, pkF: pk(FZ), pkD: pk(ZD), split: Math.min(Math.round(X(G.ow / 2 + .1, FZ)), W - 40),
+    doors: { x: dx, y: dy, w: W - 2 * dx, h: H - dy }, plate, ind: scr(IND), psc: scr(PSC),
+    btn: LIGHTS.map(L => { const q = L.ring.getWorldPosition(new THREE.Vector3()), sc = L.glow.getWorldScale(new THREE.Vector3()); return { x: X(q.x, q.z), y: Y(q.y, q.z), r: sc.x * .5 * pk(q.z) }; }) };
+}
+let FL = null;
+async function flatBuild() {
+  cab.updateMatrixWorld(true);
+  const g = flatGeom(), k = VH / BAKE_H, dir = `../assets/anz/flat/${bucketW}/`, px = v => (v * k).toFixed(2) + 'px';
+  const el = (cls, parent, tag = 'div') => { const d = document.createElement(tag); d.className = cls; parent.appendChild(d); return d; };
+  const box = (d, r) => Object.assign(d.style, { left: px(r.x), top: px(r.y), width: px(r.w), height: px(r.h) });
+  const old = FL && FL.el, top = document.createElement('div'); top.className = 'flat';
+  const loads = [], img = (cls, parent, src) => { const i = el(cls, parent, 'img'); i.alt = ''; i.draggable = false; loads.push(new Promise(r => { i.onload = i.onerror = r; })); i.src = dir + src; return i; };
+  const doorsEl = el('fdoors', top); box(doorsEl, g.doors);
+  const ll = el('leaf', doorsEl), lr = el('leaf r', doorsEl);
+  for (const [leaf, off] of [[ll, 0], [lr, -g.doors.w / 2]]) { const i = img('', leaf, 'doors.webp'); i.style.width = px(g.doors.w); i.style.height = px(g.doors.h); i.style.left = px(off); }
+  const cabEl = el('fcab', top); box(cabEl, { x: 0, y: 0, w: g.wide, h: g.H });
+  img('', cabEl, 'cab.webp');
+  for (const [S, r] of [[IND, g.ind], [PSC, g.psc]]) if (r) { S.c.className = 'fscr'; cabEl.appendChild(S.c); box(S.c, r); }
+  const lamps = g.btn.map(b => ['here', 'lit'].map(n => { const d = el('flamp', cabEl); box(d, { x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 });
+    Object.assign(d.style, { backgroundImage: `url(${dir}${n}.webp)`, backgroundSize: `${px(g.plate.w)} ${px(g.plate.h)}`, backgroundPosition: `${px(g.plate.x - (b.x - b.r))} ${px(g.plate.y - (b.y - b.r))}` }); return { d, o: -1 }; }));
+  for (const n of ['here', 'lit']) { const i = new Image(); loads.push(new Promise(r => { i.onload = i.onerror = r; })); i.src = dir + n + '.webp'; }
+  const vig = el('fvig', top); for (const pfx of ['webkitMask', 'mask']) { vig.style[pfx + 'Image'] = `url(${dir}cab.webp)`; vig.style[pfx + 'Size'] = `${px(g.wide)} ${px(g.H)}`; vig.style[pfx + 'Repeat'] = 'no-repeat'; }
+  await Promise.all(loads);
+  root.insertBefore(top, pageLayer.nextSibling); if (old) old.remove();
+  FL = { el: top, g, k, doors: doorsEl, ll, lr, cab: cabEl, lamps, vig, pan: -1, open: -1, ex: -1 };
+  drawIndicator();
+}
+function flatDraw() {
+  if (!FL) return;
+  const { g, k } = FL, pan = G.panNow * g.pkF * k, open = (1 - cVal) * (G.ow / 2 + .02) * g.pkD * k;
+  if (pan !== FL.pan) { FL.pan = pan; FL.cab.style.transform = `translate3d(${(-pan).toFixed(2)}px,0,0)`; FL.doors.style.transform = `translate3d(${(-G.panNow * g.pkD * k).toFixed(2)}px,0,0)`;
+    const mp = `${(-pan).toFixed(1)}px 0`; FL.vig.style.webkitMaskPosition = mp; FL.vig.style.maskPosition = mp; }
+  if (open !== FL.open) { FL.open = open; FL.ll.style.transform = `translate3d(${(-open).toFixed(2)}px,0,0)`; FL.lr.style.transform = `translate3d(${open.toFixed(2)}px,0,0)`; }
+  const ex = Math.round((+renderer.toneMappingExposure || CFG.exposure) / CFG.exposure * 200) / 200;   // the cab dims a touch when the doors open on a bright floor, and for the alarm
+  if (ex !== FL.ex) { FL.ex = ex; FL.el.style.filter = ex < .995 ? `brightness(${ex})` : ''; }
+  LIGHTS.forEach((L, i) => { const pair = FL.lamps[i]; if (!pair) return; const lit = Math.min(1, L.w * L.c), here = Math.min(1, L.r / .82) * (1 - lit);
+    [here, lit].forEach((v, j) => { v = Math.round(v * 50) / 50; if (v !== pair[j].o) { pair[j].o = v; pair[j].d.style.opacity = v; } }); });
+}
+
+/* ===== BAKE (?bake, needs WebGL): renders the pictures flat mode uses, one set per window shape, and posts them to a local receiver ===== */
+let bakeStep = false;
+async function bake(list = BUCKETS, url = 'http://localhost:8766/') {
+  const wait = ms => new Promise(r => setTimeout(r, ms)), step = () => { bakeStep = true; frame(); bakeStep = false; };
+  const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  const grab = () => { const c = canvas(VW, VH); c.getContext('2d').drawImage(renderer.domElement, 0, 0, VW, VH); return c; };
+  const send = (c, name, q) => new Promise(res => c.toBlob(async b => { await fetch(url + bucketW + '/' + name, { method: 'POST', body: b }); res(b.size); }, 'image/webp', q));
+  const lights = (r, c, w) => { for (const L of LIGHTS) { L.r = L.rT = r; L.c = L.cT = c; L.w = L.wT = w; } };
+  const sizes = {}; busy = true; CFG.shaftLight = 0;
+  for (const W of list) {
+    bakeSize = [W, BAKE_H]; viewSize(); build();
+    for (let i = 0; i < 10; i++) { step(); await wait(120); }
+    cab.updateMatrixWorld(true); const g = flatGeom();
+    const shot = async (closed, panned, lens) => { cVal = closed ? 1 : 0; turned = panned; turnT = panned ? 1 : 0; turnV = 0; if (outMat.uniforms.lens) outMat.uniforms.lens.value = lens; step(); await wait(60); step(); return grab(); };
+    lights(0, 0, 0);
+    const fClosed = await shot(true, false, 1), f0 = await shot(false, false, 0), f1 = await shot(false, true, 0);
+    lights(.82, .32, 0); const fHere = await shot(false, true, 0);
+    lights(1, 1, 1); const fLit = await shot(false, true, 0); lights(0, 0, 0);
+    // one wide picture of the front wall: the doors view on the left, the panel view on the right, cross-faded just right of the door frame
+    const bl = 36, part = (im, off, from, to) => { const t = canvas(g.wide, g.H), q = t.getContext('2d'); q.drawImage(im, off, 0); q.globalCompositeOperation = 'destination-in';
+      const gr = q.createLinearGradient(g.split - bl, 0, g.split, 0); gr.addColorStop(0, `rgba(0,0,0,${from})`); gr.addColorStop(1, `rgba(0,0,0,${to})`); q.fillStyle = gr; q.fillRect(0, 0, g.wide, g.H); return t; };
+    const wide = canvas(g.wide, g.H), x = wide.getContext('2d'); x.globalCompositeOperation = 'lighter'; x.drawImage(part(f0, 0, 1, 0), 0, 0); x.drawImage(part(f1, g.pan, 0, 1), 0, 0);
+    const crop = (im, r, off = 0) => { const c = canvas(r.w, r.h); c.getContext('2d').drawImage(im, off - r.x, -r.y); return c; };
+    sizes[W] = [await send(wide, 'cab.webp', .9), await send(crop(fClosed, g.doors), 'doors.webp', .88), await send(crop(fLit, g.plate, g.pan), 'lit.webp', .9), await send(crop(fHere, g.plate, g.pan), 'here.webp', .9)];
+  }
+  return sizes;
+}
+
 let resizeT = 0, lastW = innerWidth, lastH = innerHeight;
 addEventListener('resize', () => {
   if (innerWidth === lastW && Math.abs(innerHeight - lastH) < 90 && MOBILE) return;   // a phone's toolbars sliding in and out isn't a real resize
@@ -1464,13 +1582,14 @@ addEventListener('resize', () => {
     lastW = innerWidth; lastH = innerHeight;
     const span = () => { const a = starts[cur] ?? 0, b = cur < swaps.length ? swaps[cur] : pageEl.scrollHeight - pageEl.clientHeight; return [a, Math.max(a, b)]; };
     const [a, b] = span(), fr = b > a ? clamp((pageEl.scrollTop - a) / (b - a), -.4, 1) : 0;
-    build();
+    viewSize(); build(); if (FLAT) flatBuild();
     const [a2, b2] = span(); pageEl.scrollTop = a2 + fr * (b2 - a2); lastTop = scrollY = pageEl.scrollTop;
   }, 140);
 });
 addEventListener('orientationchange', () => dispatchEvent(new Event('resize')));
 if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout()); floorEls.forEach(f => ro.observe(f.querySelector('.copy'))); }
-nextFrame(frame);
+if (FLAT) await flatBuild();
+if (BAKE) window.__bake = bake; else nextFrame(frame);
 setTimeout(() => root.querySelector('.loading').classList.add('done'), 600);
 if (EXPORT) window.__lift = { THREE, renderer, scene, camera, cab, doors, M, IND, PSC, renderScene, sizePost, plateBase, outMat, get G() { return G; } };
 </script>
