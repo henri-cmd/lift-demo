@@ -484,7 +484,7 @@ function drawIndicator(now = performance.now()) {
       g.beginPath(); g.moveTo(0, H * y0); g.bezierCurveTo(W * .3, H * (y0 - amp), W * .65, H * (y0 + amp * .5), W, H * (y0 - amp * .7)); g.lineTo(W, H); g.lineTo(0, H); g.closePath(); g.fill(); }
     g.restore(); };
   const chevron = (g, x, y, s, up, a) => { g.save(); g.translate(x, y); if (!up) g.scale(1, -1); g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = s * .2; g.lineCap = g.lineJoin = 'round';
-    g.beginPath(); g.moveTo(-s * .5, s * .22); g.lineTo(0, -s * .3); g.lineTo(s * .5, s * .22); g.stroke(); g.restore(); };
+    g.lineWidth = s * .17; g.beginPath(); g.moveTo(0, s * .55); g.lineTo(0, -s * .5); g.moveTo(-s * .42, -s * .08); g.lineTo(0, -s * .5); g.lineTo(s * .42, -s * .08); g.stroke(); g.restore(); };   // a full arrow: shaft and head
   const split = t => { const k = t.indexOf(' '); return k < 0 ? [t, ''] : [t.slice(0, k), t.slice(k + 1)]; }, nice = t => t.charAt(0) + t.slice(1).toLowerCase();
   { const g = IND.g, W = IND_W, H = IND_H; backdrop(g, W, H);
     const line = (text, dy, a) => { if (!text || a <= 0) return; const [num, name] = split(text); g.save(); g.globalAlpha = a; g.fillStyle = '#fff'; g.textBaseline = 'alphabetic';
@@ -753,9 +753,10 @@ function build() {
   // header above the doors, as in the references: steel transom, a band of veneer carrying the indicator, steel band, luminous ceiling
   const TRANSOM = .07, BAND = .2, TOPBAND = 0, cabH = oh + TRANSOM + BAND, woodTop = cabH;
   const pocket = ow / 2 + 0.25, panelSide = 1.3;
-  const xl = -ow / 2 - pocket, xr = ow / 2 + pocket + panelSide;
+  const sideR = ow / 2 + .2 + .6 * CFG.panelScale * 1.45 + CFG.roomSide * .7;
+  const xl = Math.min(-ow / 2 - pocket, -sideR - .05), xr = ow / 2 + pocket + panelSide;
   const depth = D + CFG.roomBehind;
-  const rl = -ow / 2 - CFG.roomSide, rr = ow / 2 + .2 + .6 * CFG.panelScale * 1.45 + CFG.roomSide * .7;   // the room's own side walls (the front wall runs on behind them, where the doors park)
+  const rr = sideR, rl = -sideR;   // side walls the same distance either side, so the room mirrored in the doors is symmetrical   // the room's own side walls (the front wall runs on behind them, where the doors park)
   G = { ow, oh, D, eye, cabH, xl, xr, depth };
 
   /* --- front wall: veneer bays either side of the doorway, header bands above --- */
@@ -820,12 +821,12 @@ function build() {
   const sw0 = Math.min(.52, ow * (aspect < 1 ? .62 : aspect < 1.3 ? .42 : .3)), sh0 = sw0 * IND_H / IND_W, iy = oh + (TRANSOM + CFG.headroom) / 2;
   { // a horizontally brushed body on a dark gasket (the shadow line where it meets the veneer), glass set back inside a slim
     // polished bezel, and a fixing screw at each end. The body is shallow, so it sits close to the wall.
-    const hw = sw0 + .03, hh = sh0 + .024, hd = CFG.indicatorDepth;
+    const hw = sw0 + .1, hh = sh0 + .05, hd = .02;   // an oak panel proud of the wall, the screen set into it
     box(hw + .006, hh + .006, .002, M.slot, 0, iy, FZ + .001);
     const face = plateMat(canvasTex(1024, Math.round(1024 * hh / hw), plateBase, { repeat: false }));
-    const house = new THREE.Mesh(new RoundedBoxGeometry(hw, hh, hd, 4, Math.min(.007, hd * .45)), M.glass); house.position.set(0, iy, FZ + .002 + hd / 2); cab.add(house);
+    const house = new THREE.Mesh(new RoundedBoxGeometry(hw, hh, hd, 4, Math.min(.005, hd * .45)), (() => { const m = woodAt(0, hw, 0, hh, .53); m.color.multiplyScalar(.97); return m; })()); house.position.set(0, iy, FZ + .002 + hd / 2); cab.add(house);
     const fz = FZ + .002 + hd, bw = .005;
-    box(sw0 + .004, sh0 + .004, .002, M.black, 0, iy, fz - .0006);
+    box(sw0 + .014, sh0 + .014, .002, M.glass, 0, iy, fz - .0008);
     plane(sw0, sh0, screenMat(IND), 0, iy, fz + .0006);
     plane(sw0 * 1.4, sh0 * 2.6, new THREE.MeshBasicMaterial({ map: glowTex('0,125,186'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .05 }), 0, iy, fz + .008);
   }
@@ -905,7 +906,7 @@ function build() {
   cab.traverse(o => { if (o.isMesh && !o.userData.noShadow && !Array.isArray(o.material) && !o.material.transparent && !o.material.isMeshBasicMaterial) { o.receiveShadow = SHADOWS; o.castShadow = SHADOWS; } });
   if (G.mirror) {
     const S = CFG.wallMirror, over = G.over = [], add = (w, h, x, y, z, k, dx, dy, lod, tint) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), reflMat(G.mirror, k * S, dx, dy, lod, tint)); m.position.set(x, y, z); m.renderOrder = 2; cab.add(m); over.push(m); };
-    const hwI = sw0 + .03, hhI = sh0 + .024, pwS = pw * PS, phS = ph * PS;
+    const hwI = sw0 + .1, hhI = sh0 + .05, pwS = pw * PS, phS = ph * PS;
     add(ow + 2 * t, TRANSOM - .012, 0, oh + TRANSOM / 2 - ins, .0755, .5, 1, 0, 2.2);                                    // header over the doors (brushed along its length)
     for (const sx of [-1, 1]) add(t - .008, oh - .02, sx * (ow / 2 + t / 2 - ins), oh / 2, .0585, .45, 0, 1, 2);          // door frame
     for (const [a, b] of [[rl, -ow / 2 - t], [ow / 2 + t, rr]]) {
@@ -915,7 +916,7 @@ function build() {
     }
     add(ow + 2 * t, woodTop - oh - TRANSOM, 0, (woodTop + oh + TRANSOM) / 2, FZ + .0021, .13, 0, 1, 3.4, [1, .95, .86]);  // veneer above the header
     add(pwS - .004, phS - .004, px, py, FZ + .014 * PS + .0004, .3, 0, 1, 2.4);                                            // button panel plate
-    add(hwI - .006, hhI - .006, 0, iy, FZ + .002 + CFG.indicatorDepth + .0002, .3, 0, 1, 2.4);                             // indicator body
+    add(sw0, sh0, 0, iy, FZ + .002 + .02 + .0012, .12, 0, 1, 2.4);                             // indicator body
     const base = G.mirror.onBeforeRender;   // hide them while the mirror image itself is drawn (they'd be sampling the image being rendered)
     G.mirror.onBeforeRender = function (r, sc, c) { for (const m of over) m.visible = false; base.call(this, r, sc, c); for (const m of over) m.visible = true; };
   }
@@ -1145,6 +1146,7 @@ async function go(t) {
   busy = true; root.classList.add('busy');
   const dir = t > cur ? 1 : -1;
   clickSound(); pressButton(t);
+  indDir = -dir; drawIndicator();   // the travel arrow lights the moment the button is pressed
   btnRings[t].userData.lit = true; btnRings[t].material.emissive.setHex(0x0a8fd4); btnRings[t].material.emissiveIntensity = 1.6; btnRings[t].material.color.setHex(0x2aa4e0);
   await sleep(550);
   lookAtPanel(false);
