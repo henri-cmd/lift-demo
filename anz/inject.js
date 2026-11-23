@@ -107,7 +107,7 @@ const CFG = {
   pageZoom: 0.8,           // page content scale through the doorway (1 = normal web size; lower shows more content)
   pagePush: 5,             // metres the page comes towards you as the camera pushes in to the panel (0 = none)
   vistaDistance: 18,        // metres beyond the doors that the page sits — far away, so it reads as an open space, not a wall
-  headroom: 0.215,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
+  headroom: 0.24,          // wall above the doorway kept in view (holds the indicator), like the 2D header strip
   exposure: 1.02,
   shaftLight: 0.5,         // strength of the light leaking through the door gaps while travelling (0 = none, 1 = strong)
   post: true,              // camera treatment (halation + lens fringing); false = plain render
