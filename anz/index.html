@@ -1295,6 +1295,7 @@ function musicOn() { if (!soundOn || !mus) return; clearInterval(musTimer); musT
 function musicOff() { if (!mus) return; mus.gain.gain.setTargetAtTime(0, ac.currentTime, .35); setTimeout(() => { if (!busy) clearInterval(musTimer); }, 1600); }
 
 /* ===== DOORS + RIDE ===== */
+let firstBell = false;
 let cVal = 1, cTarget = 1, busy = false, cur = 0, moving = false, rideDir = 0, bump = 0;
 let doorAnim = null;   // {from, to, t0, ms} while a button ride drives the doors
 const animateDoors = (to, ms) => new Promise(res => { doorAnim = { from: cVal, to, t0: performance.now(), ms: RM ? 1 : ms, res }; });
@@ -1306,7 +1307,7 @@ let shaftPhase = 0, flk = 0, rideFloorMs = 750, rideSpeed = 0;
 const SHAFT_TEST = /[?&]shaft\b/.test(location.search);   // ?shaft holds the landing light on, for checking it
 async function go(t) {
   if (busy || t === cur) { if (busy) { clickSound(); pressButton(t); } else flashButton(t); return; }   // mid-ride a press still clicks, but the lift finishes its trip first
-  busy = true; root.classList.add('busy');
+  busy = true; firstBell = true; root.classList.add('busy');
   const dir = t > cur ? 1 : -1;
   clickSound(); pressButton(t);
   indDir = -dir; drawIndicator();   // the travel arrow lights the moment the button is pressed
@@ -1402,6 +1403,7 @@ function frame() {
   } else if (!busy && !panelHold) {
     const target = scrollTarget();
     cVal = RM ? target : cVal + (target - cVal) * (1 - Math.pow(1 - CFG.doorEase, dt * 60));
+    if (!firstBell && cVal < .97) { firstBell = true; if (cur === 0) ding(1); }   // the lift 'arrives' the first time the doors part after loading
     const f = floorNow();
     if (f !== cur) { const dir = f > cur ? 1 : -1; cur = f; rollTo(f, dir); ding(dir, .14); }
   }
