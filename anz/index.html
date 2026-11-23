@@ -217,7 +217,7 @@ const CFG = {
   roomBehind: 0.45,        // how far the back wall is behind the viewer
   wallSheen: 0.1,          // how strongly the ceiling light glances off the wood and the blue panels (0 = none)
   trimMetal: 0x8a8c90,     // header, rail, indicator housing and door frame: a darker gunmetal, for contrast against the pale wood
-  woodTint: 0xfff4e6,      // a touch of warmth on the pale maple scan, for a Scandinavian birch look
+  woodTint: 0xffe0b8,      // a touch of warmth on the pale maple scan, for a Scandinavian birch look
   functions: ['open', 'close', 'alarm', 'call'],   // lift-function buttons along the bottom of the panel
   contactEmail: '',        // Call button opens an email to this address (blank = just rings)
 
@@ -418,7 +418,7 @@ const M = {
   curtain: new THREE.MeshPhysicalMaterial({ map: lightCurtainTex, metalness: .5, roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }),
   edge: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: .75 }),
   wood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.woodTint, normalScale: new THREE.Vector2(.75, .75), roughness: 1, clearcoat: .16, clearcoatRoughness: .42, envMapIntensity: 1 }),   // pale oak veneer, matt oiled finish
-  blueWood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.blueStain, normalScale: new THREE.Vector2(.9, .9), roughness: 1, clearcoat: .2, clearcoatRoughness: .38, envMapIntensity: 1 }),   // the same timber, stained blue: the grain shows through
+  blueWood: new THREE.MeshPhysicalMaterial({ map: woodMap, normalMap: woodNormal, roughnessMap: woodRough, color: CFG.blueStain, normalScale: new THREE.Vector2(.9, .9), roughness: 1, clearcoat: 0, specularIntensity: .25, envMapIntensity: .3 }),   // the same timber, stained blue: the grain shows through
   kick: new THREE.MeshStandardMaterial({ color: 0x101112, metalness: .25, roughness: .5 }),   // black powder-coated skirting
   ceil: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: .92 }),   // black ceiling
   lamp: new THREE.MeshBasicMaterial({ color: new THREE.Color(9, 8.5, 7.6) }),   // downlight lenses
@@ -476,21 +476,36 @@ function drawIndicator(now = performance.now()) {
   const kRoll = roll ? clamp((now - roll.t0) / 280, 0, 1) : 1;
   const dots = (grid, from, to) => { if (!roll) return textDots(grid, to); const off = Math.round(kRoll * grid.rows), lit = textDots(grid, from, -roll.dir * off); for (const d of textDots(grid, to, roll.dir * (grid.rows - off))) lit.add(d); return lit; };
   const blinkOk = typeof blinkOn === 'undefined' ? true : blinkOn, up = indDir > 0 && blinkOk, down = indDir < 0 && blinkOk;
-  // --- indicator: [▼]  1 INTRO  [▲], with a lamp per floor underneath
-  { const g = IND.g, W = IND_W, H = IND_H; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
-    const p = Math.min((W - 330) / IGRID.cols, 150 / IGRID.rows), mw = p * IGRID.cols;
-    drawMatrix(g, IGRID, flashText ? textDots(IGRID, flashText) : dots(IGRID, roll ? roll.from : '', indText), (W - mw) / 2, 30, p);
-    lampTri(g, 82, 98, 62, false, down); lampTri(g, W - 82, 98, 62, true, up);
-    const n = F.length, gap = Math.min(46, (mw - 40) / n), x0 = W / 2 - gap * (n - 1) / 2;
-    for (let i = 0; i < n; i++) { const on = i === curShown, x = x0 + i * gap; g.beginPath(); g.arc(x, 214, 9, 0, 7);
-      if (on) { g.shadowColor = 'rgba(0,125,186,.95)'; g.shadowBlur = 16; g.fillStyle = LED_BLUE; g.fill(); g.shadowBlur = 0; g.fillStyle = 'rgba(180,226,255,.9)'; g.beginPath(); g.arc(x - 2, 212, 3.2, 0, 7); g.fill(); }
-      else { g.fillStyle = 'rgba(8,40,60,.6)'; g.fill(); } }
+  // --- indicator: a modern LCD — blue screen, white type: big floor number, floor name, travel arrow, a marker per floor
+  const ease = kRoll * kRoll * (3 - 2 * kRoll), FONT = '-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif';
+  const backdrop = (g, W, H) => { const lg = g.createLinearGradient(0, 0, W, H); lg.addColorStop(0, '#0a63c4'); lg.addColorStop(.55, '#0052b0'); lg.addColorStop(1, '#003f94'); g.fillStyle = lg; g.fillRect(0, 0, W, H);
+    g.save(); g.globalCompositeOperation = 'lighter';
+    for (const [y0, amp, a] of [[.62, .5, .16], [.8, .34, .1]]) { const wg = g.createLinearGradient(0, 0, W, 0); wg.addColorStop(0, `rgba(60,170,255,0)`); wg.addColorStop(.5, `rgba(60,170,255,${a})`); wg.addColorStop(1, `rgba(60,170,255,${a * 1.8})`); g.fillStyle = wg;
+      g.beginPath(); g.moveTo(0, H * y0); g.bezierCurveTo(W * .3, H * (y0 - amp), W * .65, H * (y0 + amp * .5), W, H * (y0 - amp * .7)); g.lineTo(W, H); g.lineTo(0, H); g.closePath(); g.fill(); }
+    g.restore(); };
+  const chevron = (g, x, y, s, up, a) => { g.save(); g.translate(x, y); if (!up) g.scale(1, -1); g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = s * .2; g.lineCap = g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(-s * .5, s * .22); g.lineTo(0, -s * .3); g.lineTo(s * .5, s * .22); g.stroke(); g.restore(); };
+  const split = t => { const k = t.indexOf(' '); return k < 0 ? [t, ''] : [t.slice(0, k), t.slice(k + 1)]; }, nice = t => t.charAt(0) + t.slice(1).toLowerCase();
+  { const g = IND.g, W = IND_W, H = IND_H; backdrop(g, W, H);
+    const line = (text, dy, a) => { if (!text || a <= 0) return; const [num, name] = split(text); g.save(); g.globalAlpha = a; g.fillStyle = '#fff'; g.textBaseline = 'alphabetic';
+      g.font = `600 176px ${FONT}`; const nw = g.measureText(num).width; g.font = `400 108px ${FONT}`; const tw = name ? g.measureText(nice(name)).width : 0, gap = name ? 76 : 0, x0 = (W - nw - gap - tw) / 2;
+      g.font = `600 176px ${FONT}`; g.textAlign = 'left'; g.fillText(num, x0, 172 + dy);
+      if (name) { g.fillStyle = 'rgba(255,255,255,.45)'; g.fillRect(x0 + nw + gap / 2 - 1.5, 52 + dy, 3, 124); g.fillStyle = '#fff'; g.font = `400 108px ${FONT}`; g.fillText(nice(name), x0 + nw + gap, 150 + dy); }
+      g.restore(); };
+    g.save(); g.beginPath(); g.rect(0, 0, W, 200); g.clip();
+    if (flashText) line(flashText, 0, 1);
+    else if (roll) { line(roll.from, -roll.dir * ease * 150, 1 - ease); line(indText, roll.dir * (1 - ease) * 150, ease); }
+    else line(indText, 0, 1);
+    g.restore();
+    chevron(g, 104, 122, 78, false, down ? 1 : .16); chevron(g, W - 104, 122, 78, true, up ? 1 : .16);
+    const n = F.length, pw = Math.min(54, (W * .5) / n), x0 = W / 2 - pw * n / 2;
+    for (let i = 0; i < n; i++) { g.fillStyle = i === curShown ? '#fff' : 'rgba(255,255,255,.28)'; g.beginPath(); g.roundRect(x0 + i * pw + 5, 222, pw - 10, 7, 3.5); g.fill(); }
     IND.tex.needsUpdate = true; }
-  // --- panel display: floor number + travel arrow
-  { const g = PSC.g, W = 512, H = 256; g.fillStyle = '#040303'; g.fillRect(0, 0, W, H);
-    const p = 21, mw = p * PGRID.cols;
-    drawMatrix(g, PGRID, dots(PGRID, roll ? (roll.from.split(' ')[0] || '') : '', String(curShown + 1)), W - mw - 46, (H - p * PGRID.rows) / 2, p);
-    lampTri(g, 96, 128, 74, indDir > 0, indDir !== 0 && blinkOk);
+  // --- panel display: floor number + travel arrow, same screen
+  { const g = PSC.g, W = 512, H = 256; backdrop(g, W, H);
+    const num = (text, dy, a) => { if (a <= 0) return; g.save(); g.globalAlpha = a; g.fillStyle = '#fff'; g.font = `600 190px ${FONT}`; g.textAlign = 'center'; g.fillText(text, W * .62, 194 + dy); g.restore(); };
+    if (roll) { num(split(roll.from)[0], -roll.dir * ease * 150, 1 - ease); num(String(curShown + 1), roll.dir * (1 - ease) * 150, ease); } else num(String(curShown + 1), 0, 1);
+    chevron(g, 108, 128, 92, indDir >= 0, indDir !== 0 && blinkOk ? 1 : .16);
     PSC.tex.needsUpdate = true; }
   if (roll && kRoll >= 1) roll = null;
 }
@@ -499,7 +514,7 @@ function markHere(i) { btnRings.forEach((r, k) => { const here = k === i, cap = 
   if (cap) { cap.material.emissive.setHex(here ? 0x8fd0f5 : 0); cap.material.emissiveIntensity = here ? .85 : 0; }
   if (r.userData.lit) return; r.material.emissive.setHex(here ? 0x35b4f2 : 0); r.material.emissiveIntensity = here ? 2.4 : 0; r.material.color.setHex(here ? 0x2aa4e0 : 0x2a2a2a); }); }
 // the screen surface: LEDs glowing from behind smoked glass that still catches the room's reflection
-const screenMat = scr => new THREE.MeshPhysicalMaterial({ color: 0x020202, emissive: 0xffffff, emissiveMap: scr.tex, emissiveIntensity: 3.2, roughness: .4, metalness: 0, specularIntensity: .12, clearcoat: .22, clearcoatRoughness: .06, envMapIntensity: .06 });
+const screenMat = scr => new THREE.MeshPhysicalMaterial({ color: 0x020202, emissive: 0xffffff, emissiveMap: scr.tex, emissiveIntensity: 1.7, roughness: .3, metalness: 0, specularIntensity: .2, clearcoat: .5, clearcoatRoughness: .05, envMapIntensity: .12 });
 
 /* ===== PANEL (floor buttons on the front wall, right of the doors) ===== */
 const btnMeshes = [], btnRings = [], fnMeshes = [];
@@ -709,10 +724,9 @@ function wallRun(u0, u1, yTop, seed = 0) {
       for (const k of ['map', 'normalMap', 'roughnessMap']) m[k].offset.set(flip < 0 ? 1 : 0, r2);
       m.color.multiplyScalar(.94 + r2 * .1);
       plane(b - a, y1 - y0, m, (a + b) / 2, (y0 + y1) / 2, 0, 0, 0, g); };
-    bay(KICK, RAIL_Y, M.blueWood, 1); bay(RAIL_Y + RAIL_H, yB, M.wood, 0); bay(yB, yTop, M.blueWood, 2);
+    bay(KICK, RAIL_Y, M.blueWood, 1); bay(RAIL_Y + RAIL_H, yTop, M.wood, 0);
     if (i) { box(.005, yTop - KICK, .002, M.slot, a, (yTop + KICK) / 2, .001, g); plane(.02, yTop - RAIL_Y - RAIL_H, shadowLine, a, (yTop + RAIL_Y + RAIL_H) / 2, .0012, 0, 0, g); }
   }
-  box(w, .005, .002, M.slot, uc, yB, .001, g);   // shadow gap between the oak and the blue band
   // top-light falloff down the veneer; the band under the ceiling shades the top edge
   { const f = plane(w, yTop - RAIL_Y, aoMat(false, .52), uc, (yTop + RAIL_Y) / 2, .0011, 0, 0, g); f.renderOrder = 1; }
   plane(w, .1, aoMat(true, .5), uc, yTop - .05, .0013, 0, 0, g);
@@ -720,7 +734,7 @@ function wallRun(u0, u1, yTop, seed = 0) {
   plane(w, .09, aoMat(true, .5), uc, RAIL_Y - .045, .001, 0, 0, g);
   // the ceiling light glancing off the lacquered veneer and the satin panel below the rail
   plane(w, yTop - RAIL_Y - RAIL_H, sheenMat(0xfff6ea, CFG.wallSheen), uc, (yTop + RAIL_Y + RAIL_H) / 2, .0016, 0, 0, g);
-  plane(w, RAIL_Y - KICK - .06, sheenMat(0xbfd6ff, CFG.wallSheen * .8), uc, (RAIL_Y + KICK) / 2 - .03, .0016, 0, 0, g);
+  plane(w, RAIL_Y - KICK - .06, sheenMat(0xbfd6ff, CFG.wallSheen * .15), uc, (RAIL_Y + KICK) / 2 - .03, .0016, 0, 0, g);
   return g;
 }
 
@@ -748,7 +762,7 @@ function build() {
   const FZ = .05, t = .028, ins = .003;
   wallRun(xl, -ow / 2 - t + ins, woodTop).position.set(0, 0, FZ);
   wallRun(ow / 2 + t - ins, xr, woodTop).position.set(0, 0, FZ);
-  plane(ow + 2 * t, BAND, woodAt(-ow / 2 - t, ow / 2 + t, oh + TRANSOM, woodTop, .27, M.blueWood), 0, oh + TRANSOM + BAND / 2, FZ);
+  plane(ow + 2 * t, BAND, woodAt(-ow / 2 - t, ow / 2 + t, oh + TRANSOM, woodTop), 0, oh + TRANSOM + BAND / 2, FZ);
   { const m = new THREE.Mesh(new RoundedBoxGeometry(ow + 2 * t - 2 * ins, TRANSOM, .075, 4, .007), M.steelH); m.position.set(0, oh + TRANSOM / 2 - ins, .0375); cab.add(m); }   // transom over the doors
   // slim polished architrave down each side of the doorway
   for (const sx of [-1, 1]) { const m = new THREE.Mesh(new RoundedBoxGeometry(t, oh - ins, .058, 3, .005), M.frame); m.position.set(sx * (ow / 2 + t / 2 - ins), (oh - ins) / 2, .029); cab.add(m); }
@@ -806,17 +820,13 @@ function build() {
   const sw0 = Math.min(.52, ow * (aspect < 1 ? .62 : aspect < 1.3 ? .42 : .3)), sh0 = sw0 * IND_H / IND_W, iy = oh + (TRANSOM + CFG.headroom) / 2;
   { // a horizontally brushed body on a dark gasket (the shadow line where it meets the veneer), glass set back inside a slim
     // polished bezel, and a fixing screw at each end. The body is shallow, so it sits close to the wall.
-    const hw = sw0 + .075, hh = sh0 + .024, hd = CFG.indicatorDepth;
+    const hw = sw0 + .03, hh = sh0 + .024, hd = CFG.indicatorDepth;
     box(hw + .006, hh + .006, .002, M.slot, 0, iy, FZ + .001);
     const face = plateMat(canvasTex(1024, Math.round(1024 * hh / hw), plateBase, { repeat: false }));
-    const house = new THREE.Mesh(new RoundedBoxGeometry(hw, hh, hd, 4, Math.min(.007, hd * .45)), face); house.position.set(0, iy, FZ + .002 + hd / 2); cab.add(house);
+    const house = new THREE.Mesh(new RoundedBoxGeometry(hw, hh, hd, 4, Math.min(.007, hd * .45)), M.glass); house.position.set(0, iy, FZ + .002 + hd / 2); cab.add(house);
     const fz = FZ + .002 + hd, bw = .005;
     box(sw0 + .004, sh0 + .004, .002, M.black, 0, iy, fz - .0006);
     plane(sw0, sh0, screenMat(IND), 0, iy, fz + .0006);
-    box(sw0 + 2 * bw, bw, .003, M.steelPolished, 0, iy + sh0 / 2 + bw / 2, fz + .0008); box(sw0 + 2 * bw, bw, .003, M.steelPolished, 0, iy - sh0 / 2 - bw / 2, fz + .0008);
-    box(bw, sh0, .003, M.steelPolished, -sw0 / 2 - bw / 2, iy, fz + .0008); box(bw, sh0, .003, M.steelPolished, sw0 / 2 + bw / 2, iy, fz + .0008);
-    for (const sx of [-1, 1]) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(.0042, .0042, .0016, 20), M.steelPolished); sc.rotation.x = Math.PI / 2; sc.position.set(sx * (sw0 / 2 + .02), iy, fz + .0004); cab.add(sc);
-      box(.006, .001, .0006, M.slot, sx * (sw0 / 2 + .02), iy, fz + .0014).rotation.z = .6 * sx; }
     plane(sw0 * 1.4, sh0 * 2.6, new THREE.MeshBasicMaterial({ map: glowTex('0,125,186'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .05 }), 0, iy, fz + .008);
   }
 
@@ -895,13 +905,13 @@ function build() {
   cab.traverse(o => { if (o.isMesh && !o.userData.noShadow && !Array.isArray(o.material) && !o.material.transparent && !o.material.isMeshBasicMaterial) { o.receiveShadow = SHADOWS; o.castShadow = SHADOWS; } });
   if (G.mirror) {
     const S = CFG.wallMirror, over = G.over = [], add = (w, h, x, y, z, k, dx, dy, lod, tint) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), reflMat(G.mirror, k * S, dx, dy, lod, tint)); m.position.set(x, y, z); m.renderOrder = 2; cab.add(m); over.push(m); };
-    const hwI = sw0 + .075, hhI = sh0 + .024, pwS = pw * PS, phS = ph * PS;
+    const hwI = sw0 + .03, hhI = sh0 + .024, pwS = pw * PS, phS = ph * PS;
     add(ow + 2 * t, TRANSOM - .012, 0, oh + TRANSOM / 2 - ins, .0755, .5, 1, 0, 2.2);                                    // header over the doors (brushed along its length)
     for (const sx of [-1, 1]) add(t - .008, oh - .02, sx * (ow / 2 + t / 2 - ins), oh / 2, .0585, .45, 0, 1, 2);          // door frame
     for (const [a, b] of [[rl, -ow / 2 - t], [ow / 2 + t, rr]]) {
       add(b - a, RAIL_H - .01, (a + b) / 2, RAIL_Y + RAIL_H / 2, FZ + .0185, .45, 1, 0, 2.2);                              // rail
       add(b - a, woodTop - RAIL_Y - RAIL_H, (a + b) / 2, (woodTop + RAIL_Y + RAIL_H) / 2, FZ + .0021, .13, 0, 1, 3.4, [1, .95, .86]);   // lacquered veneer: faint and soft
-      add(b - a, RAIL_Y - KICK, (a + b) / 2, (RAIL_Y + KICK) / 2, FZ + .0021, .2, 0, 1, 3, [.8, .88, 1]);                  // satin blue panel
+      add(b - a, RAIL_Y - KICK, (a + b) / 2, (RAIL_Y + KICK) / 2, FZ + .0021, .03, 0, 1, 3.6, [.8, .88, 1]);                  // satin blue panel
     }
     add(ow + 2 * t, woodTop - oh - TRANSOM, 0, (woodTop + oh + TRANSOM) / 2, FZ + .0021, .13, 0, 1, 3.4, [1, .95, .86]);  // veneer above the header
     add(pwS - .004, phS - .004, px, py, FZ + .014 * PS + .0004, .3, 0, 1, 2.4);                                            // button panel plate
