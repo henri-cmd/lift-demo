@@ -397,6 +397,7 @@ const polishedRough = canvasTex(512, 512, (g) => { g.fillStyle = 'rgb(44,44,44)'
     layer(polishedRough, scratches, .28, 2); layer(polishedRough, smear, .12); polishedRough.needsUpdate = true;   // polished trim: hairline scratches in the highlights
     captureEnv();
   }); }
+const LOGOS = loader.load('../assets/anz/logos.webp', () => captureEnv()); LOGOS.colorSpace = THREE.SRGBColorSpace; LOGOS.anisotropy = MAXANI;
 const leatherNormal = loadTex(CFG.tex + 'leather-normal.webp');
 
 // fine pebbled grain for the dark lower panels
@@ -946,6 +947,8 @@ function build() {
     box(.009, .0016, .0008, M.slot, px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0172).rotation.z = .5 + sx * sy; }
   G.plate = box(pw, ph, .014, plateMat(plateTexture(pw, ph, labels)), px, py, FZ + .007);
   { const m = box(pw - .08, .002, .001, M.steelDark, px, py + fy + pitch * .52, FZ + .0145); m.visible = fns.length > 0; }   // fine line above the function row
+  { // the three partners' marks, etched small along the bottom of the plate
+    const lh = .04, lw = lh * 590 / 110, m = plane(lw, lh, new THREE.MeshStandardMaterial({ map: LOGOS, color: 0x2b2c2f, transparent: true, opacity: .88, roughness: .7, metalness: .3, depthWrite: false }), px, py - ph / 2 + .078, FZ + .0146); m.userData.noShadow = true; }
   const psw = .24, psh = psw * 256 / 512;
   box(psw + .02, psh + .02, .006, M.black, px, py + ph / 2 - top / 2 - .01, FZ + .016);
   { const s = plane(psw, psh, screenMat(PSC), px, py + ph / 2 - top / 2 - .01, FZ + .0195); }
