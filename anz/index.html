@@ -47,6 +47,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .copy h1{font-size:clamp(34px,7cqw,96px); font-weight:600; letter-spacing:-.03em; line-height:1; margin:0 0 4cqh}
 #lift3d .copy h2{font-size:clamp(19px,2.3cqw,30px); font-weight:500; margin:10cqh 0 2cqh}
 #lift3d .copy p{font-size:clamp(15px,1.3cqw,19px); line-height:1.6; max-width:52ch; margin:0 0 2cqh; opacity:.8}
+#lift3d .copy ul{margin:0 0 2cqh; padding-left:1.2em; max-width:52ch}
+#lift3d .copy li{font-size:clamp(15px,1.3cqw,19px); line-height:1.6; margin:0 0 1.4cqh; opacity:.8}
+#lift3d .copy li b{font-weight:600}
 #lift3d .copy .ph{aspect-ratio:16/9; background:rgba(255,255,255,.06); border-radius:4px; margin:4cqh 0}
 #lift3d .floor .hero{display:block; width:100%; height:100cqh; object-fit:cover}
 
@@ -143,137 +146,23 @@ import { Reflector } from 'three/addons/objects/Reflector.js';
 const CFG = {
   floors: [
       { n:'Intro', bg:'#0b2a47', img:'', hero:'../assets/anz/intro-hero.webp', ambience:'', html:`
-        <h1>Intro</h1><p>Scroll down to ride — the doors close between floors and open again as you keep going.</p>
-        <div class="ph"></div>
-        <h2>The idea</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Why now</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>The world</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>In a sentence</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Tone', bg:'#12456e', img:'', hero:'../assets/tone-greenhouse.webp', ambience:'', html:`
-        <h1>Tone</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Feel</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>References</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Colour</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Sound</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Approach', bg:'#0d3557', img:'', hero:'../assets/approach-bakery.webp', ambience:'', html:`
-        <h1>Approach</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Camera</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Lighting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Edit</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Production design</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Characters', bg:'#16293a', img:'', ambience:'', html:`
-        <h1>Characters</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Character one</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Character two</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Character three</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Casting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Script', bg:'#0f3d63', img:'', ambience:'', html:`
-        <h1>Script</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Scene one</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Scene two</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Scene three</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Scene four</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Storyboard', bg:'#16324a', img:'', ambience:'', html:`
-        <h1>Storyboard</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Opening</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Turning point</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Climax</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Closing frame</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Locations', bg:'#0a2540', img:'', ambience:'', html:`
-        <h1>Locations</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Interiors</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Exteriors</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Scouting</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Permits</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Wardrobe', bg:'#184a73', img:'', ambience:'', html:`
-        <h1>Wardrobe</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Palette</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Lead looks</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Supporting cast</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Hair and make-up</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Music', bg:'#102f4d', img:'', ambience:'', html:`
-        <h1>Music</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Score</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Licensed tracks</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Sound design</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Mix</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Schedule', bg:'#1c3a52', img:'', ambience:'', html:`
-        <h1>Schedule</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Pre-production</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Shoot days</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Post-production</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Delivery</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Budget', bg:'#0c2c48', img:'', ambience:'', html:`
-        <h1>Budget</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Overview</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Above the line</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Below the line</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Contingency</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` },
-      { n:'Conclusion', bg:'#0a1f33', img:'', ambience:'', html:`
-        <h1>Conclusion</h1><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>What we deliver</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Timeline</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>The team</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>
-        <h2>Thank you</h2><p>Placeholder copy.</p><p>Placeholder copy.</p>
-        <div class="ph"></div>` }
+        <h1>Intro</h1><p>The Small Scraper is a metaphor we need right now.</p><p>While it’s a vibrant representation of ANZ’s backing of small business, it’s also a celebration of the people and their enterprises that make Australia thrive. Day in, day out, people are out there driving their communities forward. They’re dreaming up ideas and experiences and services so that the world we all live in is more colourful, convenient, crafty and awe-inspiring.</p><p>You can get a taste of all the people working hard and making it work by strolling up a high street or perusing a Neighbourhood What’s On Facebook page. Yet it’s rare to actually see the diversity of businesses backed by the same bank all together. This is an incredible feel-good visual reminder of who makes up the backbone of our societies, whether they’re a logistics company or an escape room.</p><p>We’re launching ANZ back into the limelight yet subtly. Putting the spotlight onto the myriad of people backed by ANZ rather than the bank itself. It’s beautiful, it’s playful, and the best way to show who to trust is to show the people who trust in ANZ.</p>` },
+      { n:'Approach', bg:'#12456e', img:'', ambience:'', html:`
+        <h1>Approach</h1><p>No small business is the same. Each one is dreamt up to serve a unique community, shaped by the people who live there and the lives they’ve built.</p><p>So my approach is all about keeping the individual character of every business. Rather than custom fitting each one into a set dressed to look like a floor of a building, we meet real businesses where they’re at and shoot them on site, IRL, in their actual workplaces. When many businesses come together with their own flair they form a village, and here they become the building blocks of the ANZ Smallscraper.</p><p>Our lift is the constant. We build it once, beautifully, in the studio, and every business is captured on location as a background plate, matched to the lift’s lens, height and light. In post, the two are married seamlessly, so the doors open onto a real fabric merchant, a real logistics centre, a real lush garden being tended by landscapers. Then, when we pull wide, the skyscraper is designed to look as if all of these businesses are stacked on top of one another. Some small, some big, each unique, fitting together to form one building.</p><p>Real doesn’t mean untouched. Every location becomes a canvas for our art department, who will layer in the detail that makes a space feel unmistakably lived in. More bolts of colour stacked to the ceiling in the fabric merchant. Handwritten labels, pinned invoices and a radio on the shelf at the logistics centre. Overflowing planters, stacked pavers and muddy boots by the shed on the rooftop. We heighten what’s already there, amplifying each owner’s personality so every frame rewards a second look, without ever losing the truth of the place.</p><p>ANZ, more than any of the other big four, is known as the go to for small business. This approach reflects ANZ as a pillar of support that lets businesses flourish without asking them to bend to a rigid way of working or fit a one size fits all box. Small businesses thrive on trust, their one of a kindness and the freedom to serve their own communities. This is a visual approach that reflects that.</p><p>It’s important to say this isn’t a whimsical jaunt through quirky businesses. It should feel like we’re moving through the engine room of contemporary Australian business, with upbeat, driving momentum. People feel as though they’re playing themselves, not a performed version. The humour is played straight, never played up. The wonder of the world building does the heavy lifting, so we can simply witness these business owners doing what they do best.</p>` },
+      { n:'The Businesses', bg:'#0d3557', img:'', ambience:'', html:`
+        <h1>The Businesses</h1><p>The kinds of businesses on each floor are locked, but the specific businesses aren’t. Small business is endlessly surprising, and the best version of this film will come from what we find, not what we imagine at a desk. So we’ll go into scouting with a clear brief for each floor and cast the net wide within it, holding our ideas loosely enough to recognise gold when we walk into it. Each floor has a job to do in the story. As long as the business we choose does that job, the idea keeps its integrity.</p><h2>Ground Floor: ANZ Branch</h2><p>Where it all begins. Ideally we shoot this on location in a real, working ANZ branch, so the familiar cues do the work instantly: the signage, the blue, the tellers, the customers coming and going. The doors open, Sally is standing there with the branch busy behind her, and in one frame the audience knows exactly where they are and who this is from. It’s the anchor of the whole building, so it should feel solid, warm and modern, the new ANZ, not the old one.</p><h2>Floor 7: The Makers</h2><p>Our first stop is a business built by hand. The brief calls for a fabric merchant, and that remains a strong option, but this floor could be home to any bespoke artisan or design business: a ceramicist, a surfboard shaper, a furniture maker, a textile printer, a glass blower, a luthier. What matters is that it’s handmade, owner operated, full of character and gives us something to carry. A bolt of silk, a freshly glassed board, a hand turned chair. That object rides with us up the building, and it’s how we show these businesses feeding one another. Modern makers, not museum pieces: natural materials, beautiful light, the kind of workshop that has a waiting list and a great Instagram.</p><h2>Floor 25: The Wild Card</h2><p>The floor nobody sees coming. Something unexpected that speaks to the spirit of the startup, a business that only exists because someone had a slightly mad idea and backed themselves. This is our comedy floor, but the laugh comes from the setting, never from the performance. Everyone treats it like any other Monday.</p><p>The trick is the passenger. Whoever gets off at this floor has been riding with Sally since the branch: an escape room employee dressed as a cyborg, a kid clutching a violin case, a woman in activewear ready for her spin class. They’re there to spark a little intrigue and quietly tease what’s coming. The audience clocks them early, wonders where on earth they’re headed, and gets the answer the moment the doors open.</p><p>A few options we love:</p><ul><li><b>Escape room.</b> A neon lit reception, haze across the floor, a sign blazing ESCAPE 2099. The cyborg steps out to a casual “Morning, Ed.” “Morning, Trish.”</li><li><b>Indoor play centre.</b> A cavernous fun house of slides and ball pits, a birthday party in full swing, and a cape wearing party entertainer stepping out to a hero’s welcome.</li><li><b>Spin class.</b> Techno pounding, coloured light, a room of riders mid sprint. The loudest few frames in the film, as the woman in activewear jogs out to the last empty bike.</li><li><b>Violin studio.</b> A small, bright room, a teacher waiting with her own bow raised. The kid steps out, and moments later the first scratchy note finally lands. It’s the lift melody, a lovely musical bridge into the roof.</li></ul><h2>Floor 45: Logistics</h2><p>This one is cemented, and for good reason. A vast warehouse bustling with forklifts, conveyors and people in hi vis, forty five floors up a tower, is a striking image on its own. It’s also where our story pays off: the object from the makers’ floor is handed over, wrapped, boxed and labelled before the doors close. One small business shipping another’s work to the world. The size, scale and layout of the centre are open, and we’ll let the best real space decide. The bigger and busier it feels, the harder the scale gag lands.</p><h2>Top Floor: The Landscapers</h2><p>The perfect place to arrive is out in the open. The doors open, the lift music falls away, and there’s wind, birdsong and sky. On the roof of our building is an undulating garden: native grasses, gum trees, sculpted beds, a crew of landscapers mid job. Sally slips off her heels and walks up the hill to meet the landscaper, and behind them a goat, the crew’s lawnmower, wanders into the empty lift. Other businesses could take this floor just as beautifully, a sprawling greenhouse nursery or a rooftop beekeeping farm, but whatever we find, it should feel like a breath of fresh air at the top of the climb, and the most natural place in the world to finish a meeting.</p>` },
+      { n:'The Lift', bg:'#16293a', img:'', ambience:'', html:`
+        <h1>The Lift</h1><p>The lift is our constant, the room every scene begins and ends in. It should feel like one you’ve stood in a hundred times: an everyday modern lift, warm timber veneer above, a darker band below, brushed steel trims. Clean, symmetrical and quietly handsome.</p><p>ANZ lives in the details. A soft blue halo on each lit button, blue numbers in the indicator above the doors, a fine blue line along the handrail. Noticed on a second look, present in every frame.</p><p>No mirrors. They double the crew, complicate the comp and make a space feel cold. Timber and steel keep it warm, lit by a soft overhead glow, so every time the doors open the new world lands in full colour by contrast.</p><h2>The Panel</h2><p>The first joke in the film. A tall column of brushed steel buttons, just high enough that Sally has to rise onto her toes for the top floor. Beside each, a backlit name plate: Florists. Barbers. Bookkeepers. Virtual Assistants. Beekeepers. Electricians. Dozens of them, common and comically niche. In one close up, the audience gets the whole idea: every floor is a small business. A few buttons are already lit, quietly setting up the stops to come.</p><h2>The Doors and the Ding</h2><p>The doors are our curtain, framing every reveal, their rhythm becoming the rhythm of the edit. The ding punctuates every cut and doubles as the first note of our score, turning the lift itself into an instrument.</p>` },
+      { n:'The Smallscraper', bg:'#0f3d63', img:'', ambience:'', html:`
+        <h1>The Smallscraper</h1><p>While the interiors will be determined by what we find, we can get more imaginative when designing the building blocks that stack together to form the tower. I’m imagining something like this:</p><p>Every block is its own building, with its own history. A red brick warehouse with a sawtooth roof. A corrugated iron workshop. A shipping container office. An art deco corner shop. A sandstone shopfront with an ornate parapet. A steel and glass studio. A glasshouse. A food van, wedged in mid tower as if it simply drove up there and parked. Each one carries the materials, scars and personality of the business inside it, and together they read like a whole high street turned on its end.</p><p>Wherever we can, these blocks will be drawn from the real places we shoot. The fabric merchant’s facade, the logistics centre’s roller doors, the escape room’s neon glow. So when we pull back at the end, the floors we’ve just visited are right there in the building, and the audience can spot them.</p><p>The stacking is deliberate, never chaotic. Blocks step out and tuck back in, some overhang the floor below, some sit slightly off the grid, giving the tower a lively, irregular silhouette. But it never leans or teeters. It should feel calm, confident and effortlessly balanced, as if nothing about it is unusual. A building that shouldn’t stand, standing perfectly still.</p><p>At the base sits the ANZ branch: the widest, most grounded block in the tower, clean, modern and unmistakably blue, quietly holding everything above it. It’s the only branded building in the frame, and the one everything else rests on.</p><p>At the top, the landscapers’ garden crowns the tower. A gentle grassy hill rises from the roof, with native grasses, gum trees, a shed and a water tank, so even from the street we can see life up there. It’s the punctuation mark on the skyline.</p><p>Every window is alive. People working, light glowing, colour spilling out: purple neon, warm timber, the red glow of the escape room, the green of a nursery. The tower should feel inhabited from top to bottom, a vertical village humming with activity.</p><p>The setting matters too. Our tower stands on an ordinary Australian street corner, surrounded by heritage shopfronts, everyday office blocks and traffic going about its day. Nobody on the street looks up. The more normal the world around it, the more extraordinary the building feels.</p><p>The overall effect should be crafted, cohesive and warm. There are touches of whimsy, a van parked forty floors up, a hill on the roof, but this should feel modern and grounded rather than storybook. Not a fantasy castle. A real building that just happens to be made of a hundred real businesses.</p>` },
+      { n:'ANZ Energy', bg:'#16324a', img:'', ambience:'', html:`
+        <h1>ANZ Energy</h1><p>Effortless and upbeat, this campaign is one fluid elevator ride from the ground floor to the top. Characters flow in and out and around each other, everyone moving like smooth clockwork as we catch them on a regular day at HQ. I want this to feel cool and elegant at the same time as awe-inspiring and buzzing with energy.</p><p>The dynamic atmosphere is crafted through camera, character and design, but also through our choice of music. I want something rhythmic and resonant, a track to really tap into a contemporary groove. Sound design weaves effortlessly through the melody, the cacophony of floors and voices making this building feel truly lived in, elevator dings punctuate cuts with diegetic percussion. This is the sound of a modern village in sync.</p><p>While writing this, I couldn’t get Sade’s Smooth Operator out of my head. It’s both steady and pulsing. It instills a feeling of laid-back and calm confidence while nods at the story with a sly sense of humour. Just something to think about as you’re reading the script.</p>` },
+      { n:'Casting', bg:'#0a2540', img:'', ambience:'', html:`
+        <h1>Casting</h1><p>People and businesses that feel found, grounded, authentic.</p><p>Feeling genuine doesn’t mean we lose the freshness of modernity. No way. The people we’re after are building businesses right now in 2026. So they should look and feel contemporary, but not in the way art direction dresses people up to look smoother and more aspirational than they are. Truth comes from the genuine smile lines around someone’s eyes and the ease with which they wear their uniforms.</p><p>I’m not saying our approach is entirely street casting. Most actors have worn many hats and lived a lot of past lives. Let’s find people who look just like that: people. Wrinkles, a little bit of weirdness and all.</p><p>For the ANZ rep, I see her as affable, friendly and approachable. She’s a real person outside of work and probably has a unique hobby that she doesn’t talk about at work, like going to Medieval Fairs with her friends for a laugh. She should exude calm and warmth, like an old friend, rather than feeling like she’s been plucked out of a casting studio.</p>` },
+      { n:'Camera', bg:'#184a73', img:'', ambience:'', html:`
+        <h1>Camera</h1><p>We’re peeking through the window into a beautiful miscellany of worlds that we never get to see all in one place. So the cinematography supports the simplicity of the story and emphasises the visual richness of each business without overcomplicating things.</p><p>Each scene is a thoughtfully blocked tableaux that of a workplace in full-swing. Performers move through the space in a way which draws our eyes to intricate details. The spaces themselves are warm, vibrant, and art-directed with colour in mind. I’m after sets that are full of life and energy, not the usual steely blue-grey palette of a lot of bank spots.</p><p>While the camera is still for the most part when looking out of and into the elevator, I want to immerse the viewers in a couple of the scenes. Sometimes we’re taken out of the lift and into the scene to see the doors open and a worker step out, making workplaces feel tangible and tactile.</p>` },
+      { n:'Outro', bg:'#0a1f33', img:'', ambience:'', html:`
+        <h1>Outro</h1><p>There’s that saying that no man is an island.</p><p>I think we can extend that to businesses too. They don’t erupt from the water fully formed and raring to go. They take time to build, patience to go the distance, and a whole lot of support. Like most hard and beautiful things, it’s always comforting to look around and see that there are many people just like you, in the exact same position. People committed to their livelihood and bringing out their innate gifts and skills into the world.</p><p>All these island together, well, in this case they make up a sky-scraper rather than an archipelago. This metaphor is losing steam but this idea isn’t! I love that ANZ is zooming out to see the bigger picture of the work they do and heroing the collective ingenuity of small and medium businesses.</p><p>Thanks for having me on to pitch. Now let’s go build an elevator inside an ice cream van.</p><p>Alex</p>` },
   ],
   tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
   blueStain: 0x2a6fe8,     // the blue-stained timber (base of the walls and the band above the doors); the wood scan is multiplied by this
