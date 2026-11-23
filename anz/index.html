@@ -54,6 +54,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .copy .dlg b{display:block; font-weight:600; letter-spacing:.06em; font-size:.82em; margin-bottom:.2em}
 #lift3d .copy .ph{aspect-ratio:16/9; background:rgba(255,255,255,.06); border-radius:4px; margin:4cqh 0}
 #lift3d .floor .hero{display:block; width:100%; height:100cqh; object-fit:cover}
+#lift3d .floor .herow{position:relative}
+#lift3d .floor .htitle{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 6cqw; color:#fff; pointer-events:none}
+#lift3d .floor .herow:has(img) .htitle{background:radial-gradient(ellipse at center,rgba(4,18,34,.42),rgba(4,18,34,.12) 70%); text-shadow:0 2px 28px rgba(0,0,0,.45)}
+#lift3d .floor .htitle small{font-size:clamp(12px,1.1cqw,16px); font-weight:500; letter-spacing:.28em; margin:0 0 2.2cqh -.28em; padding-left:.56em; opacity:.85}
+#lift3d .floor .htitle h1{font-size:clamp(38px,8cqw,112px); font-weight:600; letter-spacing:-.03em; line-height:1; margin:0}
 #lift3d .floor div.hero{background:linear-gradient(160deg,rgba(255,255,255,.13),rgba(255,255,255,.04))}   /* full-bleed image slot, until the section has its picture */
 
 /* overlays */
@@ -1020,7 +1025,9 @@ F.forEach((f, i) => {
   const hold = document.createElement('div'); hold.className = 'hold';
   const d = document.createElement('section'); d.className = 'floor'; d.style.backgroundColor = f.bg || '#111';
   if (f.img) d.style.backgroundImage = `url(${f.img})`;
-  d.innerHTML = (f.hero ? `<img class="hero" src="${f.hero}" alt="" decoding="async">` : '<div class="hero"></div>') + `<div class="copy">${f.html || ''}</div>`;
+  // every section opens on a full-bleed image with its floor number and title centred over it
+  d.innerHTML = `<div class="herow">` + (f.hero ? `<img class="hero" src="${f.hero}" alt="" decoding="async">` : '<div class="hero"></div>')
+    + `<div class="htitle"><small>${String(i + 1).padStart(3, '0')}</small><h1>${f.n}</h1></div></div><div class="copy">${(f.html || '').replace(/^\s*<h1>.*?<\/h1>/, '')}</div>`;
   hold.appendChild(d); stop.appendChild(hold); pageEl.appendChild(stop);
   stops.push(stop); holds.push(hold); floorEls.push(d);
 });
