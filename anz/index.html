@@ -716,9 +716,9 @@ function wallRun(u0, u1, yTop, seed = 0, r0 = u0, r1 = u1) {   // r0..r1: the st
   const g = new THREE.Group(), w = u1 - u0, uc = (u0 + u1) / 2; cab.add(g);
   const yB = yTop - TOPB;
   box(w, KICK, .012, M.kick, uc, KICK / 2, .006, g);
-  box(w, RAIL_H, .004, M.kick, uc, RAIL_Y + RAIL_H / 2, .002, g);   // black inlay between the blue and the oak
+  box(w, .004, .002, M.slot, uc, RAIL_Y + RAIL_H, .001, g);   // fine shadow gap where the blue meets the oak
   // handrail: a polished steel tube standing off the wall on round brackets, with domed ends
-  { const R = .019, OFF = .062, END = .07, a = r0 + END, b = r1 - END, L = b - a, y = RAIL_Y + RAIL_H / 2;
+  { const R = .019, OFF = .062, END = .07, a = r0 + END, b = r1 - END, L = b - a, y = RAIL_Y - .03;   // mounted on the blue, just below where it meets the oak
     if (L > .12) {
       const tube = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L, 32), M.steelPolished); tube.rotation.z = Math.PI / 2; tube.position.set((a + b) / 2, y, OFF); g.add(tube);
       for (const x of [a, b]) { const cap = new THREE.Mesh(new THREE.SphereGeometry(R, 24, 16), M.steelPolished); cap.position.set(x, y, OFF); g.add(cap); }
@@ -733,7 +733,7 @@ function wallRun(u0, u1, yTop, seed = 0, r0 = u0, r1 = u1) {   // r0..r1: the st
       for (const k of ['map', 'normalMap', 'roughnessMap']) m[k].offset.set(flip < 0 ? 1 : 0, r2);
       m.color.multiplyScalar(.94 + r2 * .1);
       plane(b - a, y1 - y0, m, (a + b) / 2, (y0 + y1) / 2, 0, 0, 0, g); };
-    bay(KICK, RAIL_Y, M.blueWood, 1); bay(RAIL_Y + RAIL_H, yTop, M.wood, 0);
+    bay(KICK, RAIL_Y + RAIL_H, M.blueWood, 1); bay(RAIL_Y + RAIL_H, yTop, M.wood, 0);
     if (i) { box(.005, yTop - KICK, .002, M.slot, a, (yTop + KICK) / 2, .001, g); plane(.02, yTop - RAIL_Y - RAIL_H, shadowLine, a, (yTop + RAIL_Y + RAIL_H) / 2, .0012, 0, 0, g); }
   }
   // top-light falloff down the veneer; the band under the ceiling shades the top edge
