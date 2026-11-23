@@ -571,9 +571,9 @@ function aoMat(flip, strength = .5) {
 }
 // the passenger whose eyes we look through: a photograph (cut out and mirrored, as a reflection is), seen only as her reflection in the doors
 const figure = loader.load('../assets/anz/passenger.webp'); figure.colorSpace = THREE.SRGBColorSpace; figure.anisotropy = MAXANI;
-const FIG = { aspect: 315 / 1024, eyes: .09, face: .47 };
+const FIG = { aspect: 315 / 1024, eyes: .09, face: .47, body: 1 };   // body: how much of the picture's height she fills
 // a short looping clip of her waiting (colour on the left half of the frame, cut-out matte on the right); the still stands in until it plays
-const FIG_VIDEO = { src: '../assets/anz/passenger-loop.mp4', aspect: 288 / 512, eyes: .09, face: .5 };   // the cut-out's shape; how far down her eyes are; where her face sits across it
+const FIG_VIDEO = { src: '../assets/anz/passenger-loop.mp4', aspect: 256 / 720, eyes: .1257, face: .492, body: .9333 };   // framed a little looser than the still, so she has room to move   // the cut-out's shape; how far down her eyes are; where her face sits across it
 if (CFG.passenger > 0 && !MOBILE) { const v = document.createElement('video'); v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto'; v.src = FIG_VIDEO.src;
   v.addEventListener('playing', () => { const t = new THREE.VideoTexture(v); t.colorSpace = THREE.SRGBColorSpace; figureMat.uniforms.map.value = t; figureMat.uniforms.packed.value = 1; }, { once: true });
   v.play().catch(() => {}); addEventListener('pointerdown', () => { if (v.paused) v.play().catch(() => {}); }, { once: true }); }
@@ -597,8 +597,8 @@ const figureMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: fals
           vec4 t = pick(u);
           c += vec4(t.rgb * t.a, t.a) * w * wj; tw += w * wj; } }
       c /= tw; c.rgb /= max(c.a, .001);
-c.rgb = mix(c.rgb, vec3(.55, .54, .52), .12);   // the steel's own tone showing through
-      gl_FragColor = vec4(c.rgb * .8, c.a * opacity); 
+c.rgb = mix(vec3(dot(c.rgb, vec3(.2126, .7152, .0722))), c.rgb, 1.35); c.rgb = max(c.rgb, 0.); c.rgb = mix(c.rgb, vec3(.55, .54, .52), .06);   // the steel's own tone showing through
+      gl_FragColor = vec4(c.rgb * .9, c.a * opacity); 
       #include <colorspace_fragment>
     }` });
 // reflections: a snapshot of the cab itself (walls, luminous ceiling, doors), so the metal reflects the real room
@@ -842,7 +842,8 @@ function build() {
   if (CFG.passenger > 0) { const zd = -.035 + dt / 2 + .0014, hh = oh - .012;
     const fig = new THREE.Mesh(new THREE.PlaneGeometry(ow, hh), figureMat); fig.position.set(0, hh / 2, zd); fig.renderOrder = 3; fig.frustumCulled = false; fig.userData.noShadow = true;
     figureMat.uniforms.cy.value = 0;   // the plane's local y runs from -hh/2; converted to world height below
-    fig.onBeforeRender = (r, sc, c) => { if (c !== camera) return; const F = figureMat.uniforms.packed.value ? FIG_VIDEO : FIG, H = G.eye / (1 - F.eyes), W = H * F.aspect, zf = CFG.passengerZ, a = c.position.z - zd, k0 = a / (a + zf - zd), k = k0 * CFG.passengerScale;   // sized so her eyes are at our eye level
+    fig.onBeforeRender = (r, sc, c) => { if (c !== camera) return; const F = figureMat.uniforms.packed.value ? FIG_VIDEO : FIG, H = G.eye / (1 - FIG.eyes) / F.body, W = H * F.aspect,   // her own height is the same whichever picture is showing
+       zf = CFG.passengerZ, a = c.position.z - zd, k0 = a / (a + zf - zd), k = k0 * CFG.passengerScale;   // sized so her eyes are at our eye level
       figureMat.uniforms.cy.value = hh / 2; figureMat.uniforms.rect.value.set(c.position.x + (.5 - F.face) * W * k, c.position.y - (1 - F.eyes) * H * k - .15 * H * k, W * k * 1.3, H * k * 1.3); };   // centred on our own line of sight
     cab.add(fig); G.fig = fig; }
 
