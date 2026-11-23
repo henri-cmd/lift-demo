@@ -2,6 +2,7 @@
 const BASE = new URL('../', import.meta.url).href, never = () => new Promise(() => {});
 if (window.__liftBase) await never();
 window.__liftBase = BASE;
+{ const g = document.createElement('script'); g.src = BASE + 'assets/finch-gate.js'; document.head.appendChild(g); }   // the Finch viewing gate (it decides for itself when to show)
 { // leave the site alone where the lift cannot or should not run
   let gl = null; try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
   if (!gl || window.top !== window || matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 600) await never();
