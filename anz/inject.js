@@ -7,7 +7,7 @@ window.__liftBase = BASE;
   if (!gl || window.top !== window || matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 600) await never();
 }
 const mag = await new Promise(res => { const t0 = Date.now(); (function poll() {
-  const R = window.RM, m = R && R.viewerRouter && R.viewerRouter.mag,   // (window.RM: this file has its own RM further down) el = document.querySelector('main.mag');
+  const R = window.RM, m = R && R.viewerRouter && R.viewerRouter.mag, el = document.querySelector('main.mag');
   if (m && m.pages && m.pages.length && el && el.querySelector('article.page')) return res(m);
   if (Date.now() - t0 > 20000) return res(null); setTimeout(poll, 100); })(); });
 if (!mag || !document.querySelector('main.mag.viewer-type-vertical')) await never();
