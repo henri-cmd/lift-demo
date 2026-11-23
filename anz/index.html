@@ -718,7 +718,7 @@ function wallRun(u0, u1, yTop, seed = 0, r0 = u0, r1 = u1) {   // r0..r1: the st
   box(w, KICK, .012, M.kick, uc, KICK / 2, .006, g);
   box(w, .004, .002, M.slot, uc, RAIL_Y + RAIL_H, .001, g);   // fine shadow gap where the blue meets the oak
   // handrail: a polished steel tube standing off the wall on round brackets, with domed ends
-  { const R = .019, OFF = .062, END = .07, a = r0 + END, b = r1 - END, L = b - a, y = RAIL_Y - .03;   // mounted on the blue, just below where it meets the oak
+  { const R = .019, OFF = .062, END = .07, a = r0 + END, b = r1 - END, L = b - a, y = RAIL_Y + RAIL_H + .032;   // mounted along the very bottom of the oak, just above the blue
     if (L > .12) {
       const tube = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L, 32), M.steelPolished); tube.rotation.z = Math.PI / 2; tube.position.set((a + b) / 2, y, OFF); g.add(tube);
       for (const x of [a, b]) { const cap = new THREE.Mesh(new THREE.SphereGeometry(R, 24, 16), M.steelPolished); cap.position.set(x, y, OFF); g.add(cap); }
@@ -843,8 +843,8 @@ function build() {
   // panel size follows the screen: on narrow screens it grows to about three-quarters of the width (finger-sized buttons),
   // and it never gets taller than the wall you can see
   const visW = 2 * Math.tan(hfov / 2) * (D - FZ);
-  const PS = Math.min(aspect < 1 ? clamp(visW * .76 / pw, CFG.panelScale * .7, CFG.panelScale * 1.45) : CFG.panelScale, (viewTop - .05 - (RAIL_Y + RAIL_H + .06)) / ph);
-  const px = ow / 2 + pw * PS / 2 + .2, py = Math.max(1.3, RAIL_Y + RAIL_H + ph * PS / 2 + .05);
+  const PS = Math.min(aspect < 1 ? clamp(visW * .76 / pw, CFG.panelScale * .7, CFG.panelScale * 1.45) : CFG.panelScale, (viewTop - .05 - (RAIL_Y + RAIL_H + .13)) / ph);
+  const px = ow / 2 + pw * PS / 2 + .2, py = Math.max(1.3, RAIL_Y + RAIL_H + ph * PS / 2 + .12);   // clear of the handrail below
   const bxs = c => -pw / 2 + .11 + c * ((pw - .22) / (cols - 1)), bys = r => ph / 2 - top - .06 - r * pitch;
   const fy = bys(rows) - .05, fxs = k => -pw / 2 + .085 + k * ((pw - .17) / Math.max(1, fns.length - 1));
   const labels = F.map((f, k) => [f.n.toUpperCase(), bxs(k % cols) + pw / 2, bys(Math.floor(k / cols)) - .068]).concat(fns.map((f, k) => [FN[f].label, fxs(k) + pw / 2, fy - .062]));
