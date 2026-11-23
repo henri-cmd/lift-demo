@@ -175,10 +175,15 @@ import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUnifo
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 
+/* HOSTED MODE: when this code is injected into another site (Readymag), window.__liftHost describes it. The lift is then only the cab,
+   drawn over the site; the site's own pages are the floors, fitted into the doorway and scrolled by the browser as usual. */
+const HOST = window.__liftHost || null, AB = window.__liftBase || '../';
+const newImg = () => { const i = new Image(); if (HOST) i.crossOrigin = 'anonymous'; return i; };
+
 /* ===== CONFIG ===== */
 const CFG = {
   floors: [
-      { n:'Intro', bg:'#0b2a47', img:'', hero:'../assets/anz/intro-hero.webp', ambience:'', html:`
+      { n:'Intro', bg:'#0b2a47', img:'', hero:AB + 'assets/anz/intro-hero.webp', ambience:'', html:`
         <h1>Intro</h1><p>The Small Scraper is a metaphor we need right now.</p><p>While it’s a vibrant representation of ANZ’s backing of small business, it’s also a celebration of the people and their enterprises that make Australia thrive. Day in, day out, people are out there driving their communities forward. They’re dreaming up ideas and experiences and services so that the world we all live in is more colourful, convenient, crafty and awe-inspiring.</p><div class="ph"></div><p>You can get a taste of all the people working hard and making it work by strolling up a high street or perusing a Neighbourhood What’s On Facebook page. Yet it’s rare to actually see the diversity of businesses backed by the same bank all together. This is an incredible feel-good visual reminder of who makes up the backbone of our societies, whether they’re a logistics company or an escape room.</p><p>We’re launching ANZ back into the limelight yet subtly. Putting the spotlight onto the myriad of people backed by ANZ rather than the bank itself. It’s beautiful, it’s playful, and the best way to show who to trust is to show the people who trust in ANZ.</p><div class="ph"></div>` },
       { n:'Approach', bg:'#12456e', img:'', ambience:'', html:`
         <h1>Approach</h1><p>No small business is the same. Each one is dreamt up to serve a unique community, shaped by the people who live there and the lives they’ve built.</p><p>So my approach is all about keeping the individual character of every business. Rather than custom fitting each one into a set dressed to look like a floor of a building, we meet real businesses where they’re at and shoot them on site, IRL, in their actual workplaces. When many businesses come together with their own flair they form a village, and here they become the building blocks of the ANZ Smallscraper.</p><div class="ph"></div><p>Our lift is the constant. We build it once, beautifully, in the studio, and every business is captured on location as a background plate, matched to the lift’s lens, height and light. In post, the two are married seamlessly, so the doors open onto a real fabric merchant, a real logistics centre, a real lush garden being tended by landscapers. Then, when we pull wide, the skyscraper is designed to look as if all of these businesses are stacked on top of one another. Some small, some big, each unique, fitting together to form one building.</p><p>Real doesn’t mean untouched. Every location becomes a canvas for our art department, who will layer in the detail that makes a space feel unmistakably lived in. More bolts of colour stacked to the ceiling in the fabric merchant. Handwritten labels, pinned invoices and a radio on the shelf at the logistics centre. Overflowing planters, stacked pavers and muddy boots by the shed on the rooftop. We heighten what’s already there, amplifying each owner’s personality so every frame rewards a second look, without ever losing the truth of the place.</p><div class="ph"></div><p>ANZ, more than any of the other big four, is known as the go to for small business. This approach reflects ANZ as a pillar of support that lets businesses flourish without asking them to bend to a rigid way of working or fit a one size fits all box. Small businesses thrive on trust, their one of a kindness and the freedom to serve their own communities. This is a visual approach that reflects that.</p><p>It’s important to say this isn’t a whimsical jaunt through quirky businesses. It should feel like we’re moving through the engine room of contemporary Australian business, with upbeat, driving momentum. People feel as though they’re playing themselves, not a performed version. The humour is played straight, never played up. The wonder of the world building does the heavy lifting, so we can simply witness these business owners doing what they do best.</p><div class="ph"></div>` },
@@ -199,7 +204,7 @@ const CFG = {
       { n:'Outro', bg:'#0a1f33', img:'', ambience:'', html:`
         <h1>Outro</h1><p>There’s that saying that no man is an island.</p><p>I think we can extend that to businesses too. They don’t erupt from the water fully formed and raring to go. They take time to build, patience to go the distance, and a whole lot of support. Like most hard and beautiful things, it’s always comforting to look around and see that there are many people just like you, in the exact same position. People committed to their livelihood and bringing out their innate gifts and skills into the world.</p><div class="ph"></div><p>All these island together, well, in this case they make up a sky-scraper rather than an archipelago. This metaphor is losing steam but this idea isn’t! I love that ANZ is zooming out to see the bigger picture of the work they do and heroing the collective ingenuity of small and medium businesses.</p><p>Thanks for having me on to pitch. Now let’s go build an elevator inside an ice cream van.</p><p>Alex</p>` },
   ],
-  tex: '../assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
+  tex: AB + 'assets/3d/',     // scanned CC0 textures (see CREDITS.txt in that folder)
   blueStain: 0x2a6fe8,     // the blue-stained timber (base of the walls and the band above the doors); the wood scan is multiplied by this
   lowerPanel: 0x263645,
   indicatorDepth: 0.01,    // how far the indicator's metal body stands off the wall (metres)
@@ -257,6 +262,7 @@ const CFG = {
 
 /* ===== SETUP ===== */
 const root = document.getElementById('lift3d');
+if (HOST) CFG.floors = HOST.floors;
 const F = CFG.floors;
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = ms => new Promise(r => setTimeout(r, RM ? 0 : ms));
@@ -413,11 +419,11 @@ const loader = new THREE.TextureLoader();
 const loadTex = (url, srgb) => { const t = loader.load(url, () => captureEnv()); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAXANI; return t; };
 const woodMap = loadTex(CFG.tex + 'veneer-diff.webp', true), woodNormal = loadTex(CFG.tex + 'veneer-normal.webp'), woodRough = loadTex(CFG.tex + 'veneer-rough.webp');
 // the scanned patina is blended into the generated brushing, so the steel keeps its hairline grain but gains real, uneven wear
-{ const im = new Image(); im.onload = () => { for (const set of [steelSet, doorSetL, doorSetR]) { const c = set.rough.image, g = c.getContext('2d');
+{ const im = newImg(); im.onload = () => { for (const set of [steelSet, doorSetL, doorSetR]) { const c = set.rough.image, g = c.getContext('2d');
     g.globalAlpha = .1; g.globalCompositeOperation = 'screen'; g.drawImage(im, 0, 0, c.width, c.height); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; set.rough.needsUpdate = true; } captureEnv(); };
   im.src = CFG.tex + 'steel-patina.webp'; }
 const polishedRough = canvasTex(512, 512, (g) => { g.fillStyle = 'rgb(44,44,44)'; g.fillRect(0, 0, 512, 512); }, { srgb: false });
-{ const load = src => new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = CFG.tex + src; });
+{ const load = src => new Promise(r => { const im = newImg(); im.onload = () => r(im); im.onerror = () => r(null); im.src = CFG.tex + src; });
   Promise.all(['smear.webp', 'scratches.webp'].map(load)).then(([smear, scratches]) => {
     const layer = (set, im, alpha, tile = 1) => { if (!im) return; const c = set.image, g = c.getContext('2d'); g.globalCompositeOperation = 'screen'; g.globalAlpha = alpha;
       for (let y = 0; y < tile; y++) for (let x = 0; x < tile; x++) g.drawImage(im, x * c.width / tile, y * c.height / tile, c.width / tile, c.height / tile); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; };
@@ -430,7 +436,7 @@ const polishedRough = canvasTex(512, 512, (g) => { g.fillStyle = 'rgb(44,44,44)'
     layer(polishedRough, scratches, .28, 2); layer(polishedRough, smear, .12); polishedRough.needsUpdate = true;   // polished trim: hairline scratches in the highlights
     captureEnv();
   }); }
-const LOGOS = loader.load('../assets/anz/logos.webp', () => captureEnv()); LOGOS.colorSpace = THREE.SRGBColorSpace; LOGOS.anisotropy = MAXANI;
+const LOGOS = loader.load(AB + 'assets/anz/logos.webp', () => captureEnv()); LOGOS.colorSpace = THREE.SRGBColorSpace; LOGOS.anisotropy = MAXANI;
 const leatherNormal = loadTex(CFG.tex + 'leather-normal.webp');
 
 // fine pebbled grain for the dark lower panels
@@ -622,17 +628,17 @@ function aoMat(flip, strength = .5) {
   return m;
 }
 // the passenger whose eyes we look through: a photograph (cut out and mirrored, as a reflection is), seen only as her reflection in the doors
-const figure = loader.load('../assets/anz/passenger.webp'); figure.colorSpace = THREE.SRGBColorSpace; figure.anisotropy = MAXANI;
+const figure = loader.load(AB + 'assets/anz/passenger.webp'); figure.colorSpace = THREE.SRGBColorSpace; figure.anisotropy = MAXANI;
 const FIG = { aspect: 315 / 1024, eyes: .09, face: .47, body: 1 };   // body: how much of the picture's height she fills
 // a short looping clip of her waiting (colour on the left half of the frame, cut-out matte on the right); the still stands in until it plays
-const FIG_STEP = { src: '../assets/anz/passenger-step.mp4', aspect: 296 / 720, eyes: .1257, face: .4295, body: .9333 };
-const FIG_VIDEO = { src: '../assets/anz/passenger-loop.mp4', aspect: 296 / 720, eyes: .1257, face: .4935, body: .9333 };   // framed a little looser than the still, so she has room to move   // the cut-out's shape; how far down her eyes are; where her face sits across it
+const FIG_STEP = { src: AB + 'assets/anz/passenger-step.mp4', aspect: 296 / 720, eyes: .1257, face: .4295, body: .9333 };
+const FIG_VIDEO = { src: AB + 'assets/anz/passenger-loop.mp4', aspect: 296 / 720, eyes: .1257, face: .4935, body: .9333 };   // framed a little looser than the still, so she has room to move   // the cut-out's shape; how far down her eyes are; where her face sits across it
 // Two clips: the waiting loop, and one sideways step towards the button panel (stepping out in its first half, back again in its second).
 // They cross-fade into one another. Once she has stepped over, the waiting loop carries on, drawn one step across, so she never freezes.
 const VID = { mode: 'still', A: null, B: null, t0: 0, dur: 0 };
 const STEP_DX = .1222, STEP = { split: 74 / 24, end: 158 / 24, land: 2.2, mirror: 2.5 };   // the step clip: stepping out runs to 'split' (she has landed by 'land' and then settles), stepping back runs from there to 'end'   // how far the step carries her, as a share of the clip's width
 if (CFG.passenger > 0 && !MOBILE && !FLAT && !BAKE) {
-  const mk = (src, loop) => { const v = document.createElement('video'); v.muted = true; v.loop = loop; v.playsInline = true; v.preload = 'auto'; v.src = src; const t = new THREE.VideoTexture(v); t.colorSpace = THREE.SRGBColorSpace; return { v, t, ready: false }; };
+  const mk = (src, loop) => { const v = document.createElement('video'); v.crossOrigin = 'anonymous'; v.muted = true; v.loop = loop; v.playsInline = true; v.preload = 'auto'; v.src = src; const t = new THREE.VideoTexture(v); t.colorSpace = THREE.SRGBColorSpace; return { v, t, ready: false }; };
   const L = mk(FIG_VIDEO.src, true), S = mk(FIG_STEP.src, false), play = v => v.play().catch(() => {});
   const HOME = FIG_VIDEO.face, AWAY = FIG_VIDEO.face - STEP_DX;
   const cut = (o, face) => { VID.A = { o, face }; VID.B = null; figureMat.uniforms.map.value = o.t; figureMat.uniforms.packed.value = 1; figureMat.uniforms.fade.value = 0; };
@@ -794,8 +800,11 @@ const reflMat = (mir, strength, dx, dy, lod, tint = [.92, .9, .87]) => new THREE
 
 // The page sits directly behind the doorway, as in the 2D version: an ordinary element, laid out at the size the doorway
 // has on screen and moved in step with the camera's small shifts so it always sits exactly in the opening.
+let hostDx = 0;
 function placePage(cx, cy) {
   const x = VW / 2 + (-G.ow / 2 - cx) * G.pk, y = VH / 2 - (G.oh - cy) * G.pk;
+  if (HOST) { const dx = Math.abs(cx) < 1e-5 ? 0 : -cx * G.pk;   // the site only moves when the view slides to the panel
+    if (dx !== hostDx) { hostDx = dx; HOST.el.style.transform = dx ? `translate3d(${dx.toFixed(1)}px,0,0)` : ''; } return; }
   wallEl.style.transform = `translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0)`;
 }
 
@@ -804,9 +813,9 @@ const cab = new THREE.Group(); scene.add(cab);
 const doors = { l: null, r: null }, ldoors = { l: new THREE.Group(), r: new THREE.Group() };
 let G = {};            // live geometry numbers
 const wallEl = document.createElement('div'); wallEl.className = 'wall';
-const pageEl = document.createElement('div'); pageEl.className = 'page';
+const pageEl = HOST ? document.scrollingElement : document.createElement('div'); if (!HOST) pageEl.className = 'page';
 const lightEl = document.createElement('div'); lightEl.className = 'wlight';
-wallEl.append(pageEl, lightEl);
+if (!HOST) wallEl.append(pageEl, lightEl);
 
 function box(w, h, d, mat, x, y, z, parent = cab) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m;
@@ -1077,6 +1086,7 @@ function build() {
   wallEl.style.width = Math.ceil(ow * G.pk) + 'px'; wallEl.style.height = Math.ceil(VH - pageTop + 14) + 'px';
   wallEl.style.setProperty('--mx', '0px');
   if (!wallEl.parentNode) pageLayer.appendChild(wallEl);
+  if (HOST) hostFit(VW / 2 - ow / 2 * G.pk, pageTop, Math.ceil(ow * G.pk));
   placePage(0, eye);
 
   camera.aspect = aspect; camera.updateProjectionMatrix();
@@ -1086,7 +1096,7 @@ function build() {
 
 /* ===== FLOORS (DOM page) ===== */
 const stops = [], holds = [], floorEls = [];
-F.forEach((f, i) => {
+(HOST ? [] : F).forEach((f, i) => {
   const stop = document.createElement('div'); stop.className = 'stop'; stop.style.zIndex = F.length - i;
   const hold = document.createElement('div'); hold.className = 'hold';
   const d = document.createElement('section'); d.className = 'floor'; d.style.backgroundColor = f.bg || '#111';
@@ -1098,7 +1108,24 @@ F.forEach((f, i) => {
   stops.push(stop); holds.push(hold); floorEls.push(d);
 });
 let swaps = [], starts = [], shuts = [0], Z = 0;
+// hosted: the site is set into the doorway (left edge, top edge and width in pixels) and told to lay itself out again at that width
+let hostBox = '', hostBusy = false, hostTop = 0;
+function hostFit(x, y, w) {
+  const zone = Math.round(VH * CFG.doorZone * .6), key = [x.toFixed(1), y.toFixed(1), w, zone].join();
+  if (key === hostBox) return; hostBox = key; hostTop = y + zone;
+  HOST.fit(x, y + zone, w);   // it starts one door-zone down: at the very top the doors are shut, and it rises into place as they open
+  hostBusy = true; dispatchEvent(new Event('resize')); hostBusy = false;
+  setTimeout(layout, 60); setTimeout(layout, 600);
+}
+function hostLayout() {
+  const H = VH, tops = HOST.tops(); if (!tops.length) return;
+  Z = Math.round(H * CFG.doorZone * .6);
+  HOST.tail(hostTop + HOST.height() , Z);                                    // room at the bottom for the doors to close on
+  starts = tops.map(t => t + Z); swaps = starts.slice(1).map(t => t - H * .5);
+  shuts = [0, Math.max(Z * 2, pageEl.scrollHeight - pageEl.clientHeight)];
+}
 function layout() {
+  if (HOST) return hostLayout();
   const H = pageEl.clientHeight, n = F.length;
   if (!H) return;
   Z = Math.round(H * CFG.doorZone);
@@ -1133,7 +1160,7 @@ function updateVisibility() {}
    Scrolling while the pointer is over the lift's walls is passed on to it. ===== */
 let arrowTimer = 0, scrollY = 0, scrolled = false, lastTop = 0;
 function nudge(dy) { if (busy) return; if (turned) lookAtPanel(false); pageEl.scrollTop += dy; }
-pageEl.addEventListener('scroll', () => {
+(HOST ? window : pageEl).addEventListener('scroll', () => {
   const top = pageEl.scrollTop, dy = top - lastTop; lastTop = top; if (busy || !dy) return;
   scrollY = top; if (turned) lookAtPanel(false);
   const d = dy > 0 ? -1 : 1; if (d !== indDir) { indDir = d; drawIndicator(); }   // direction arrows light while you scroll
@@ -1141,23 +1168,26 @@ pageEl.addEventListener('scroll', () => {
   if (!scrolled) { scrolled = true; root.classList.add('seen-scroll'); root.querySelector('.hint').classList.add('off'); }
 }, { passive: true });
 root.addEventListener('wheel', e => {
+  if (HOST) return;
   if (busy) { e.preventDefault(); return; }
   if (!pageEl.contains(e.target)) { e.preventDefault(); nudge(e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY); }
 }, { passive: false });
 addEventListener('keydown', e => {
+  if (HOST) return;   // the site handles its own keys
   const H = pageEl.clientHeight, k = { ArrowDown: 60, ArrowUp: -60, PageDown: H * .9, PageUp: -H * .9, ' ': H * .9, End: 1e9, Home: -1e9 }[e.key];
   if (k !== undefined) { e.preventDefault(); nudge(k); }
 });
 
 /* ===== CURSOR LOOK + PANEL TURN ===== */
 let tLookX = 0, tLookY = 0, lookX = 0, lookY = 0, turned = false, turnT = 0, turnV = 0, onPanel = false;   // turnT: 0 = facing doors, 1 = facing panel
-root.addEventListener('pointermove', e => {
+const EV = HOST ? window : root;   // hosted, the lift's layer lets clicks through to the site, so it listens on the window
+EV.addEventListener('pointermove', e => {
   if (e.pointerType !== 'mouse') return;
   tLookX = (mx(e) / VW - .5) * 2; tLookY = (my(e) / VH - .5) * 2;
-  root.style.cursor = hitButton(e) !== null ? 'pointer' : '';
+  (HOST ? document.documentElement : root).style.cursor = hitButton(e) !== null ? 'pointer' : '';
   // resting the cursor on the panel glides you over to it. It re-arms only once the cursor has left the panel,
   // so coming back to the doors with the mouse still parked there doesn't send you straight back.
-  if (e.target.closest('.ui')) return;
+  if ((e.target.closest && e.target.closest('.ui'))) return;
   const over = overPlate(e) || (!turned && mx(e) > VW - CFG.revealDistance);
   // once you have been on the panel, moving the cursor off it to the left takes you straight back to the doors
   if (turned && G.plateLeft) { const px = (TMPV.copy(G.plateLeft).project(camera).x * .5 + .5) * VW;
@@ -1167,7 +1197,7 @@ root.addEventListener('pointermove', e => {
 });
 let hoverTimer = 0, hoverArmed = true;
 function overPlate(e) { if (!G.plate) return false; ndc.set(mx(e) / VW * 2 - 1, -(my(e) / VH) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObject(G.plate, false).length > 0; }
-root.addEventListener('pointerleave', () => { tLookX = tLookY = 0; });
+(HOST ? document.documentElement : root).addEventListener('pointerleave', () => { tLookX = tLookY = 0; });
 const ftab = root.querySelector('.ftab');
 const panelHold = false;
 const TMPV = new THREE.Vector3();
@@ -1181,8 +1211,8 @@ function hitButton(e) {
   const h = ray.intersectObjects([...btnMeshes, ...fnMeshes], false)[0];
   return h ? h.object : null;
 }
-root.addEventListener('click', e => {
-  if (e.target.closest('.ui')) return;
+EV.addEventListener('click', e => {
+  if ((e.target.closest && e.target.closest('.ui'))) return;
   const o = hitButton(e);
   if (o) { initAudio(); o.userData.fn ? liftFn(o.userData.fn, o) : go(o.userData.floor); }
   else if (turned && !overPlate(e)) lookAtPanel(false);   // clicking away from the panel takes you back to the doors
@@ -1359,7 +1389,7 @@ function rollTo(i, dir) { roll = { from: indText, t0: performance.now(), dir }; 
 
 /* ===== FLOOR LIGHT: each floor's own colour spills into the cab as the doors open ===== */
 const tints = F.map(f => { const c = new THREE.Color(f.bg || '#222'); return { c, lum: .12 }; });
-F.forEach((f, i) => { if (!f.hero) return; const im = new Image(); im.onload = () => {
+F.forEach((f, i) => { if (!f.hero) return; const im = newImg(); im.onload = () => {
   const c = document.createElement('canvas'); c.width = c.height = 8; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 8, 8);
   const d = g.getImageData(0, 0, 8, 8).data; let r = 0, gg = 0, b = 0; for (let k = 0; k < d.length; k += 4) { r += d[k]; gg += d[k + 1]; b += d[k + 2]; }
   const col = new THREE.Color().setRGB(r / 64 / 255, gg / 64 / 255, b / 64 / 255, THREE.SRGBColorSpace);
@@ -1420,7 +1450,7 @@ function frame() {
 
   { // beyond the page's edges you see the floor's own colour — or, while its opening photo is on screen, that photo's overall colour
     const heroOn = F[cur] && F[cur].hero && tints[cur].hero && pageEl.scrollTop - (starts[cur] || 0) < pageEl.clientHeight * .7, key = cur + (heroOn ? 'h' : '');
-    if (backdropFor !== key) { backdropFor = key; const bg = heroOn ? '#' + tints[cur].c.clone().multiplyScalar(.8).getHexString() : (F[cur] && F[cur].bg) || '#111'; pageLayer.style.background = bg; wallEl.style.background = bg; root.style.background = bg; } }
+    if (backdropFor !== key) { backdropFor = key; const bg = heroOn ? '#' + tints[cur].c.clone().multiplyScalar(.8).getHexString() : (F[cur] && F[cur].bg) || '#111'; if (!HOST) { pageLayer.style.background = bg; wallEl.style.background = bg; root.style.background = bg; } } }
   // the floor's own light: colour and brightness of what's beyond the doors, eased in as they open
   const tn = tints[cur] || tints[0]; tintNow.lerp(tn.c, 1 - Math.exp(-dt / .25)); lumNow += (tn.lum - lumNow) * (1 - Math.exp(-dt / .25));
   const openK = 1 - cVal;
@@ -1476,7 +1506,7 @@ function frame() {
   // flat-on camera: it never turns or moves in or out. It leans a few millimetres with the cursor (the 2D version's lean),
   // and slides sideways to the button panel. The page is moved in step, so it always sits exactly in the doorway.
   const p = turnT;
-  const hs = RM || FLAT || BAKE ? 0 : CFG.headShift, still = FLAT || BAKE;   // the baked pictures are taken from a fixed spot
+  const hs = RM || FLAT || BAKE ? 0 : CFG.headShift, still = FLAT || BAKE || !!HOST;   // the baked pictures are taken from a fixed spot
   G.panNow = G.pan * p;
   const camX = still ? G.pan * p : G.pan * p + vx + lookX * hs * (1 - p) + Math.sin(sw * .21) * .0015, camY = still ? G.eye : G.eye + vy - lookY * hs * .5 * (1 - p) + Math.sin(sw * .27 + 1) * .001;
   camera.position.set(camX, camY, G.D); camera.rotation.set(0, 0, 0);
@@ -1536,7 +1566,7 @@ function flatGeom() {
 let FL = null;
 async function flatBuild() {
   cab.updateMatrixWorld(true);
-  const g = flatGeom(), k = VH / BAKE_H, dir = `../assets/anz/flat/${bucketW}/`, px = v => (v * k).toFixed(2) + 'px';
+  const g = flatGeom(), k = VH / BAKE_H, dir = `${AB}assets/anz/flat/${bucketW}/`, px = v => (v * k).toFixed(2) + 'px';
   const el = (cls, parent, tag = 'div') => { const d = document.createElement(tag); d.className = cls; parent.appendChild(d); return d; };
   const box = (d, r) => Object.assign(d.style, { left: px(r.x), top: px(r.y), width: px(r.w), height: px(r.h) });
   const old = FL && FL.el, top = document.createElement('div'); top.className = 'flat';
@@ -1549,7 +1579,7 @@ async function flatBuild() {
   for (const [S, r] of [[IND, g.ind], [PSC, g.psc]]) if (r) { S.c.className = 'fscr'; cabEl.appendChild(S.c); box(S.c, r); }
   const lamps = g.btn.map(b => ['here', 'lit'].map(n => { const d = el('flamp', cabEl); b.r *= .86; box(d, { x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 });
     Object.assign(d.style, { backgroundImage: `url(${dir}${n}.webp)`, backgroundSize: `${px(g.plate.w)} ${px(g.plate.h)}`, backgroundPosition: `${px(g.plate.x - (b.x - b.r))} ${px(g.plate.y - (b.y - b.r))}` }); return { d, o: -1 }; }));
-  for (const n of ['here', 'lit']) { const i = new Image(); loads.push(new Promise(r => { i.onload = i.onerror = r; })); i.src = dir + n + '.webp'; }
+  for (const n of ['here', 'lit']) { const i = newImg(); loads.push(new Promise(r => { i.onload = i.onerror = r; })); i.src = dir + n + '.webp'; }
   await Promise.all(loads);
   root.insertBefore(top, pageLayer.nextSibling); if (old) old.remove();
   FL = { el: top, g, k, doors: doorsEl, ll, lr, cab: cabEl, lamps, pan: -1, open: -1 };
@@ -1594,6 +1624,8 @@ async function bake(list = BUCKETS, url = 'http://localhost:8766/') {
 
 let resizeT = 0, lastW = innerWidth, lastH = innerHeight;
 addEventListener('resize', () => {
+  if (hostBusy) return;
+  if (HOST) { clearTimeout(resizeT); resizeT = setTimeout(() => { lastW = innerWidth; lastH = innerHeight; viewSize(); build(); }, 140); return; }
   if (innerWidth === lastW && Math.abs(innerHeight - lastH) < 90 && MOBILE) return;   // a phone's toolbars sliding in and out isn't a real resize
   clearTimeout(resizeT); resizeT = setTimeout(() => {
     lastW = innerWidth; lastH = innerHeight;
@@ -1605,6 +1637,7 @@ addEventListener('resize', () => {
 });
 addEventListener('orientationchange', () => dispatchEvent(new Event('resize')));
 if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => layout()); floorEls.forEach(f => ro.observe(f.querySelector('.copy'))); }
+if (HOST) setInterval(layout, 1500);   // the site's pages change height as their contents load
 if (FLAT) await flatBuild();
 if (BAKE) window.__bake = bake; else nextFrame(frame);
 setTimeout(() => root.querySelector('.loading').classList.add('done'), 600);
