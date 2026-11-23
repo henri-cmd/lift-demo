@@ -1266,7 +1266,7 @@ async function go(t) {
   moving = true; rideDir = dir; indDir = -dir; shaftPhase = .5 - G.eye / G.oh; drawIndicator(); humOn(); lurchV += dir * .11;
   let i = cur;
   // a real car eases away, runs fastest mid-shaft and eases in: the first and last floors take longest, long runs get quicker in the middle
-  const n = Math.abs(t - cur), stepMs = k => CFG.perFloorMs * (n === 1 ? 1.5 : n === 2 ? 1.25 : k === 0 || k === n - 1 ? 1.65 : k === 1 || k === n - 2 ? .95 : n > 6 ? .5 : .62);
+  const n = Math.abs(t - cur), stepMs = k => CFG.perFloorMs * (n === 1 ? 1.5 : n === 2 ? 1.25 : k === 0 || k === n - 1 ? 1.65 : k === 1 || k === n - 2 ? 1.15 : n > 6 ? .75 : .93);
   for (let k = 0; i !== t; k++) { rideFloorMs = stepMs(k); await sleep(rideFloorMs); i += dir; rollTo(i, dir); bump = clamp(CFG.perFloorMs / rideFloorMs, .5, 1.3); }
   rideFloorMs = CFG.perFloorMs * 1.8; await sleep(CFG.perFloorMs * .55);
   moving = false; humOff(); lurchV -= dir * .13;
