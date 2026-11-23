@@ -511,8 +511,8 @@ function drawIndicator(now = performance.now()) {
 }
 const setIndicator = i => { curShown = i; indText = `${i + 1} ${F[i].n.toUpperCase()}`; drawIndicator(); markHere(i); };
 function markHere(i) { btnRings.forEach((r, k) => { const here = k === i, cap = btnMeshes[k] && btnMeshes[k].userData.cap;
-  if (cap) { cap.material.emissive.setHex(here ? 0x8fd0f5 : 0); cap.material.emissiveIntensity = here ? .85 : 0; }
-  if (r.userData.lit) return; r.material.emissive.setHex(here ? 0x35b4f2 : 0); r.material.emissiveIntensity = here ? 2.4 : 0; r.material.color.setHex(here ? 0x2aa4e0 : 0x2a2a2a); }); }
+  if (cap) { cap.material.emissive.setHex(here ? 0x4f97e0 : 0); cap.material.emissiveIntensity = here ? .85 : 0; }
+  if (r.userData.lit) return; r.material.emissive.setHex(here ? 0x0a6fd0 : 0); r.material.emissiveIntensity = here ? 2.4 : 0; r.material.color.setHex(here ? 0x0b5fb4 : 0x2a2a2a); }); }
 // the screen surface: LEDs glowing from behind smoked glass that still catches the room's reflection
 const screenMat = scr => new THREE.MeshPhysicalMaterial({ color: 0x020202, emissive: 0xffffff, emissiveMap: scr.tex, emissiveIntensity: 1.7, roughness: .3, metalness: 0, specularIntensity: .2, clearcoat: .5, clearcoatRoughness: .05, envMapIntensity: .12 });
 
@@ -718,7 +718,7 @@ function wallRun(u0, u1, yTop, seed = 0, r0 = u0, r1 = u1) {   // r0..r1: the st
   box(w, KICK, .012, M.kick, uc, KICK / 2, .006, g);
   box(w, .004, .002, M.slot, uc, RAIL_Y + RAIL_H, .001, g);   // fine shadow gap where the blue meets the oak
   // handrail: a polished steel tube standing off the wall on round brackets, with domed ends
-  { const R = .019, OFF = .062, END = .07, a = r0 + END, b = r1 - END, L = b - a, y = RAIL_Y + RAIL_H + .032;   // mounted along the very bottom of the oak, just above the blue
+  { const R = .019, OFF = .062, END = .07, a = r0 + END, b = r1 - END, L = b - a, y = RAIL_Y + RAIL_H;   // centred on the join, so it sits across the oak and the blue
     if (L > .12) {
       const tube = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L, 32), M.steelPolished); tube.rotation.z = Math.PI / 2; tube.position.set((a + b) / 2, y, OFF); g.add(tube);
       for (const x of [a, b]) { const cap = new THREE.Mesh(new THREE.SphereGeometry(R, 24, 16), M.steelPolished); cap.position.set(x, y, OFF); g.add(cap); }
@@ -843,8 +843,8 @@ function build() {
   // panel size follows the screen: on narrow screens it grows to about three-quarters of the width (finger-sized buttons),
   // and it never gets taller than the wall you can see
   const visW = 2 * Math.tan(hfov / 2) * (D - FZ);
-  const PS = Math.min(aspect < 1 ? clamp(visW * .76 / pw, CFG.panelScale * .7, CFG.panelScale * 1.45) : CFG.panelScale, (viewTop - .05 - (RAIL_Y + RAIL_H + .13)) / ph);
-  const px = ow / 2 + pw * PS / 2 + .2, py = Math.max(1.3, RAIL_Y + RAIL_H + ph * PS / 2 + .12);   // clear of the handrail below
+  const PS = Math.min(aspect < 1 ? clamp(visW * .76 / pw, CFG.panelScale * .7, CFG.panelScale * 1.45) : CFG.panelScale, (viewTop - .05 - (RAIL_Y + RAIL_H + .1)) / ph);
+  const px = ow / 2 + pw * PS / 2 + .2, py = Math.max(1.3, RAIL_Y + RAIL_H + ph * PS / 2 + .09);   // clear of the handrail below
   const bxs = c => -pw / 2 + .11 + c * ((pw - .22) / (cols - 1)), bys = r => ph / 2 - top - .06 - r * pitch;
   const fy = bys(rows) - .05, fxs = k => -pw / 2 + .085 + k * ((pw - .17) / Math.max(1, fns.length - 1));
   const labels = F.map((f, k) => [f.n.toUpperCase(), bxs(k % cols) + pw / 2, bys(Math.floor(k / cols)) - .068]).concat(fns.map((f, k) => [FN[f].label, fxs(k) + pw / 2, fy - .062]));
@@ -1151,7 +1151,7 @@ async function go(t) {
   const dir = t > cur ? 1 : -1;
   clickSound(); pressButton(t);
   indDir = -dir; drawIndicator();   // the travel arrow lights the moment the button is pressed
-  btnRings[t].userData.lit = true; btnRings[t].material.emissive.setHex(0x0a8fd4); btnRings[t].material.emissiveIntensity = 1.6; btnRings[t].material.color.setHex(0x2aa4e0);
+  btnRings[t].userData.lit = true; btnRings[t].material.emissive.setHex(0x0064c8); btnRings[t].material.emissiveIntensity = 1.6; btnRings[t].material.color.setHex(0x0b5fb4);
   await sleep(550);
   lookAtPanel(false);
   if (cVal < .98) { doorSound(CFG.doorMs, true); await animateDoors(1, CFG.doorMs); bump = .3; }
@@ -1171,13 +1171,13 @@ async function go(t) {
   doorSound(CFG.doorMs, false); await animateDoors(0, CFG.doorMs);
   busy = false; root.classList.remove('busy');
 }
-function flashButton(k) { clickSound(); pressButton(k); const m = btnRings[k].material; m.emissive.setHex(0x0a8fd4); m.emissiveIntensity = 1.6; setTimeout(() => markHere(curShown), 300); }
+function flashButton(k) { clickSound(); pressButton(k); const m = btnRings[k].material; m.emissive.setHex(0x0064c8); m.emissiveIntensity = 1.6; setTimeout(() => markHere(curShown), 300); }
 function pressButton(k) { const b = typeof k === 'number' ? btnMeshes[k] : k; if (!b) return; const z = b.userData.z0 ?? (b.userData.z0 = b.position.z); b.position.z = z - .006; setTimeout(() => { b.position.z = z; }, 170); }
 function flash(text, ms) { flashText = text; drawIndicator(); setTimeout(() => { flashText = null; drawIndicator(); }, ms); }
 let alarmUntil = 0;
 async function liftFn(fn, b) {
   clickSound(); pressButton(b);
-  const ring = b.userData.ring.material, lit = () => { ring.emissive.setHex(fn === 'alarm' ? 0xff2a1a : 0x0a8fd4); ring.emissiveIntensity = 1.6; }, off = () => { ring.emissiveIntensity = 0; ring.emissive.setHex(0); };
+  const ring = b.userData.ring.material, lit = () => { ring.emissive.setHex(fn === 'alarm' ? 0xff2a1a : 0x0064c8); ring.emissiveIntensity = 1.6; }, off = () => { ring.emissiveIntensity = 0; ring.emissive.setHex(0); };
   lit();
   if (fn === 'alarm') { alarmUntil = performance.now() + 2600; alarmSound(); flash('ALARM', 2600); setTimeout(off, 2600); return; }
   if (fn === 'call') { callSound(); flash('CALLING', 2200); setTimeout(off, 2200); if (CFG.contactEmail) setTimeout(() => { location.href = 'mailto:' + CFG.contactEmail; }, 900); return; }
