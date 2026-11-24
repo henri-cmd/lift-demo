@@ -41,6 +41,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavi
 #lift3d .flat .fdoors,#lift3d .flat .fcab,#lift3d .flat .leaf{will-change:transform}
 #lift3d .flat .leaf{left:0; top:0; width:50%; height:100%; overflow:hidden}
 #lift3d .flat .leaf.r{left:50%}
+#lift3d .flat .leaf{isolation:isolate}
+#lift3d .flat .frefl{mix-blend-mode:plus-lighter}
 #lift3d .flat img{left:0; top:0; max-width:none}
 #lift3d .flat .fcab > img{width:100%; height:100%}
 #lift3d .flat .flamp{border-radius:50%; opacity:0; display:none; background-repeat:no-repeat}
@@ -1584,7 +1586,8 @@ async function flatBuild() {
   const loads = [], img = (cls, parent, src) => { const i = el(cls, parent, 'img'); i.alt = ''; i.draggable = false; loads.push(new Promise(r => { i.onload = i.onerror = r; })); i.src = dir + src; return i; };
   const doorsEl = el('fdoors', top); box(doorsEl, g.doors);
   const ll = el('leaf', doorsEl), lr = el('leaf r', doorsEl);
-  for (const [leaf, off] of [[ll, 0], [lr, -g.doors.w / 2]]) { const i = img('', leaf, 'doors.webp'); i.style.width = px(g.doors.w); i.style.height = px(g.doors.h); i.style.left = px(off); }
+  const refl = [];   // the room's reflection stays where it is while each door slides across it
+  for (const [leaf, off] of [[ll, 0], [lr, -g.doors.w / 2]]) for (const n of ['doors.webp', 'refl.webp']) { const i = img(n === 'refl.webp' ? 'frefl' : '', leaf, n); i.style.width = px(g.doors.w); i.style.height = px(g.doors.h); i.style.left = px(off); if (n === 'refl.webp') refl.push(i); }
   const cabEl = el('fcab', top); box(cabEl, { x: 0, y: 0, w: g.wide, h: g.H });
   img('', cabEl, 'cab.webp');
   for (const [S, r] of [[IND, g.ind], [PSC, g.psc]]) if (r) { S.c.className = 'fscr'; cabEl.appendChild(S.c); box(S.c, r); }
@@ -1593,14 +1596,15 @@ async function flatBuild() {
   for (const n of ['here', 'lit']) { const i = newImg(); loads.push(new Promise(r => { i.onload = i.onerror = r; })); i.src = dir + n + '.webp'; }
   await Promise.all(loads);
   root.insertBefore(top, pageLayer.nextSibling); if (old) old.remove();
-  FL = { el: top, g, k, doors: doorsEl, ll, lr, cab: cabEl, lamps, pan: -1, open: -1 };
+  FL = { el: top, g, k, doors: doorsEl, ll, lr, refl, cab: cabEl, lamps, pan: -1, open: -1 };
   drawIndicator();
 }
 function flatDraw() {
   if (!FL) return;
   const { g, k } = FL, pan = G.panNow * g.pkF * k, open = (1 - cVal) * (G.ow / 2 + .02) * g.pkD * k;
   if (pan !== FL.pan) { FL.pan = pan; FL.cab.style.transform = `translate3d(${(-pan).toFixed(2)}px,0,0)`; FL.doors.style.transform = `translate3d(${(-G.panNow * g.pkD * k).toFixed(2)}px,0,0)`; }
-  if (open !== FL.open) { FL.open = open; FL.ll.style.transform = `translate3d(${(-open).toFixed(2)}px,0,0)`; FL.lr.style.transform = `translate3d(${open.toFixed(2)}px,0,0)`; }
+  if (open !== FL.open) { FL.open = open; FL.ll.style.transform = `translate3d(${(-open).toFixed(2)}px,0,0)`; FL.lr.style.transform = `translate3d(${open.toFixed(2)}px,0,0)`;
+    FL.refl[0].style.transform = `translate3d(${open.toFixed(2)}px,0,0)`; FL.refl[1].style.transform = `translate3d(${(-open).toFixed(2)}px,0,0)`; }
   LIGHTS.forEach((L, i) => { const pair = FL.lamps[i]; if (!pair) return; const lit = Math.min(1, L.w * L.c), here = Math.min(1, L.r / .82) * (1 - lit);
     [here, lit].forEach((v, j) => { v = Math.round(v * 20) / 20; if (v !== pair[j].o) { pair[j].o = v; pair[j].d.style.opacity = v; pair[j].d.style.display = v ? 'block' : 'none'; } }); });
 }
@@ -1621,12 +1625,19 @@ async function bake(list = BUCKETS, url = 'http://localhost:8766/') {
     cab.updateMatrixWorld(true); const g = flatGeom();
     const shot = async (closed, panned, lens) => { cVal = closed ? 1 : 0; turned = panned; turnT = panned ? 1 : 0; turnV = 0; if (outMat.uniforms.lens) outMat.uniforms.lens.value = lens; step(); await wait(60); step(); return grab(); };
     lights(0, 0, 0);
-    const fClosed = await shot(true, false, 1), f0 = await shot(false, false, 0);
+    const fClosed = await shot(true, false, 1); if (G.mirror) G.mirror.visible = false; const fBase = await shot(true, false, 1); if (G.mirror) G.mirror.visible = true; const f0 = await shot(false, false, 0);
     lights(.82, .32, 0); const fHere = await shot(false, false, 0);
     lights(1, 1, 1); const fLit = await shot(false, false, 0); lights(0, 0, 0);
     const wide = f0;
     const crop = (im, r, off = 0) => { const c = canvas(r.w, r.h); c.getContext('2d').drawImage(im, off - r.x, -r.y); return c; };
-    sizes[W] = [await send(wide, 'cab.webp', .9), await send(crop(fClosed, g.doors), 'doors.webp', .88), await send(crop(fLit, g.plate, g.pan), 'lit.webp', .9), await send(crop(fHere, g.plate, g.pan), 'here.webp', .9)];
+    // the mirror image alone: what the closed doors gain when it is switched on, kept as light to add on top
+    const dW = crop(fClosed, g.doors), dB = crop(fBase, g.doors), dR = canvas(g.doors.w, g.doors.h);
+    { const a = dW.getContext('2d').getImageData(0, 0, dR.width, dR.height), b = dB.getContext('2d').getImageData(0, 0, dR.width, dR.height), A = a.data, B = b.data;
+      for (let i = 0; i < A.length; i += 4) { const r = Math.max(0, A[i] - B[i] - 1), gg = Math.max(0, A[i + 1] - B[i + 1] - 1), bb = Math.max(0, A[i + 2] - B[i + 2] - 1), m = Math.max(r, gg, bb);
+        if (m) { A[i] = r * 255 / m; A[i + 1] = gg * 255 / m; A[i + 2] = bb * 255 / m; A[i + 3] = m; } else A[i] = A[i + 1] = A[i + 2] = A[i + 3] = 0; }
+      dR.getContext('2d').putImageData(a, 0, 0); }
+    await send(dR, 'refl.webp', .9);
+    sizes[W] = [await send(wide, 'cab.webp', .9), await send(dB, 'doors.webp', .88), await send(crop(fLit, g.plate, g.pan), 'lit.webp', .9), await send(crop(fHere, g.plate, g.pan), 'here.webp', .9)];
   }
   return sizes;
 }
