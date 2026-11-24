@@ -1483,8 +1483,7 @@ async function bake(list = BUCKETS, url = 'http://localhost:8766/') {
   const sizes = {}; busy = true; CFG.shaftLight = 0;
   for (const W of list) {
     bakeSize = [W, BAKE_H]; viewSize(); build();
-    if (G.fig) G.fig.visible = false;
-    if (G.mirror) { G.mirror.visible = false; for (const m of G.over || []) m.visible = false; M.doorL.envMapIntensity = M.doorR.envMapIntensity = 1; }   // the pictures carry no mirror reflections
+    if (G.fig) G.fig.visible = false;   // the pictures keep the room's reflection in the steel, but not the passenger's
     for (let i = 0; i < 10; i++) { step(); await wait(120); }
     cab.updateMatrixWorld(true); const g = flatGeom();
     const shot = async (closed, panned, lens) => { cVal = closed ? 1 : 0; turned = panned; turnT = panned ? 1 : 0; turnV = 0; if (outMat.uniforms.lens) outMat.uniforms.lens.value = lens; step(); await wait(60); step(); return grab(); };
