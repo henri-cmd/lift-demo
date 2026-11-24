@@ -50,7 +50,7 @@ html.plainmode #lift3d .plainpage{position:absolute; inset:0; z-index:8; overflo
 html.plainmode #lift3d .plainpage .floor{position:relative; top:auto}
 html.plainmode #lift3d > :not(.plainpage):not(.loading){display:none !important}
 /* without graphics acceleration every blur and blend is drawn by the processor on every frame, so flat mode uses none */
-html.flatmode #lift3d .grain{display:none}
+html.flatmode #lift3d .grain,html.flatmode #lift3d .ftab,html.flatmode #lift3d .snd,html.flatmode #lift3d .coach,html.flatmode #lift3d .t-snd{display:none !important}
 html.flatmode #lift3d *,html.flatmode .fg-scrim,html.flatmode .fg-card,html.flatmode .fg-pill{-webkit-backdrop-filter:none !important; backdrop-filter:none !important}
 html.flatmode .fg-scrim{background:var(--fg-scrim-solid, rgba(20,22,26,.86)) !important}
 html.flatmode .fg-scrim:after{display:none}
@@ -275,13 +275,13 @@ const SHADOWS = !MOBILE;
    still built, so framing, clicks and timing are identical); what you see is assembled from pictures of the real cab that were
    rendered ahead of time at a range of window shapes (assets/anz/flat/). ?flat forces it; ?bake re-renders the pictures. */
 const BAKE = /[?&]bake\b/.test(location.search);
-let FLAT = /[?&]flat\b/.test(location.search) && !BAKE;   // the picture-built lift is kept, but only on request
-const NOGL = !!window.__flat && !FLAT && !BAKE;
+let FLAT = (/[?&]flat\b/.test(location.search) || !!window.__flat) && !BAKE;   // no 3D graphics: the picture-built lift (no reflections, no slide to the panel, no sound)
+const NOGL = /[?&]plain\b/.test(location.search) && !BAKE;   // ?plain: just the sections, no lift
 let renderer = null;   // try gentler settings before giving up on 3D
 if (!FLAT && !NOGL) for (const o of [{ antialias: true, alpha: true }, { antialias: false, alpha: true, powerPreference: 'low-power' }, { antialias: false, alpha: true, failIfMajorPerformanceCaveat: false }]) {
   try { renderer = new THREE.WebGLRenderer(o); break; } catch (e) { renderer = null; }
 }
-if (!renderer && !FLAT) {   // no 3D graphics here: show the sections as an ordinary page, with no lift around them
+if (NOGL) {   // on request: show the sections as an ordinary page, with no lift around them
   document.documentElement.classList.add('plainmode');
   const pg = document.createElement('div'); pg.className = 'plainpage';
   CFG.floors.forEach((f, i) => { const d = document.createElement('section'); d.className = 'floor'; d.style.backgroundColor = f.bg || '#111';
@@ -1211,7 +1211,7 @@ function overPlate(e) { if (!G.plate) return false; ndc.set(mx(e) / VW * 2 - 1, 
 const ftab = root.querySelector('.ftab');
 const panelHold = false;
 const TMPV = new THREE.Vector3();
-function lookAtPanel(on) { onPanel = false; if (on) root.classList.add('seen-panel'); if (!on && turned) hoverArmed = false; turned = on; ftab.textContent = on ? '← Doors' : 'Floors →'; clearTimeout(hoverTimer); hoverTimer = 0; }
+function lookAtPanel(on) { if (FLAT && on) return; onPanel = false; if (on) root.classList.add('seen-panel'); if (!on && turned) hoverArmed = false; turned = on; ftab.textContent = on ? '← Doors' : 'Floors →'; clearTimeout(hoverTimer); hoverTimer = 0; }
 ftab.addEventListener('click', e => { e.stopPropagation(); lookAtPanel(!turned); });
 
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -1547,12 +1547,12 @@ if (MOBILE) root.querySelector('.hint').textContent = 'Swipe up ↑';
   const until = (done, ms) => new Promise(r => { const t0 = performance.now(), iv = setInterval(() => { if (done() || performance.now() - t0 > ms) { clearInterval(iv); r(); } }, 150); });
   // one at a time, in order: sound, then scrolling, then the floor buttons (and the way back from them). Each moves on once you have done it, or after a few seconds.
   (async () => { await until(() => !document.querySelector('.fg'), 6e5); await pause(1400);
-    if (!soundOn) { sndBtn.classList.add('nudge'); sndBtn.textContent = 'Turn sound on'; tipSnd.classList.add('on');
+    if (!soundOn && !FLAT) { sndBtn.classList.add('nudge'); sndBtn.textContent = 'Turn sound on'; tipSnd.classList.add('on');
       await until(() => !sndBtn.classList.contains('nudge'), 8000);
       tipSnd.classList.remove('on'); if (sndBtn.classList.contains('nudge')) { sndBtn.classList.remove('nudge'); sndBtn.textContent = 'Sound off'; } await pause(500); }
     { tipScroll.classList.add('on'); const y0 = pageEl.scrollTop, t0 = performance.now();   // always shown, even if they have already scrolled by accident; it goes once they scroll on from here
       await until(() => performance.now() - t0 > 1800 && Math.abs(pageEl.scrollTop - y0) > 140, 9000); tipScroll.classList.remove('on'); await pause(500); }
-    if (!root.classList.contains('seen-panel') && (G.pan > .08 || MOBILE)) { coach.classList.add('on'); await until(() => root.classList.contains('seen-panel'), 6e5); coach.classList.remove('on');
+    if (!root.classList.contains('seen-panel') && (G.pan > .08 || MOBILE) && !FLAT) { coach.classList.add('on'); await until(() => root.classList.contains('seen-panel'), 6e5); coach.classList.remove('on');
       if (turned && !busy) { back.classList.add('on');
         const place = () => { if (!back.classList.contains('on')) return; if (G.plateLeft) back.style.right = Math.max(0, VW - (TMPV.copy(G.plateLeft).project(camera).x * .5 + .5) * VW + 22) + 'px'; requestAnimationFrame(place); }; place();   // keeps to the panel's left edge as the view slides
         await until(() => !turned || busy, 15000); back.classList.remove('on'); } }   // they found the panel: show the way back at once
@@ -1564,7 +1564,7 @@ setIndicator(0);
 function flatGeom() {
   const W = bucketW, H = BAKE_H, FZ = .05, ZD = -.035, pk = z => (H / 2) / Math.tan(G.vfov / 2) / (G.D - z);
   const X = (wx, z) => W / 2 + wx * pk(z), Y = (wy, z) => H / 2 - (wy - G.eye) * pk(z);
-  const pan = Math.round(G.pan * pk(FZ));                                          // how far the front wall slides across the screen on the way to the panel
+  const pan = 0;   // the picture lift never slides across to the panel
   const rect = (o, pad) => { const b = new THREE.Box3().setFromObject(o), z = b.max.z, x = Math.floor(X(b.min.x, z)) - pad, y = Math.floor(Y(b.max.y, z)) - pad;
     return { x, y, w: Math.ceil(X(b.max.x, z)) + pad - x, h: Math.ceil(Y(b.min.y, z)) + pad - y }; };
   const dx = Math.max(0, Math.floor(X(-G.ow / 2, ZD)) - 24), dy = Math.max(0, Math.floor(Y(G.oh, ZD)) - 24);
@@ -1616,17 +1616,16 @@ async function bake(list = BUCKETS, url = 'http://localhost:8766/') {
   const sizes = {}; busy = true; CFG.shaftLight = 0;
   for (const W of list) {
     bakeSize = [W, BAKE_H]; viewSize(); build();
+    if (G.fig) G.fig.visible = false;
+    if (G.mirror) { G.mirror.visible = false; for (const m of G.over || []) m.visible = false; M.doorL.envMapIntensity = M.doorR.envMapIntensity = 1; }   // the pictures carry no mirror reflections
     for (let i = 0; i < 10; i++) { step(); await wait(120); }
     cab.updateMatrixWorld(true); const g = flatGeom();
     const shot = async (closed, panned, lens) => { cVal = closed ? 1 : 0; turned = panned; turnT = panned ? 1 : 0; turnV = 0; if (outMat.uniforms.lens) outMat.uniforms.lens.value = lens; step(); await wait(60); step(); return grab(); };
     lights(0, 0, 0);
-    const fClosed = await shot(true, false, 1), f0 = await shot(false, false, 0), f1 = await shot(false, true, 0);
-    lights(.82, .32, 0); const fHere = await shot(false, true, 0);
-    lights(1, 1, 1); const fLit = await shot(false, true, 0); lights(0, 0, 0);
-    // one wide picture of the front wall: the doors view on the left, the panel view on the right, cross-faded just right of the door frame
-    const bl = 36, part = (im, off, from, to) => { const t = canvas(g.wide, g.H), q = t.getContext('2d'); q.drawImage(im, off, 0); q.globalCompositeOperation = 'destination-in';
-      const gr = q.createLinearGradient(g.split - bl, 0, g.split, 0); gr.addColorStop(0, `rgba(0,0,0,${from})`); gr.addColorStop(1, `rgba(0,0,0,${to})`); q.fillStyle = gr; q.fillRect(0, 0, g.wide, g.H); return t; };
-    const wide = canvas(g.wide, g.H), x = wide.getContext('2d'); x.globalCompositeOperation = 'lighter'; x.drawImage(part(f0, 0, 1, 0), 0, 0); x.drawImage(part(f1, g.pan, 0, 1), 0, 0);
+    const fClosed = await shot(true, false, 1), f0 = await shot(false, false, 0);
+    lights(.82, .32, 0); const fHere = await shot(false, false, 0);
+    lights(1, 1, 1); const fLit = await shot(false, false, 0); lights(0, 0, 0);
+    const wide = f0;
     const crop = (im, r, off = 0) => { const c = canvas(r.w, r.h); c.getContext('2d').drawImage(im, off - r.x, -r.y); return c; };
     sizes[W] = [await send(wide, 'cab.webp', .9), await send(crop(fClosed, g.doors), 'doors.webp', .88), await send(crop(fLit, g.plate, g.pan), 'lit.webp', .9), await send(crop(fHere, g.plate, g.pan), 'here.webp', .9)];
   }
