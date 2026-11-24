@@ -12,7 +12,8 @@
   // No WebGL (hardware acceleration off, blocked graphics card, remote desktop…): go straight to the 2D lift, which needs none
   window.liftLite = function () { if (!window.__lite) { window.__lite = 1; location.replace('lite.html'); } };
   (function () { var gl = null; try { var c = document.createElement('canvas'); gl = c.getContext('webgl2'); } catch (e) {}
-    if (!gl || /[?&](nogl|flat)\b/.test(location.search)) window.__flat = true; })();
+    var safari = /Safari\//.test(navigator.userAgent) && !/Chrom|Edg\/|OPR\/|CriOS|FxiOS|EdgiOS|Android/.test(navigator.userAgent) && !navigator.maxTouchPoints && !/[?&]3d\b/.test(location.search);   // Safari on a computer gets the 2D lift too (?3d forces the 3D one)
+    if (!gl || safari || /[?&](nogl|flat)\b/.test(location.search)) window.__flat = true; })();
   var errs = [];
   addEventListener('error', function (e) { var t = e.target, src = t && t !== window && (t.src || t.href); errs.push(src ? 'could not load ' + String(src).split('/').slice(-2).join('/') : (e.message || 'error') + (e.lineno ? ' (line ' + e.lineno + ')' : '')); }, true);
   addEventListener('unhandledrejection', function (e) { errs.push(String((e.reason && e.reason.message) || e.reason)); });
