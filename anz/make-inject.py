@@ -5,8 +5,8 @@ Paste into the Readymag project's custom code (end of <body>):
     <script type="module" src="https://henri-cmd.github.io/lift-demo/anz/inject.js"></script>
 
 The script draws the cab over the Readymag site, fits the site's stacked pages into the doorway and uses them as the floors.
-It does nothing (the site is left exactly as it is) on touch devices, small windows, browsers without WebGL, inside an iframe,
-or if the project is not set to stack its pages vertically.   Re-run after editing index.html:   python3 anz/make-inject.py
+It does nothing (the site is left exactly as it is) on touch devices, small windows, inside an iframe,
+or if the project is not set to stack its pages vertically. Without WebGL it shows the 2D picture lift.   Re-run after editing index.html:   python3 anz/make-inject.py
 """
 import os, re, json
 here = os.path.dirname(os.path.abspath(__file__))
@@ -36,7 +36,8 @@ window.__liftBase = BASE;
 { const g = document.createElement('script'); g.src = BASE + 'assets/finch-gate.js'; document.head.appendChild(g); }   // the Finch viewing gate (it decides for itself when to show)
 { // leave the site alone where the lift cannot or should not run
   let gl = null; try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
-  if (!gl || window.top !== window || matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 600) await never();
+  if (!gl || /[?&](nogl|flat)\b/.test(location.search)) window.__flat = true;   // no 3D graphics: the lift is put together from pictures instead
+  if (window.top !== window || matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 600) await never();
 }
 const mag = await new Promise(res => { const t0 = Date.now(); (function poll() {
   const R = window.RM, m = R && R.viewerRouter && R.viewerRouter.mag, el = document.querySelector('main.mag');

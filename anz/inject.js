@@ -5,7 +5,8 @@ window.__liftBase = BASE;
 { const g = document.createElement('script'); g.src = BASE + 'assets/finch-gate.js'; document.head.appendChild(g); }   // the Finch viewing gate (it decides for itself when to show)
 { // leave the site alone where the lift cannot or should not run
   let gl = null; try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
-  if (!gl || window.top !== window || matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 600) await never();
+  if (!gl || /[?&](nogl|flat)\b/.test(location.search)) window.__flat = true;   // no 3D graphics: the lift is put together from pictures instead
+  if (window.top !== window || matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 600) await never();
 }
 const mag = await new Promise(res => { const t0 = Date.now(); (function poll() {
   const R = window.RM, m = R && R.viewerRouter && R.viewerRouter.mag, el = document.querySelector('main.mag');
@@ -952,7 +953,7 @@ function build() {
   wallEl.style.width = Math.ceil(ow * G.pk) + 'px'; wallEl.style.height = Math.ceil(VH - pageTop + 14) + 'px';
   wallEl.style.setProperty('--mx', '0px');
   if (!wallEl.parentNode) pageLayer.appendChild(wallEl);
-  if (HOST) hostFit(VW / 2 - ow / 2 * G.pk, pageTop, Math.ceil(ow * G.pk));
+  if (HOST) hostFit(OX + (VW / 2 - ow / 2 * G.pk) * SX, OY + pageTop * SY, Math.ceil(ow * G.pk * SX));
   placePage(0, eye);
 
   camera.aspect = aspect; camera.updateProjectionMatrix();
@@ -1501,7 +1502,7 @@ async function bake(list = BUCKETS, url = 'http://localhost:8766/') {
 let resizeT = 0, lastW = innerWidth, lastH = innerHeight;
 addEventListener('resize', () => {
   if (hostBusy) return;
-  if (HOST) { clearTimeout(resizeT); resizeT = setTimeout(() => { lastW = innerWidth; lastH = innerHeight; viewSize(); build(); }, 140); return; }
+  if (HOST) { clearTimeout(resizeT); resizeT = setTimeout(() => { lastW = innerWidth; lastH = innerHeight; viewSize(); build(); if (FLAT) flatBuild(); }, 140); return; }
   if (innerWidth === lastW && Math.abs(innerHeight - lastH) < 90 && MOBILE) return;   // a phone's toolbars sliding in and out isn't a real resize
   clearTimeout(resizeT); resizeT = setTimeout(() => {
     lastW = innerWidth; lastH = innerHeight;

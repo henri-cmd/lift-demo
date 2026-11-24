@@ -1086,7 +1086,7 @@ function build() {
   wallEl.style.width = Math.ceil(ow * G.pk) + 'px'; wallEl.style.height = Math.ceil(VH - pageTop + 14) + 'px';
   wallEl.style.setProperty('--mx', '0px');
   if (!wallEl.parentNode) pageLayer.appendChild(wallEl);
-  if (HOST) hostFit(VW / 2 - ow / 2 * G.pk, pageTop, Math.ceil(ow * G.pk));
+  if (HOST) hostFit(OX + (VW / 2 - ow / 2 * G.pk) * SX, OY + pageTop * SY, Math.ceil(ow * G.pk * SX));
   placePage(0, eye);
 
   camera.aspect = aspect; camera.updateProjectionMatrix();
@@ -1635,7 +1635,7 @@ async function bake(list = BUCKETS, url = 'http://localhost:8766/') {
 let resizeT = 0, lastW = innerWidth, lastH = innerHeight;
 addEventListener('resize', () => {
   if (hostBusy) return;
-  if (HOST) { clearTimeout(resizeT); resizeT = setTimeout(() => { lastW = innerWidth; lastH = innerHeight; viewSize(); build(); }, 140); return; }
+  if (HOST) { clearTimeout(resizeT); resizeT = setTimeout(() => { lastW = innerWidth; lastH = innerHeight; viewSize(); build(); if (FLAT) flatBuild(); }, 140); return; }
   if (innerWidth === lastW && Math.abs(innerHeight - lastH) < 90 && MOBILE) return;   // a phone's toolbars sliding in and out isn't a real resize
   clearTimeout(resizeT); resizeT = setTimeout(() => {
     lastW = innerWidth; lastH = innerHeight;
