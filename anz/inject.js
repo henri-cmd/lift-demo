@@ -1108,7 +1108,7 @@ function initAudio() {
   g.connect(spk).connect(master); mus = { gain: g, next: 0, step: 0 };
 }
 const sndBtn = root.querySelector('.snd');
-sndBtn.addEventListener('click', e => { e.stopPropagation(); sndBtn.classList.remove('nudge'); soundOn = !soundOn; initAudio(); if (ac && ac.state === 'suspended') ac.resume(); sndBtn.textContent = soundOn ? 'Sound on' : 'Sound off'; if (!soundOn) { humOff(); musicOff(); } });
+sndBtn.addEventListener('click', e => { e.stopPropagation(); sndBtn.classList.remove('nudge'); soundOn = !soundOn; initAudio(); if (ac && ac.state === 'suspended') ac.resume(); sndBtn.textContent = soundOn ? 'Sound on' : 'Sound off'; if (!soundOn) { humOff(); musicOff(); if (callClip && !callClip.paused) { callClip.pause(); callClip.onended(); } } });
 const noise = (t, dur) => { const n = ac.createBufferSource(); n.buffer = noiseBuf; n.start(t, Math.random()); n.stop(t + dur); return n; };
 function ding(dir, vol = .3) {   // once going up, twice going down — like real car lanterns
   if (!soundOn || !ac) return;
@@ -1152,9 +1152,10 @@ function alarmSound() {   // old-school alarm bell: fast repeated strikes
   for (let i = 0; i < 26; i++) [[1, .5], [2.4, .25], [4.1, .1]].forEach(([m, g]) => { const o = ac.createOscillator(), e = ac.createGain(), t0 = t + i * .095; o.frequency.value = 1480 * m;
     e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g * .12, t0 + .003); e.gain.exponentialRampToValueAtTime(.0001, t0 + .16); o.connect(e).connect(master); o.start(t0); o.stop(t0 + .18); });
 }
-function callSound() {    // intercom ring: two short bursts
+const RING_GAP = 1.5, RINGS = 3;
+function callSound() {    // intercom ring: two short bursts, three times over
   if (!soundOn || !ac) return; const t = ac.currentTime;
-  [0, .55].forEach(d => { const o = ac.createOscillator(), m = ac.createOscillator(), g = ac.createGain(), mg = ac.createGain(); o.frequency.value = 440; m.frequency.value = 20; mg.gain.value = .04;
+  for (let r = 0; r < RINGS; r++) [r * RING_GAP, r * RING_GAP + .55].forEach(d => { const o = ac.createOscillator(), m = ac.createOscillator(), g = ac.createGain(), mg = ac.createGain(); o.frequency.value = 440; m.frequency.value = 20; mg.gain.value = .04;
     g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(.08, t + d + .02); g.gain.setValueAtTime(.08, t + d + .35); g.gain.linearRampToValueAtTime(0, t + d + .38);
     m.connect(mg).connect(g.gain); o.connect(g).connect(master); o.start(t + d); m.start(t + d); o.stop(t + d + .4); m.stop(t + d + .4); });
 }
@@ -1245,12 +1246,18 @@ async function go(t) {
 function flashButton(k) { clickSound(); pressButton(k); btnRings[k].userData.lit = true; markHere(curShown); setTimeout(() => { btnRings[k].userData.lit = false; markHere(curShown); }, 320); }
 function pressButton(k) { const b = typeof k === 'number' ? btnMeshes[k] : k; if (!b) return; const z = b.userData.z0 ?? (b.userData.z0 = b.position.z); b.position.z = z - .006; setTimeout(() => { b.position.z = z; }, 170); }
 function flash(text, ms) { flashText = text; drawIndicator(); setTimeout(() => { flashText = null; drawIndicator(); }, ms); }
-let alarmUntil = 0;
+let alarmUntil = 0, callBusy = false, callClip = null;
 async function liftFn(fn, b) {
   clickSound(); pressButton(b);
   const lit = () => setLight(b.userData.L, 1, 1, fn === 'alarm' ? 0 : 1), off = () => setLight(b.userData.L, 0, 0, 0);
   lit();
   if (fn === 'alarm') { alarmUntil = performance.now() + 2600; alarmSound(); flash('ALARM', 2600); setTimeout(off, 2600); return; }
+  if (fn === 'call' && soundOn && ac) {   // three rings, then someone picks up: the recording plays
+    if (callBusy) return; callBusy = true; callSound(); flashText = 'CALLING'; drawIndicator();
+    const done = () => { if (!callBusy) return; callBusy = false; flashText = null; drawIndicator(); off(); };
+    const a = callClip || (callClip = new Audio(AB + 'assets/anz/call.m4a')); a.preload = 'auto'; a.onended = a.onerror = done; a.load();
+    setTimeout(() => { if (!soundOn) return done(); a.currentTime = 0; a.volume = 1; const p = a.play(); if (p && p.catch) p.catch(done); }, RINGS * RING_GAP * 1000);
+    return; }
   if (fn === 'call') { callSound(); flash('CALLING', 2200); setTimeout(off, 2200); if (CFG.contactEmail) setTimeout(() => { location.href = 'mailto:' + CFG.contactEmail; }, 900); return; }
   if (busy) { setTimeout(off, 250); return; }
   busy = true; root.classList.add('busy');
