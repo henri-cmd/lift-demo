@@ -1152,8 +1152,17 @@ function alarmSound() {   // old-school alarm bell: fast repeated strikes
   for (let i = 0; i < 26; i++) [[1, .5], [2.4, .25], [4.1, .1]].forEach(([m, g]) => { const o = ac.createOscillator(), e = ac.createGain(), t0 = t + i * .095; o.frequency.value = 1480 * m;
     e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g * .12, t0 + .003); e.gain.exponentialRampToValueAtTime(.0001, t0 + .16); o.connect(e).connect(master); o.start(t0); o.stop(t0 + .18); });
 }
-const RING_GAP = 1.5, RINGS = 3;
-function callSound() {    // intercom ring: two short bursts, three times over
+const RING_GAP = 1.5, RINGS = 2;
+function pickupSound() {   // a handset being lifted: two quick clicks, a soft thump, then a breath of open line
+  if (!soundOn || !ac) return; const t = ac.currentTime;
+  [[0, .5, 2600], [.07, .32, 1700]].forEach(([d, v, fq]) => { const n = noise(t + d, .03), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.frequency.value = fq; f.Q.value = 1.2;
+    g.gain.setValueAtTime(v, t + d); g.gain.exponentialRampToValueAtTime(.0001, t + d + .028); n.connect(f).connect(g).connect(master); });
+  { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(70, t + .09);
+    g.gain.setValueAtTime(.22, t); g.gain.exponentialRampToValueAtTime(.0001, t + .11); o.connect(g).connect(master); o.start(t); o.stop(t + .12); }
+  { const n = noise(t + .1, .5), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = .6;
+    g.gain.setValueAtTime(0, t + .1); g.gain.linearRampToValueAtTime(.02, t + .16); g.gain.linearRampToValueAtTime(0, t + .6); n.connect(f).connect(g).connect(master); }
+}
+function callSound() {    // intercom ring: two short bursts, twice over
   if (!soundOn || !ac) return; const t = ac.currentTime;
   for (let r = 0; r < RINGS; r++) [r * RING_GAP, r * RING_GAP + .55].forEach(d => { const o = ac.createOscillator(), m = ac.createOscillator(), g = ac.createGain(), mg = ac.createGain(); o.frequency.value = 440; m.frequency.value = 20; mg.gain.value = .04;
     g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(.08, t + d + .02); g.gain.setValueAtTime(.08, t + d + .35); g.gain.linearRampToValueAtTime(0, t + d + .38);
@@ -1252,11 +1261,12 @@ async function liftFn(fn, b) {
   const lit = () => setLight(b.userData.L, 1, 1, fn === 'alarm' ? 0 : 1), off = () => setLight(b.userData.L, 0, 0, 0);
   lit();
   if (fn === 'alarm') { alarmUntil = performance.now() + 2600; alarmSound(); flash('ALARM', 2600); setTimeout(off, 2600); return; }
-  if (fn === 'call' && soundOn && ac) {   // three rings, then someone picks up: the recording plays
+  if (fn === 'call' && soundOn && ac) {   // two rings, then someone picks up: the recording plays
     if (callBusy) return; callBusy = true; callSound(); flashText = 'CALLING'; drawIndicator();
     const done = () => { if (!callBusy) return; callBusy = false; flashText = null; drawIndicator(); off(); };
     const a = callClip || (callClip = new Audio(AB + 'assets/anz/call.m4a')); a.preload = 'auto'; a.onended = a.onerror = done; a.load();
-    setTimeout(() => { if (!soundOn) return done(); a.currentTime = 0; a.volume = 1; const p = a.play(); if (p && p.catch) p.catch(done); }, RINGS * RING_GAP * 1000);
+    const at = RINGS * RING_GAP * 1000 - 300; setTimeout(() => { if (callBusy) pickupSound(); }, at);
+    setTimeout(() => { if (!soundOn) return done(); a.currentTime = 0; a.volume = 1; const p = a.play(); if (p && p.catch) p.catch(done); }, at + 380);
     return; }
   if (fn === 'call') { callSound(); flash('CALLING', 2200); setTimeout(off, 2200); if (CFG.contactEmail) setTimeout(() => { location.href = 'mailto:' + CFG.contactEmail; }, 900); return; }
   if (busy) { setTimeout(off, 250); return; }
