@@ -987,9 +987,10 @@ function build() {
   const PS = Math.min(CFG.panelScale,   // one real-world size, whatever the window's shape
      (viewTop - .05 - (RAIL_Y + RAIL_H + .1)) / ph);
   const px = ow / 2 + pw * PS / 2 + .2, py = Math.max(1.3, RAIL_Y + RAIL_H + ph * PS / 2 + .09);   // clear of the handrail below
-  const bxs = c => -pw / 2 + .11 + c * ((pw - .22) / (cols - 1)), bys = r => ph / 2 - top - .06 - r * pitch;
+  const bxs = c => -pw / 2 + .11 + c * ((pw - .22) / (cols - 1)), bys = r => ph / 2 - top - .06 - r * pitch,
+    bxk = k => { const last = F.length % cols, r = Math.floor(k / cols); return bxs(k % cols + (last && r === rows - 1 ? (cols - last) / 2 : 0)); };   // a short last row sits centred
   const fy = bys(rows) - .05, fxs = k => -pw / 2 + .085 + k * ((pw - .17) / Math.max(1, fns.length - 1));
-  const labels = F.map((f, k) => [f.n.toUpperCase(), bxs(k % cols) + pw / 2, bys(Math.floor(k / cols)) - .068]).concat(fns.map((f, k) => [FN[f].label, fxs(k) + pw / 2, fy - .062]));
+  const labels = F.map((f, k) => [f.n.toUpperCase(), bxk(k) + pw / 2, bys(Math.floor(k / cols)) - .068]).concat(fns.map((f, k) => [FN[f].label, fxs(k) + pw / 2, fy - .062]));
   plane(pw + .16, ph + .16, new THREE.MeshBasicMaterial({ map: blobTex(), transparent: true, opacity: .4, depthWrite: false }), px + .008, py - .02, FZ + .0016);   // plate's soft shadow
   for (const sx of [-1, 1]) for (const sy of [-1, 1]) { const sc = new THREE.Mesh(new THREE.CylinderGeometry(.007, .007, .003, 20), M.steelPolished); sc.rotation.x = Math.PI / 2; sc.position.set(px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0155); cab.add(sc);
     box(.009, .0016, .0008, M.slot, px + sx * (pw / 2 - .028), py + sy * (ph / 2 - .028), FZ + .0172).rotation.z = .5 + sx * sy; }
@@ -1017,7 +1018,7 @@ function build() {
     LIGHTS.push(L); ring.userData.L = b.userData.L = L;
     return { ring, b };
   };
-  F.forEach((f, k) => { const { ring, b } = addButton(px + bxs(k % cols), py + bys(Math.floor(k / cols)), numberCap(k + 1), .031, 0x2a2a2a, capGlow(numberDraw(k + 1))); b.userData.floor = k; btnRings.push(ring); btnMeshes.push(b); });
+  F.forEach((f, k) => { const { ring, b } = addButton(px + bxk(k), py + bys(Math.floor(k / cols)), numberCap(k + 1), .031, 0x2a2a2a, capGlow(numberDraw(k + 1))); b.userData.floor = k; btnRings.push(ring); btnMeshes.push(b); });
   fns.forEach((f, k) => { const { ring, b } = addButton(px + fxs(k), py + fy, capTexture(g => { g.scale(1.45, 1.45); FN[f].draw(g); }), .029, f === 'alarm' ? 0x5a1512 : 0x2a2a2a, capGlow(g => { g.scale(1.45, 1.45); FN[f].draw(g); })); b.userData.fn = f; b.userData.ring = ring; fnMeshes.push(b); });
   { const pg = new THREE.Group(); pg.position.set(px, py, FZ); for (const o of cab.children.slice(panelStart)) { o.position.x -= px; o.position.y -= py; o.position.z -= FZ; pg.add(o); } pg.scale.setScalar(PS); cab.add(pg); }
   { const lw = pw * PS * .62, lh = lw * .34, ly = py + ph * PS / 2 + lh / 2 + .05;
