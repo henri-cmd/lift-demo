@@ -57,7 +57,8 @@ document.body.insertAdjacentHTML('beforeend', __SKELETON__);
     floors: mag.pages.map((p, i) => ({ n: String(p.title || '').trim() || 'Page ' + (i + 1), bg: '#111' })),
     fit(x, y, w, fixed) { fitCss.textContent = `main.mag{position:${fixed ? 'fixed' : 'absolute'} !important; left:${x.toFixed(1)}px !important; top:${y.toFixed(1)}px !important; width:${w}px !important} html{background:#0b0d10 !important}`; },
     height() { return magEl.offsetHeight; },
-    tops() { const out = []; let y = 0; for (const a of magEl.querySelectorAll('article.page')) { const h = a.offsetHeight; if (h) y = a.offsetTop; out.push(y); y += h; } return out; },
+    // pages further down are hidden until you get near them, so they measure as nothing: the site records where each one sits in its style
+    tops() { const out = []; let y = 0; for (const a of magEl.querySelectorAll('article.page')) { const t = parseFloat(a.style.top), h = a.offsetHeight || parseFloat(a.style.height) || 0; y = isFinite(t) ? t : h && a.offsetHeight ? a.offsetTop : y; out.push(y); y += h; } return out; },
     tail(h) { tail.style.top = '0'; tail.style.height = h + 'px'; },
   };
   // if the lift has not appeared after a while, take it away again so the site is usable
