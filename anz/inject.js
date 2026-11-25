@@ -62,7 +62,8 @@ try {
 
   // counts[i] is how many marker widgets page i carries (1 = first page). ready is true once every
   // page has been counted (or the wait ran out); until then nothing is written and markers stay invisible.
-  var counts = [], ready = false, started = false, t0 = Date.now();
+  var counts = [], ready = false, started = false, t0 = Date.now(), saveKey = '', seen = [];
+  function save() { if (saveKey) { try { localStorage.setItem(saveKey, JSON.stringify(counts)); } catch (e) {} } }
   function hasMarker(o) {
     var s = '';
     try { s = JSON.stringify(o); } catch (e) {}
@@ -90,31 +91,36 @@ try {
     var m = mag(), d = m || magData();                 // the viewer's mag object first (it has the loaded widgets), else the page data
     if (!d || !d.pages || !d.pages.length || !d.num_id) return;   // viewer not up yet: try again on the next tick
     started = true;
-    var preview = !!(m && m.isPreview), key = cacheKey(d);
+    var preview = !!(m && m.isPreview), key = cacheKey(d), fresh = [];
+    saveKey = preview ? '' : key;
+    // The saved count only gets the numbers up at once. It is always re-counted behind the scenes, because Readymag's
+    // publish stamp does not always change when markers are added or removed, and a stale count repeats numbers.
     if (!preview) {
-      try { var hit = localStorage.getItem(key); if (hit) { counts = JSON.parse(hit); done('counts from cache'); return; } } catch (e) {}
+      try { var hit = localStorage.getItem(key); if (hit) { counts = JSON.parse(hit); done('counts from cache'); } } catch (e) {}
     }
     var globals = countWidgets((m && m.staticGlobalWidgetsData) || d.globalWidgets);   // global widgets sit on every page
     var jobs = d.pages.map(function (p, i) {
-      if (p.hidden) { counts[i + 1] = 0; return Promise.resolve(); }
+      if (p.hidden) { fresh[i + 1] = 0; return Promise.resolve(); }
       var fetched = p.widgetsFetched || (p.wids && p.wids.length && typeof p.wids[0] === 'object');
       if (fetched) {                                   // already loaded (always so in preview): count it right here
         var list = p.widgetsData || p.wids || [];
         var hasGlobals = list.some(function (w) { return w && w.is_global; });
-        counts[i + 1] = countWidgets(list) + (hasGlobals ? 0 : globals);
+        fresh[i + 1] = countWidgets(list) + (hasGlobals ? 0 : globals);
         return Promise.resolve();
       }
       var url = '/api/viewer/project/' + d.num_id + '/widgets?pageId=' + p._id;
       return fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (list) {
         var own = (list || []).filter(function (w) { return !w.is_global; });
-        counts[i + 1] = globals + countWidgets(own);
+        fresh[i + 1] = globals + countWidgets(own);
       });
     });
     Promise.all(jobs).then(function () {
-      if (!preview) { try { localStorage.setItem(key, JSON.stringify(counts)); } catch (e) {} }
+      for (var i = 1; i < counts.length; i++) if (seen[i] && counts[i] > (fresh[i] || 0)) fresh[i] = counts[i];   // keep what the pages themselves showed
+      counts = fresh; save();
       done('counts');
     }, function (err) {
       if (CFG.debug) console.warn('[pg] widget fetch failed, numbering from rendered pages only', err);
+      if (ready) return;                               // the saved count is already in use: keep it
       counts = [];
       done('fallback');
     });
@@ -172,7 +178,8 @@ try {
       return;
     }
     var idx = pageIndex(art);
-    if (!(idx in counts) && groups.length > (counts[idx] || 0)) counts[idx] = groups.length;   // only when nothing was counted for this page
+    // The page in front of us outranks the count: if it carries more markers than were counted, the count was out of date.
+    if (groups.length > (counts[idx] || 0)) { counts[idx] = groups.length; seen[idx] = true; save(); setTimeout(numbers, 0); }
     groups.sort(byPlace);
     var base = before(idx);
     if (CFG.debug) console.log('[pg] page', idx, 'starts after', base, groups.map(function (g) { return g.el; }));
