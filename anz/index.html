@@ -1244,7 +1244,7 @@ function initAudio() {
   g.connect(spk).connect(master); mus = { gain: g, next: 0, step: 0 };
 }
 const sndBtn = root.querySelector('.snd');
-sndBtn.addEventListener('click', e => { e.stopPropagation(); sndBtn.classList.remove('nudge'); soundOn = !soundOn; initAudio(); if (ac && ac.state === 'suspended') ac.resume(); sndBtn.textContent = soundOn ? 'Sound on' : 'Sound off'; if (!soundOn) { humOff(); musicOff(); if (callClip && !callClip.paused) { callClip.pause(); callClip.onended(); } } });
+sndBtn.addEventListener('click', e => { e.stopPropagation(); sndBtn.classList.remove('nudge'); soundOn = !soundOn; initAudio(); if (soundOn) musicPrep(); if (ac && ac.state === 'suspended') ac.resume(); sndBtn.textContent = soundOn ? 'Sound on' : 'Sound off'; if (!soundOn) { humOff(); musicOff(); if (callClip && !callClip.paused) { callClip.pause(); callClip.onended(); } } });
 const noise = (t, dur) => { const n = ac.createBufferSource(); n.buffer = noiseBuf; n.start(t, Math.random()); n.stop(t + dur); return n; };
 function ding(dir, vol = .3) {   // once going up, twice going down — like real car lanterns
   if (!soundOn || !ac) return;
@@ -1345,8 +1345,14 @@ function scheduleMuzak() {
     mus.next += EIGHTH * (st % 2 ? .86 : 1.14); mus.step++;
   }
 }
-function musicOn() { if (!soundOn || !mus) return; clearInterval(musTimer); musTimer = setInterval(scheduleMuzak, 100); mus.gain.gain.setTargetAtTime(CFG.musicVolume, ac.currentTime, .3); }
-function musicOff() { if (!mus) return; mus.gain.gain.setTargetAtTime(0, ac.currentTime, .35); setTimeout(() => { if (!busy) clearInterval(musTimer); }, 1600); }
+// The lift music is a recording (assets/anz/music.m4a). It fades in for a button ride and out on arrival, and picks up
+// where it left off on the next ride rather than starting again each time.
+let musClip = null, musFade = 0;
+function musicPrep() { if (!musClip) { musClip = new Audio(AB + 'assets/anz/music.m4a'); musClip.loop = true; musClip.preload = 'auto'; musClip.volume = 0; } return musClip; }
+function musicFade(to, ms, then) { clearInterval(musFade); const a = musClip, from = a.volume, t0 = performance.now();
+  musFade = setInterval(() => { const k = Math.min(1, (performance.now() - t0) / ms); a.volume = clamp(from + (to - from) * k, 0, 1); if (k >= 1) { clearInterval(musFade); if (then) then(); } }, 40); }
+function musicOn() { if (!soundOn || CFG.musicVolume <= 0) return; const a = musicPrep(), p = a.play(); if (p && p.catch) p.catch(() => {}); musicFade(CFG.musicVolume, 900); }
+function musicOff() { if (!musClip || musClip.paused) return; musicFade(0, soundOn ? 1300 : 250, () => musClip.pause()); }
 
 /* ===== DOORS + RIDE ===== */
 let firstBell = false;
