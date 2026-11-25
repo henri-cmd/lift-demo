@@ -397,7 +397,7 @@ function drawIndicator(now = performance.now()) {
     g.restore(); };
   const chevron = (g, x, y, s, up, a) => { g.save(); g.translate(x, y); if (!up) g.scale(1, -1); g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = s * .2; g.lineCap = g.lineJoin = 'round';
     g.lineWidth = s * .17; g.beginPath(); g.moveTo(0, s * .55); g.lineTo(0, -s * .5); g.moveTo(-s * .42, -s * .08); g.lineTo(0, -s * .5); g.lineTo(s * .42, -s * .08); g.stroke(); g.restore(); };   // a full arrow: shaft and head
-  const split = t => { const k = t.indexOf(' '); return k < 0 ? [t, ''] : [t.slice(0, k), t.slice(k + 1)]; }, nice = t => t.charAt(0) + t.slice(1).toLowerCase();
+  const split = t => { const k = t.indexOf(' '); return k < 0 ? [t, ''] : [t.slice(0, k), t.slice(k + 1)]; }, nice = t => t.charAt(0) + t.slice(1).toLowerCase(), msg = t => t === t.toUpperCase() ? nice(t) : t;
   { const g = IND.g, W = IND_W, H = IND_H; backdrop(g, W, H);
     const line = (text, dy, a) => { if (!text || a <= 0) return; const [num, name] = split(text); g.save(); g.globalAlpha = a; g.fillStyle = '#fff'; g.textBaseline = 'alphabetic';
       g.font = `600 176px ${FONT}`; const nw = g.measureText(num).width; g.font = `400 108px ${FONT}`; const tw = name ? g.measureText(nice(name)).width : 0, gap = name ? 76 : 0, x0 = (W - nw - gap - tw) / 2;
@@ -405,7 +405,7 @@ function drawIndicator(now = performance.now()) {
       if (name) { g.fillStyle = 'rgba(255,255,255,.45)'; g.fillRect(x0 + nw + gap / 2 - 1.5, 52 + dy, 3, 124); g.fillStyle = '#fff'; g.font = `400 108px ${FONT}`; g.fillText(nice(name), x0 + nw + gap, 150 + dy); }
       g.restore(); };
     g.save(); g.beginPath(); g.rect(0, 0, W, 200); g.clip();
-    if (flashText) { g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.font = `400 108px ${FONT}`; g.fillText(nice(flashText), W / 2, 150); g.textAlign = 'left'; }   // messages (Alarm, Calling) in the floor name's type, not the number's
+    if (flashText) { g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.font = `400 108px ${FONT}`; g.fillText(msg(flashText), W / 2, 150); g.textAlign = 'left'; }   // messages (Alarm, Calling) in the floor name's type, not the number's
     else if (roll) { line(roll.from, -roll.dir * ease * 150, 1 - ease); line(indText, roll.dir * (1 - ease) * 150, ease); }
     else line(indText, 0, 1);
     g.restore();
@@ -416,8 +416,9 @@ function drawIndicator(now = performance.now()) {
   // --- panel display: floor number + travel arrow, same screen
   { const g = PSC.g, W = 512, H = 256; backdrop(g, W, H);
     const num = (text, dy, a) => { if (a <= 0) return; g.save(); g.globalAlpha = a; g.fillStyle = '#fff'; g.font = `600 190px ${FONT}`; g.textAlign = 'center'; g.fillText(text, W * .62, 194 + dy); g.restore(); };
-    if (roll) { num(split(roll.from)[0], -roll.dir * ease * 150, 1 - ease); num(String(curShown + 1), roll.dir * (1 - ease) * 150, ease); } else num(String(curShown + 1), 0, 1);
-    lampTri(g, 108, 128, 82, indDir > 0, indDir !== 0 && blinkOk);
+    if (flashText) { const ls = msg(flashText).split(' '); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.font = `400 ${ls.length > 1 ? 84 : 96}px ${FONT}`; ls.forEach((l, i) => g.fillText(l, W / 2, (ls.length > 1 ? 112 : 160) + i * 96)); g.textAlign = 'left'; }   // messages fill the panel screen too
+    else if (roll) { num(split(roll.from)[0], -roll.dir * ease * 150, 1 - ease); num(String(curShown + 1), roll.dir * (1 - ease) * 150, ease); } else num(String(curShown + 1), 0, 1);
+    if (!flashText) lampTri(g, 108, 128, 82, indDir > 0, indDir !== 0 && blinkOk);
     PSC.tex.needsUpdate = true; }
   if (roll && kRoll >= 1) roll = null;
 }
@@ -1153,7 +1154,7 @@ function alarmSound() {   // old-school alarm bell: fast repeated strikes
   for (let i = 0; i < 26; i++) [[1, .5], [2.4, .25], [4.1, .1]].forEach(([m, g]) => { const o = ac.createOscillator(), e = ac.createGain(), t0 = t + i * .095; o.frequency.value = 1480 * m;
     e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(g * .12, t0 + .003); e.gain.exponentialRampToValueAtTime(.0001, t0 + .16); o.connect(e).connect(master); o.start(t0); o.stop(t0 + .18); });
 }
-const RING_GAP = 1.5, RINGS = 2;
+const RING_GAP = 2.4, RINGS = 2;
 function pickupSound() {   // a handset being lifted: two quick clicks, a soft thump, then a breath of open line
   if (!soundOn || !ac) return; const t = ac.currentTime;
   [[0, .5, 2600], [.07, .32, 1700]].forEach(([d, v, fq]) => { const n = noise(t + d, .03), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.frequency.value = fq; f.Q.value = 1.2;
@@ -1263,10 +1264,10 @@ async function liftFn(fn, b) {
   lit();
   if (fn === 'alarm') { alarmUntil = performance.now() + 2600; alarmSound(); flash('ALARM', 2600); setTimeout(off, 2600); return; }
   if (fn === 'call' && soundOn && ac) {   // two rings, then someone picks up: the recording plays
-    if (callBusy) return; callBusy = true; callSound(); flashText = 'CALLING'; drawIndicator();
+    if (callBusy) return; callBusy = true; callSound(); flashText = 'Calling Alex'; drawIndicator();
     const done = () => { if (!callBusy) return; callBusy = false; flashText = null; drawIndicator(); off(); };
     const a = callClip || (callClip = new Audio(AB + 'assets/anz/call.m4a')); a.preload = 'auto'; a.onended = a.onerror = done; a.load();
-    const at = RINGS * RING_GAP * 1000 - 300; setTimeout(() => { if (callBusy) pickupSound(); }, at);
+    const at = ((RINGS - 1) * RING_GAP + 1.25) * 1000; setTimeout(() => { if (callBusy) pickupSound(); }, at);
     setTimeout(() => { if (!soundOn) return done(); a.currentTime = 0; a.volume = 1; const p = a.play(); if (p && p.catch) p.catch(done); }, at + 380);
     return; }
   if (fn === 'call') { callSound(); flash('CALLING', 2200); setTimeout(off, 2200); if (CFG.contactEmail) setTimeout(() => { location.href = 'mailto:' + CFG.contactEmail; }, 900); return; }
